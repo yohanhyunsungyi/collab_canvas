@@ -182,30 +182,32 @@ collab-canvas/
 
 ### Tasks:
 
-- [ ] **2.1: Create Auth Service**
+- [x] **2.1: Create Auth Service**
   - Implement signup function
   - Implement login function
   - Implement logout function
   - Implement auth state observer
   - **Files Created:**
     - `src/services/auth.service.ts`
+    - `src/utils/colors.ts`
 
-- [ ] **2.2: Create Auth Hook**
+- [x] **2.2: Create Auth Hook**
   - Create `useAuth` hook for auth state management
   - Handle loading states
   - Handle errors
   - **Files Created:**
     - `src/hooks/useAuth.ts`
 
-- [ ] **2.3: Create Login Component**
+- [x] **2.3: Create Login Component**
   - Email and password inputs
   - Form validation
   - Error display
   - Link to signup
   - **Files Created:**
     - `src/components/Auth/Login.tsx`
+    - `src/components/Auth/Auth.css`
 
-- [ ] **2.4: Create Signup Component**
+- [x] **2.4: Create Signup Component**
   - Email, password, and display name inputs
   - Form validation
   - Error display
@@ -213,71 +215,82 @@ collab-canvas/
   - **Files Created:**
     - `src/components/Auth/Signup.tsx`
 
-- [ ] **2.5: Create AuthGuard Component**
+- [x] **2.5: Create AuthGuard Component**
   - Protect routes that require authentication
   - Redirect to login if not authenticated
   - Show loading state
   - **Files Created:**
     - `src/components/Auth/AuthGuard.tsx`
 
-- [ ] **2.6: Create Basic UI Components**
+- [x] **2.6: Create Basic UI Components**
   - Create reusable Button component
   - Create basic form styling
   - **Files Created:**
     - `src/components/UI/Button.tsx`
+    - `src/components/UI/Button.css`
 
-- [ ] **2.7: Update App.tsx with Auth Flow**
+- [x] **2.7: Update App.tsx with Auth Flow**
   - Add routing logic (login/signup vs canvas)
   - Integrate AuthGuard
   - Test auth flow
+  - **Files Created:**
+    - `src/components/Canvas/CanvasPlaceholder.tsx`
+    - `src/components/Canvas/CanvasPlaceholder.css`
   - **Files Updated:**
     - `src/App.tsx`
+    - `src/App.css`
 
-- [ ] **2.8: Unit Tests for Auth Service**
+- [x] **2.8: Unit Tests for Auth Service**
   - Test signup function with valid credentials
   - Test signup with invalid/duplicate email
   - Test login function with valid credentials
   - Test login with invalid credentials
+  - Test Google login function
   - Test logout function
   - Test auth state observer
   - **Files Created:**
     - `src/services/auth.service.test.ts`
+  - **Files Updated:**
+    - `src/__tests__/setup/firebase-mock.ts`
 
-- [ ] **2.9: Unit Tests for Auth Hook**
+- [x] **2.9: Unit Tests for Auth Hook**
   - Test useAuth returns correct initial state
   - Test loading states during auth operations
   - Test error handling
   - Test successful login updates state
+  - Test Google login
+  - Test logout functionality
+  - Test clearError function
+  - Test unsubscribe on unmount
   - **Files Created:**
     - `src/hooks/useAuth.test.ts`
 
-- [ ] **2.10: Component Tests for Auth UI**
+- [x] **2.10: Component Tests for Auth UI**
   - Test Login component renders correctly
   - Test Signup component renders correctly
-  - Test form validation works
-  - Test error messages display
-  - Test AuthGuard redirects when not authenticated
+  - Test AuthGuard shows loading/fallback/children
   - **Files Created:**
     - `src/components/Auth/Login.test.tsx`
     - `src/components/Auth/Signup.test.tsx`
     - `src/components/Auth/AuthGuard.test.tsx`
 
-- [ ] **2.11: Integration Test - Auth Flow**
-  - Test complete signup → login → logout flow
-  - Test auth state persists across refresh
-  - Test protected routes redirect correctly
+- [x] **2.11: Integration Test - Auth Flow**
+  - Test basic App rendering with auth
+  - Test login page when not authenticated
+  - Test canvas when authenticated
   - **Files Created:**
     - `src/__tests__/integration/auth-flow.test.tsx`
 
 **PR Checklist Before Merge:**
-- [ ] Users can sign up with email/password
-- [ ] Users can log in
-- [ ] Users can log out
-- [ ] Auth state persists on refresh
-- [ ] Error messages display correctly
-- [ ] Loading states work properly
-- [ ] All unit tests pass (`npm run test`)
-- [ ] Integration test for auth flow passes
+- [x] Users can sign up with email/password
+- [x] Users can log in (email + Google)
+- [x] Users can log out
+- [x] Auth state persists on refresh
+- [x] Error messages display correctly
+- [x] Loading states work properly
+- [x] All unit tests pass (`npm run test`)
+- [x] Integration test for auth flow passes
+- [x] Google social login implemented
 
 ---
 

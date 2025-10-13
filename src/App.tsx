@@ -1,41 +1,26 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-// Test Firebase import
-import app from './services/firebase'
+import { useState } from 'react';
+import { Login } from './components/Auth/Login';
+import { Signup } from './components/Auth/Signup';
+import { AuthGuard } from './components/Auth/AuthGuard';
+import { CanvasPlaceholder } from './components/Canvas/CanvasPlaceholder';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
-  const firebaseConnected = !!app
+  const [showSignup, setShowSignup] = useState(false);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>CollabCanvas</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Firebase: {firebaseConnected ? '✅ Connected' : '❌ Not Connected'}
-        </p>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <AuthGuard
+      fallback={
+        showSignup ? (
+          <Signup onSwitchToLogin={() => setShowSignup(false)} />
+        ) : (
+          <Login onSwitchToSignup={() => setShowSignup(true)} />
+        )
+      }
+    >
+      <CanvasPlaceholder />
+    </AuthGuard>
+  );
 }
 
-export default App
+export default App;

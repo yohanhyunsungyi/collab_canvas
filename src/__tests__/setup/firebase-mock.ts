@@ -8,6 +8,7 @@ export const mockAuth = {
   createUserWithEmailAndPassword: vi.fn(),
   signOut: vi.fn(),
   updateProfile: vi.fn(),
+  signInWithPopup: vi.fn(),
 };
 
 // Mock Firestore
@@ -48,6 +49,8 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
   updateProfile: vi.fn(),
+  signInWithPopup: vi.fn(),
+  GoogleAuthProvider: vi.fn(() => ({})),
 }));
 
 vi.mock('firebase/firestore', () => ({
