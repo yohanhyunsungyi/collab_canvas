@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import App from '../../App';
 import * as authService from '../../services/auth.service';
 
 vi.mock('../../services/auth.service');
+
+// Mock Konva components to avoid canvas errors in tests
+vi.mock('react-konva', () => ({
+  Stage: ({ children }: any) => <div data-testid="konva-stage">{children}</div>,
+  Layer: ({ children }: any) => <div data-testid="konva-layer">{children}</div>,
+  Rect: () => <div data-testid="konva-rect" />,
+}));
 
 describe('Auth Flow Integration', () => {
   beforeEach(() => {
@@ -51,7 +57,7 @@ describe('Auth Flow Integration', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Canvas Coming Soon/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'CollabCanvas' })).toBeInTheDocument();
     });
   });
 });

@@ -4,7 +4,6 @@ import {
   login, 
   logout, 
   loginWithGoogle,
-  getCurrentUser,
   onAuthStateChanged 
 } from './auth.service';
 import * as firebaseAuth from 'firebase/auth';
@@ -228,7 +227,7 @@ describe('Auth Service', () => {
       };
 
       const mockUnsubscribe = vi.fn();
-      vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation((auth, cb: any) => {
+      vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation((_auth, cb: any) => {
         cb(mockUser);
         return mockUnsubscribe;
       });
@@ -242,7 +241,7 @@ describe('Auth Service', () => {
     it('should call callback with null when user logs out', () => {
       const callback = vi.fn();
 
-      vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation((auth, cb: any) => {
+      vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation((_auth, cb: any) => {
         cb(null);
         return vi.fn();
       });

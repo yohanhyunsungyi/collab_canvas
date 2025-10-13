@@ -6,10 +6,10 @@ import {
   onAuthStateChanged as firebaseOnAuthStateChanged,
   signInWithPopup,
   GoogleAuthProvider,
-  User as FirebaseUser,
+  type User as FirebaseUser,
 } from 'firebase/auth';
 import { auth } from './firebase';
-import { User, SignupData, LoginData } from '../types/user.types';
+import type { User, SignupData, LoginData } from '../types/user.types';
 import { getUserColor } from '../utils/colors';
 
 /**

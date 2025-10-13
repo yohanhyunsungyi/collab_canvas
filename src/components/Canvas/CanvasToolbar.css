@@ -1,0 +1,86 @@
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.toolbar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tool-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 70px;
+}
+
+.tool-button:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+  transform: translateY(-1px);
+}
+
+.tool-button.active {
+  background: #4ECDC4;
+  border-color: #4ECDC4;
+  color: white;
+  box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
+}
+
+.tool-button.active:hover {
+  background: #45B7D1;
+  border-color: #45B7D1;
+}
+
+.tool-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.tool-button.active .tool-icon {
+  filter: brightness(1.2);
+}
+
+.tool-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.tool-button.active .tool-label {
+  color: white;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 40px;
+  background: #e0e0e0;
+}
+

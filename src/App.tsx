@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Login } from './components/Auth/Login';
 import { Signup } from './components/Auth/Signup';
 import { AuthGuard } from './components/Auth/AuthGuard';
-import { CanvasPlaceholder } from './components/Canvas/CanvasPlaceholder';
+import { Canvas } from './components/Canvas/Canvas';
 import './App.css';
 
 function App() {
@@ -18,7 +18,7 @@ function App() {
         )
       }
     >
-      <CanvasPlaceholder />
+      <Canvas />
     </AuthGuard>
   );
 }

@@ -52,3 +52,9 @@ export interface Transform {
   scaleY: number;
 }
 
+export interface Viewport {
+  x: number;
+  y: number;
+  scale: number;
+}
+

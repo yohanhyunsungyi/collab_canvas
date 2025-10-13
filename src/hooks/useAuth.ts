@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, SignupData, LoginData } from '../types/user.types';
+import type { User, SignupData, LoginData } from '../types/user.types';
 import * as authService from '../services/auth.service';
 
 interface UseAuthReturn {
