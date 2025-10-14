@@ -2,6 +2,7 @@ import { Rect, Circle, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../../types/canvas.types';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../utils/boundaries';
+import { isLockExpired } from '../../services/canvas.service';
 
 interface ShapeProps {
   shape: CanvasShape;
@@ -9,6 +10,9 @@ interface ShapeProps {
   onSelect: () => void;
   onDragMove: (id: string, x: number, y: number) => void;
   onDragEnd: (id: string, x: number, y: number) => void;
+  onLockAcquire: (shapeId: string) => Promise<boolean>;
+  onLockRelease: (shapeId: string) => void;
+  currentUserId?: string;
   shapeRef: (id: string, node: Konva.Node | null) => void;
 }
 
@@ -16,10 +20,56 @@ interface ShapeProps {
  * Generic Shape component that renders different Konva shapes
  * based on the shape type (rectangle, circle, text)
  */
-export const Shape = ({ shape, isSelected, onSelect, onDragMove, onDragEnd, shapeRef }: ShapeProps) => {
-  // Handle drag start
-  const handleDragStart = (e: Konva.KonvaEventObject<DragEvent>) => {
+export const Shape = ({ 
+  shape, 
+  isSelected, 
+  onSelect, 
+  onDragMove, 
+  onDragEnd, 
+  onLockAcquire,
+  onLockRelease,
+  currentUserId,
+  shapeRef 
+}: ShapeProps) => {
+  // Check if shape is locked by another user
+  const isLockedByOther = shape.lockedBy && 
+    shape.lockedBy !== currentUserId && 
+    !isLockExpired(shape.lockedAt);
+
+  // Handle mouse down - attempt to acquire lock
+  const handleMouseDown = async (e: Konva.KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
+    
+    // Don't allow interaction if locked by another user
+    if (isLockedByOther) {
+      console.log(`[Shape] Cannot interact - shape ${shape.id} is locked by ${shape.lockedBy}`);
+      return;
+    }
+    
+    // Attempt to acquire lock
+    if (currentUserId) {
+      await onLockAcquire(shape.id);
+    }
+  };
+
+  // Handle drag start
+  const handleDragStart = async (e: Konva.KonvaEventObject<DragEvent>) => {
+    e.cancelBubble = true;
+    
+    // Don't allow drag if locked by another user
+    if (isLockedByOther) {
+      e.target.stopDrag();
+      return;
+    }
+    
+    // Acquire lock on drag start
+    if (currentUserId) {
+      const acquired = await onLockAcquire(shape.id);
+      if (!acquired) {
+        e.target.stopDrag();
+        return;
+      }
+    }
   };
 
   // Handle drag move with boundary constraints
@@ -92,17 +142,20 @@ export const Shape = ({ shape, isSelected, onSelect, onDragMove, onDragEnd, shap
   const commonProps = {
     onClick: onSelect,
     onTap: onSelect,
-    // Make draggable only when selected
-    draggable: isSelected,
+    onMouseDown: handleMouseDown,
+    // Make draggable only when selected and not locked by another user
+    draggable: isSelected && !isLockedByOther,
     onDragStart: handleDragStart,
     onDragMove: handleDragMove,
     onDragEnd: handleDragEnd,
-    // Selection styling
-    stroke: isSelected ? '#00bcd4' : undefined,
-    strokeWidth: isSelected ? 3 : 0,
-    shadowColor: isSelected ? '#00bcd4' : undefined,
-    shadowBlur: isSelected ? 10 : 0,
-    shadowOpacity: isSelected ? 0.5 : 0,
+    // Selection and lock styling
+    stroke: isLockedByOther ? '#ff5722' : (isSelected ? '#00bcd4' : undefined),
+    strokeWidth: (isSelected || isLockedByOther) ? 3 : 0,
+    shadowColor: isLockedByOther ? '#ff5722' : (isSelected ? '#00bcd4' : undefined),
+    shadowBlur: (isSelected || isLockedByOther) ? 10 : 0,
+    shadowOpacity: (isSelected || isLockedByOther) ? 0.5 : 0,
+    // Change cursor style for locked shapes
+    opacity: isLockedByOther ? 0.7 : 1,
   };
 
   // Render based on shape type

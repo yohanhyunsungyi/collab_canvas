@@ -315,3 +315,102 @@ export const subscribeToShapes = (
   }
 };
 
+/**
+ * Lock timeout in milliseconds (30 seconds)
+ */
+const LOCK_TIMEOUT_MS = 30 * 1000;
+
+/**
+ * Check if a lock has expired
+ * @param lockedAt - Timestamp when lock was acquired
+ * @returns true if lock is expired or null
+ */
+export const isLockExpired = (lockedAt: number | null): boolean => {
+  if (lockedAt === null) return true;
+  return Date.now() - lockedAt > LOCK_TIMEOUT_MS;
+};
+
+/**
+ * Attempt to acquire a lock on a shape
+ * @param shapeId - The shape ID to lock
+ * @param userId - The user ID attempting to acquire the lock
+ * @returns Promise that resolves with true if lock acquired, false if already locked
+ */
+export const acquireLock = async (
+  shapeId: string,
+  userId: string
+): Promise<boolean> => {
+  try {
+    const shapeRef = doc(firestore, CANVAS_COLLECTION, shapeId);
+    
+    // First, fetch the current shape to check lock status
+    const shapes = await fetchAllShapes();
+    const shape = shapes.find(s => s.id === shapeId);
+    
+    if (!shape) {
+      console.warn(`[Canvas Service] Cannot acquire lock - shape not found: ${shapeId}`);
+      return false;
+    }
+    
+    // Check if shape is already locked by someone else
+    if (shape.lockedBy && shape.lockedBy !== userId) {
+      // Check if the lock has expired
+      if (!isLockExpired(shape.lockedAt)) {
+        console.log(`[Canvas Service] Lock denied - shape ${shapeId} is locked by ${shape.lockedBy}`);
+        return false;
+      }
+      // Lock has expired, we can take it
+      console.log(`[Canvas Service] Lock expired, acquiring lock on shape ${shapeId}`);
+    }
+    
+    // Acquire the lock
+    await updateDoc(shapeRef, {
+      lockedBy: userId,
+      lockedAt: Date.now(),
+    });
+    
+    console.log(`[Canvas Service] Lock acquired on shape ${shapeId} by ${userId}`);
+    return true;
+  } catch (error) {
+    console.error('[Canvas Service] Error acquiring lock:', error);
+    return false;
+  }
+};
+
+/**
+ * Release a lock on a shape
+ * @param shapeId - The shape ID to unlock
+ * @param userId - The user ID releasing the lock (optional, for validation)
+ * @returns Promise that resolves when lock is released
+ */
+export const releaseLock = async (
+  shapeId: string,
+  userId?: string
+): Promise<void> => {
+  try {
+    const shapeRef = doc(firestore, CANVAS_COLLECTION, shapeId);
+    
+    // If userId provided, verify this user owns the lock
+    if (userId) {
+      const shapes = await fetchAllShapes();
+      const shape = shapes.find(s => s.id === shapeId);
+      
+      if (shape && shape.lockedBy !== userId) {
+        console.warn(`[Canvas Service] Cannot release lock - shape ${shapeId} is locked by ${shape.lockedBy}, not ${userId}`);
+        return;
+      }
+    }
+    
+    // Release the lock
+    await updateDoc(shapeRef, {
+      lockedBy: null,
+      lockedAt: null,
+    });
+    
+    console.log(`[Canvas Service] Lock released on shape ${shapeId}`);
+  } catch (error) {
+    console.error('[Canvas Service] Error releasing lock:', error);
+    throw new Error(`Failed to release lock: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+

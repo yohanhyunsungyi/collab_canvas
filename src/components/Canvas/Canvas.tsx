@@ -6,7 +6,7 @@ import { CanvasToolbar } from './CanvasToolbar';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
 import { Shape } from './Shape';
-import { fetchAllShapes, subscribeToShapes } from '../../services/canvas.service';
+import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -596,6 +596,9 @@ export const Canvas = () => {
       lastModifiedBy: user.id,
       lastModifiedAt: Date.now(),
     });
+    
+    // Release lock after drag ends
+    handleLockRelease(id);
   };
 
   // Handle shape transform (resize/scale)
@@ -696,7 +699,42 @@ export const Canvas = () => {
       lastModifiedBy: user.id,
       lastModifiedAt: Date.now(),
     });
+    
+    // Release lock after transform ends
+    handleLockRelease(selectedShapeId);
   };
+
+  // Handle lock acquisition
+  const handleLockAcquire = useCallback(async (shapeId: string) => {
+    if (!user) return false;
+    
+    const shape = shapes.find(s => s.id === shapeId);
+    if (!shape) return false;
+    
+    // Check if already locked by another user
+    if (shape.lockedBy && shape.lockedBy !== user.id) {
+      // Check if lock has expired
+      if (!isLockExpired(shape.lockedAt)) {
+        console.log(`[Canvas] Cannot interact - shape ${shapeId} is locked by ${shape.lockedBy}`);
+        return false;
+      }
+    }
+    
+    // Attempt to acquire lock
+    const acquired = await acquireLock(shapeId, user.id);
+    if (acquired) {
+      console.log(`[Canvas] Lock acquired on shape ${shapeId}`);
+    }
+    return acquired;
+  }, [user, shapes]);
+
+  // Handle lock release
+  const handleLockRelease = useCallback(async (shapeId: string) => {
+    if (!user) return;
+    
+    await releaseLock(shapeId, user.id);
+    console.log(`[Canvas] Lock released on shape ${shapeId}`);
+  }, [user]);
 
   // Handle color change - update current color and selected shape color
   const handleColorChange = (color: string) => {
@@ -857,6 +895,9 @@ export const Canvas = () => {
                 }}
                 onDragMove={handleShapeDragMove}
                 onDragEnd={handleShapeDragEnd}
+                onLockAcquire={handleLockAcquire}
+                onLockRelease={handleLockRelease}
+                currentUserId={user?.id}
                 shapeRef={setShapeRef}
               />
             ))}
