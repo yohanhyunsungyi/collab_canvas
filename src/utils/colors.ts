@@ -12,16 +12,26 @@ const USER_COLORS = [
   '#A2D5AB', // Green
 ];
 
-let colorIndex = 0;
+/**
+ * Simple hash function to convert string to number
+ */
+const hashString = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+};
 
 /**
- * Get a unique color for a new user
- * Cycles through predefined palette
+ * Get a unique color for a user based on their user ID
+ * Always returns the same color for the same user ID
  */
-export const getUserColor = (): string => {
-  const color = USER_COLORS[colorIndex % USER_COLORS.length];
-  colorIndex++;
-  return color;
+export const getUserColor = (userId: string): string => {
+  const index = hashString(userId) % USER_COLORS.length;
+  return USER_COLORS[index];
 };
 
 /**

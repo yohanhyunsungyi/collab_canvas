@@ -10,18 +10,29 @@ describe('Color Utility', () => {
   });
 
   it('should return colors from palette with getUserColor', () => {
-    const color = getUserColor();
+    const color = getUserColor('user-123');
     expect(USER_COLORS).toContain(color);
   });
 
-  it('should cycle through colors with getUserColor', () => {
-    const colors = [];
-    for (let i = 0; i < 12; i++) {
-      colors.push(getUserColor());
-    }
-    // Should cycle back after 10 colors
-    expect(colors[0]).toBe(colors[10]);
-    expect(colors[1]).toBe(colors[11]);
+  it('should return consistent color for same user ID', () => {
+    const userId = 'test-user-123';
+    const color1 = getUserColor(userId);
+    const color2 = getUserColor(userId);
+    const color3 = getUserColor(userId);
+    
+    // Same user ID should always get the same color
+    expect(color1).toBe(color2);
+    expect(color2).toBe(color3);
+  });
+
+  it('should return different colors for different user IDs', () => {
+    const color1 = getUserColor('user-1');
+    const color2 = getUserColor('user-2');
+    const color3 = getUserColor('user-3');
+    
+    // At least some colors should be different (not guaranteed all different due to hash collisions)
+    const uniqueColors = new Set([color1, color2, color3]);
+    expect(uniqueColors.size).toBeGreaterThan(1);
   });
 
   it('should return random color from palette', () => {

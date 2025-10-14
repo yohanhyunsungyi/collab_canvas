@@ -37,6 +37,14 @@ export const mockRealtimeDb = {
   update: vi.fn(),
 };
 
+// Mock onDisconnect object
+export const mockOnDisconnect = {
+  set: vi.fn(() => Promise.resolve()),
+  update: vi.fn(() => Promise.resolve()),
+  remove: vi.fn(() => Promise.resolve()),
+  cancel: vi.fn(() => Promise.resolve()),
+};
+
 // Mock Firebase modules
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({})),
@@ -77,5 +85,6 @@ vi.mock('firebase/database', () => ({
   off: vi.fn(),
   remove: vi.fn(),
   update: vi.fn(),
+  onDisconnect: vi.fn(() => mockOnDisconnect),
 }));
 

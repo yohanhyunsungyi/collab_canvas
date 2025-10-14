@@ -31,6 +31,15 @@ vi.mock('../../hooks/useCursors', () => ({
   })),
 }));
 
+// Mock usePresence hook
+vi.mock('../../hooks/usePresence', () => ({
+  usePresence: vi.fn(() => ({
+    users: [],
+    onlineUsers: [],
+    loading: false,
+  })),
+}));
+
 describe('Auth Flow Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();

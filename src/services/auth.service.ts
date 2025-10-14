@@ -20,7 +20,7 @@ const convertFirebaseUser = (firebaseUser: FirebaseUser): User => {
     id: firebaseUser.uid,
     email: firebaseUser.email || '',
     displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous',
-    color: getUserColor(),
+    color: getUserColor(firebaseUser.uid),
     createdAt: Date.now(),
   };
 };

@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCursors } from '../../hooks/useCursors';
 import { Shape } from './Shape';
 import { MultiplayerCursors } from './MultiplayerCursors';
+import { PresenceSidebar } from '../Presence/PresenceSidebar';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
@@ -806,6 +807,7 @@ export const Canvas = () => {
         onFontSizeChange={handleFontSizeChange}
         />
   
+      <div className="canvas-main-content">
         <div
         className="canvas-container"
         style={{ 
@@ -979,6 +981,10 @@ export const Canvas = () => {
         
         {/* Multiplayer cursors overlay */}
         <MultiplayerCursors cursors={cursors} viewport={viewport} />
+      </div>
+
+      {/* Presence sidebar */}
+      <PresenceSidebar />
       </div>
     </div>
   );
