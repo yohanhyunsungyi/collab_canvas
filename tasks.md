@@ -571,18 +571,18 @@ collab-canvas/
     - `src/components/Canvas/Shape.test.tsx`
 
 **PR Checklist Before Merge:**
-- [ ] Can create rectangles by click-drag
-- [ ] Can create circles by click-drag
-- [ ] Can create text by clicking and typing
-- [ ] Can select shapes by clicking
-- [ ] Can move shapes by dragging
-- [ ] Can resize shapes using transform handles
-- [ ] Corner handles resize proportionally
-- [ ] Edge handles resize width/height independently
-- [ ] All shapes render correctly with colors
-- [ ] Performance remains 60 FPS with 50+ shapes
-- [ ] Canvas hook tests pass
-- [ ] Shape component tests pass
+- [x] Can create rectangles by click-drag
+- [x] Can create circles by click-drag
+- [x] Can create text by clicking and typing
+- [x] Can select shapes by clicking
+- [x] Can move shapes by dragging
+- [x] Can resize shapes using transform handles
+- [x] Corner handles resize proportionally
+- [x] Edge handles resize width/height independently
+- [x] All shapes render correctly with colors
+- [x] Performance remains 60 FPS with 50+ shapes
+- [x] Canvas hook tests pass
+- [x] Shape component tests pass
 
 ---
 
