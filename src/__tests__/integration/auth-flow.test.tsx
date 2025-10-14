@@ -10,6 +10,8 @@ vi.mock('react-konva', () => ({
   Stage: ({ children }: any) => <div data-testid="konva-stage">{children}</div>,
   Layer: ({ children }: any) => <div data-testid="konva-layer">{children}</div>,
   Rect: () => <div data-testid="konva-rect" />,
+  Circle: () => <div data-testid="konva-circle" />,
+  Transformer: () => <div data-testid="konva-transformer" />,
 }));
 
 describe('Auth Flow Integration', () => {

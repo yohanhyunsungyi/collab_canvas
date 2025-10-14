@@ -33,6 +33,7 @@ lerna-debug.log*
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+serviceAccountKey.json
 
 # OS files
 .DS_Store

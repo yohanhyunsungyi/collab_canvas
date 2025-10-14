@@ -453,32 +453,30 @@ collab-canvas/
 
 ### Tasks:
 
-- [ ] **4.1: Create Shape Component**
+- [x] **4.1: Create Shape Component**
   - Generic Shape component for Konva
   - Support rectangle, circle, text types
   - Handle selection state styling
   - **Files Created:**
     - `src/components/Canvas/Shape.tsx`
 
-- [ ] **4.2: Implement Rectangle Creation**
+- [x] **4.2: Implement Rectangle Creation**
   - Click and drag to create rectangle
   - Set dimensions based on drag distance
   - Apply selected color
   - Add to local canvas state
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
-    - `src/hooks/useCanvas.ts`
 
-- [ ] **4.3: Implement Circle Creation**
+- [x] **4.3: Implement Circle Creation**
   - Click and drag to create circle
   - Calculate radius based on drag distance
   - Apply selected color
   - Add to local canvas state
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
-    - `src/hooks/useCanvas.ts`
 
-- [ ] **4.4: Implement Text Creation**
+- [x] **4.4: Implement Text Creation**
   - Click to place text
   - Show input field for text entry
   - Apply selected color
@@ -486,26 +484,23 @@ collab-canvas/
   - Add to local canvas state
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
-    - `src/hooks/useCanvas.ts`
 
-- [ ] **4.5: Implement Shape Selection**
+- [x] **4.5: Implement Shape Selection**
   - Click shape to select
   - Show selection border/highlight
   - Deselect on background click
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
-    - `src/components/Canvas/Shape.tsx`
-    - `src/hooks/useCanvas.ts`
 
-- [ ] **4.6: Implement Shape Movement**
+- [x] **4.6: Implement Shape Movement**
   - Drag selected shape to move
   - Update shape position in state
   - Smooth movement (no lag)
   - **Files Updated:**
     - `src/components/Canvas/Shape.tsx`
-    - `src/hooks/useCanvas.ts`
+    - `src/components/Canvas/Canvas.tsx`
 
-- [ ] **4.7: Implement Shape Resize**
+- [x] **4.7: Implement Shape Resize**
   - Add Konva Transformer for resize handles
   - Corner handles for proportional resize
   - Edge handles for width/height adjustment
@@ -514,7 +509,8 @@ collab-canvas/
   - **Files Updated:**
     - `src/components/Canvas/Shape.tsx`
     - `src/components/Canvas/Canvas.tsx`
-    - `src/hooks/useCanvas.ts`
+    - `src/components/Canvas/Canvas.test.tsx`
+    - `src/__tests__/integration/auth-flow.test.tsx`
 
 - [ ] **4.8: Unit Tests for Canvas Hook**
   - Test adding shapes to canvas state

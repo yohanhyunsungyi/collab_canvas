@@ -7,6 +7,8 @@ vi.mock('react-konva', () => ({
   Stage: ({ children, ...props }: any) => <div data-testid="konva-stage" {...props}>{children}</div>,
   Layer: ({ children }: any) => <div data-testid="konva-layer">{children}</div>,
   Rect: () => <div data-testid="konva-rect" />,
+  Circle: () => <div data-testid="konva-circle" />,
+  Transformer: () => <div data-testid="konva-transformer" />,
 }));
 
 describe('Canvas Component', () => {
@@ -31,9 +33,11 @@ describe('Canvas Component', () => {
     expect(screen.getByTestId('konva-layer')).toBeInTheDocument();
   });
 
-  it('should render canvas boundary rectangle', () => {
+  it('should render canvas rectangles (gray overlays + boundary)', () => {
     render(<Canvas />);
-    expect(screen.getByTestId('konva-rect')).toBeInTheDocument();
+    const rects = screen.getAllByTestId('konva-rect');
+    // Should have 5 rectangles: 4 gray overlays + 1 boundary rectangle
+    expect(rects).toHaveLength(5);
   });
 
   it('should render toolbar with tools', () => {
