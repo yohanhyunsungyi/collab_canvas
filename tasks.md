@@ -512,6 +512,46 @@ collab-canvas/
     - `src/components/Canvas/Canvas.test.tsx`
     - `src/__tests__/integration/auth-flow.test.tsx`
 
+- [x] **4.7b: Refactor Boundary Logic (Konva Best Practices)**
+  - Research Konva framework boundary constraint methods (Context7 MCP + Web Search)
+  - Create centralized `boundaries.ts` utility module
+  - Implement `dragBoundFunc` for shape position constraints
+  - Implement `boundBoxFunc` for transformer resize constraints
+  - Refactor Canvas.tsx to use centralized boundary functions
+  - Add `dragBoundFunc` to Shape component (Konva best practice)
+  - Handle all 3 shape types consistently (rectangle, circle, text)
+  - **Files Created:**
+    - `src/utils/boundaries.ts` - Centralized boundary logic
+    - `src/utils/boundaries.test.ts` - 19 comprehensive unit tests
+    - `BOUNDARY_REFACTORING_SUMMARY.md` - Complete refactoring documentation
+  - **Files Updated:**
+    - `src/components/Canvas/Shape.tsx` - Added dragBoundFunc with useMemo
+    - `src/components/Canvas/Canvas.tsx` - Refactored to use centralized utilities
+  - **Implementation Details:**
+    - Used Konva's built-in `dragBoundFunc` for shape dragging constraints
+    - Used Konva's `boundBoxFunc` for Transformer resize constraints
+    - Removed duplicate boundary logic from Canvas.tsx (3 locations → 1 module)
+    - All boundary calculations now in one place for maintainability
+    - Follows Konva official documentation patterns
+  - **Tests:** 71/71 tests passing ✅ (52 existing + 19 new boundary tests)
+  
+- [x] **4.7c: Fix Circle & Text Boundary Issues**
+  - **Problem:** Circle and Text weren't working due to legacy code conflicts
+  - **Root Causes Found:**
+    1. Shape.tsx: `dragBoundFunc` not updating when shape dimensions changed (after resize)
+    2. Canvas.tsx: No boundary constraints applied during shape creation
+    3. Preview shapes also lacked boundary constraints
+  - **Solutions Implemented:**
+    1. Added `useMemo` to Shape.tsx to recalculate dragBoundFunc when dimensions change
+    2. Applied `constrainShapeCreation` to all shape creation logic (rectangle, circle, text)
+    3. Applied same constraints to preview shapes for consistency
+    4. Used `constrainPoint` for text placement
+  - **Files Updated:**
+    - `src/components/Canvas/Shape.tsx` - Dynamic dragBoundFunc with useMemo
+    - `src/components/Canvas/Canvas.tsx` - Boundary constraints on shape creation & preview
+  - **Result:** ✅ All shapes (Rectangle, Circle, Text) now work correctly with proper boundaries
+  - **Tests:** 71/71 tests passing ✅
+
 - [ ] **4.8: Unit Tests for Canvas Hook**
   - Test adding shapes to canvas state
   - Test shape selection logic

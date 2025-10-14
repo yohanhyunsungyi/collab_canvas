@@ -6,10 +6,16 @@ import { CanvasToolbar } from './CanvasToolbar';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
 import { Shape } from './Shape';
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  getTransformerBoundBoxFunc,
+  constrainRectangleDimensions,
+  constrainCircleRadius,
+  constrainShapeCreation,
+  constrainPoint,
+} from '../../utils/boundaries';
 import './Canvas.css';
-
-const CANVAS_WIDTH = 5000;
-const CANVAS_HEIGHT = 5000;
 const INITIAL_SCALE = 1;
 const MIN_SCALE = 0.1; // 10% zoom out
 const MAX_SCALE = 3; // 300% zoom in
@@ -32,8 +38,10 @@ export const Canvas = () => {
     selectedShapeId,
     currentTool,
     currentColor,
+    currentFontSize,
     setCurrentTool,
     setCurrentColor,
+    setCurrentFontSize,
     addShape,
     updateShape,
     selectShape,
@@ -55,6 +63,7 @@ export const Canvas = () => {
   const [isEditingText, setIsEditingText] = useState(false);
   const [textEditPosition, setTextEditPosition] = useState<{ x: number; y: number } | null>(null);
   const [textEditValue, setTextEditValue] = useState('');
+  const [editingTextId, setEditingTextId] = useState<string | null>(null); // For editing existing text
   const textInputRef = useRef<HTMLInputElement>(null);
   const textInputCreatedAt = useRef<number>(0);
 
@@ -139,7 +148,11 @@ export const Canvas = () => {
   // Handle spacebar key events for pan mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !isSpacePressed) {
+      // Don't trigger pan mode while editing text or if target is an input
+      const target = e.target as HTMLElement;
+      const isInputTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      
+      if (e.code === 'Space' && !isSpacePressed && !isEditingText && !isInputTarget) {
         e.preventDefault();
         setIsSpacePressed(true);
         setIsPanning(true);
@@ -147,7 +160,10 @@ export const Canvas = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      const target = e.target as HTMLElement;
+      const isInputTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      
+      if (e.code === 'Space' && isSpacePressed && !isInputTarget) {
         e.preventDefault();
         setIsSpacePressed(false);
         setIsPanning(false);
@@ -161,7 +177,7 @@ export const Canvas = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed]);
+  }, [isSpacePressed, isEditingText]);
 
   // Handle drag end to update viewport state with constraints
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -230,17 +246,18 @@ export const Canvas = () => {
   };
 
   // Get canvas coordinates from pointer position
+  // Uses Konva's getRelativePointerPosition which automatically handles Stage transform
   const getCanvasPointer = () => {
     const stage = stageRef.current;
     if (!stage) return null;
     
-    const pointer = stage.getPointerPosition();
+    const pointer = stage.getRelativePointerPosition();
     if (!pointer) return null;
     
-    // Convert screen coordinates to canvas coordinates
+    // getRelativePointerPosition already accounts for stage position and scale
     return {
-      x: (pointer.x - viewport.x) / viewport.scale,
-      y: (pointer.y - viewport.y) / viewport.scale,
+      x: pointer.x,
+      y: pointer.y,
     };
   };
 
@@ -267,15 +284,24 @@ export const Canvas = () => {
     
     // Handle text tool - click to place text input
     if (currentTool === 'text') {
+      // Don't create text input while panning
+      if (isPanning || isSpacePressed) return;
+      
       // Only create text on empty canvas
       if (!clickedOnEmpty) return;
       
-      const pointer = getCanvasPointer();
-      if (!pointer) return;
+      const canvasPointer = getCanvasPointer();
+      if (!canvasPointer) return;
       
       // Convert canvas coordinates to screen coordinates for input positioning
-      const screenX = pointer.x * viewport.scale + viewport.x;
-      const screenY = pointer.y * viewport.scale + viewport.y;
+      const stage = stageRef.current;
+      if (!stage) return;
+      
+      // canvasPointer is in canvas coordinates (0~5000)
+      // Convert to screen coordinates relative to canvas-container (position: relative)
+      // No need to add stageBox offset since input is inside canvas-container
+      const screenX = canvasPointer.x * viewport.scale + viewport.x;
+      const screenY = canvasPointer.y * viewport.scale + viewport.y;
       
       // Track when input is created to prevent immediate blur
       textInputCreatedAt.current = Date.now();
@@ -320,15 +346,22 @@ export const Canvas = () => {
       // Calculate rectangle dimensions
       const width = pointer.x - startPoint.x;
       const height = pointer.y - startPoint.y;
+      const rawX = width > 0 ? startPoint.x : pointer.x;
+      const rawY = height > 0 ? startPoint.y : pointer.y;
+      const rawWidth = Math.abs(width);
+      const rawHeight = Math.abs(height);
+      
+      // Apply boundary constraints for preview
+      const constrained = constrainShapeCreation('rectangle', rawX, rawY, rawWidth, rawHeight);
       
       // Create rectangle preview
       const preview: RectangleShape = {
         id: 'preview',
         type: 'rectangle',
-        x: width > 0 ? startPoint.x : pointer.x,
-        y: height > 0 ? startPoint.y : pointer.y,
-        width: Math.abs(width),
-        height: Math.abs(height),
+        x: constrained.x,
+        y: constrained.y,
+        width: constrained.width ?? rawWidth,
+        height: constrained.height ?? rawHeight,
         color: currentColor,
         createdBy: user.id,
         createdAt: Date.now(),
@@ -345,13 +378,16 @@ export const Canvas = () => {
       const dy = pointer.y - startPoint.y;
       const radius = Math.sqrt(dx * dx + dy * dy);
       
+      // Apply boundary constraints for preview
+      const constrained = constrainShapeCreation('circle', startPoint.x, startPoint.y, undefined, undefined, radius);
+      
       // Create circle preview
       const preview: CircleShape = {
         id: 'preview',
         type: 'circle',
-        x: startPoint.x,
-        y: startPoint.y,
-        radius,
+        x: constrained.x,
+        y: constrained.y,
+        radius: constrained.radius ?? radius,
         color: currentColor,
         createdBy: user.id,
         createdAt: Date.now(),
@@ -380,13 +416,21 @@ export const Canvas = () => {
       
       // Only create shape if it has meaningful size (at least 5px)
       if (Math.abs(width) > 5 && Math.abs(height) > 5) {
+        const rawX = width > 0 ? startPoint.x : pointer.x;
+        const rawY = height > 0 ? startPoint.y : pointer.y;
+        const rawWidth = Math.abs(width);
+        const rawHeight = Math.abs(height);
+        
+        // Apply boundary constraints
+        const constrained = constrainShapeCreation('rectangle', rawX, rawY, rawWidth, rawHeight);
+        
         const newShape: RectangleShape = {
           id: `rect-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           type: 'rectangle',
-          x: width > 0 ? startPoint.x : pointer.x,
-          y: height > 0 ? startPoint.y : pointer.y,
-          width: Math.abs(width),
-          height: Math.abs(height),
+          x: constrained.x,
+          y: constrained.y,
+          width: constrained.width ?? rawWidth,
+          height: constrained.height ?? rawHeight,
           color: currentColor,
           createdBy: user.id,
           createdAt: Date.now(),
@@ -406,12 +450,15 @@ export const Canvas = () => {
       
       // Only create shape if it has meaningful size (at least 5px radius)
       if (radius > 5) {
+        // Apply boundary constraints
+        const constrained = constrainShapeCreation('circle', startPoint.x, startPoint.y, undefined, undefined, radius);
+        
         const newShape: CircleShape = {
           id: `circle-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           type: 'circle',
-          x: startPoint.x,
-          y: startPoint.y,
-          radius,
+          x: constrained.x,
+          y: constrained.y,
+          radius: constrained.radius ?? radius,
           color: currentColor,
           createdBy: user.id,
           createdAt: Date.now(),
@@ -451,35 +498,49 @@ export const Canvas = () => {
     
     const trimmedText = textEditValue.trim();
     
-    // Only create text shape if user entered something
+    // Only create/update text shape if user entered something
     if (trimmedText.length > 0) {
-      // Convert screen coordinates back to canvas coordinates
-      const canvasX = (textEditPosition.x - viewport.x) / viewport.scale;
-      const canvasY = (textEditPosition.y - viewport.y) / viewport.scale;
-      
-      const newShape: TextShape = {
-        id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type: 'text',
-        x: canvasX,
-        y: canvasY,
-        text: trimmedText,
-        fontSize: 24,
-        color: currentColor,
-        createdBy: user.id,
-        createdAt: Date.now(),
-        lastModifiedBy: user.id,
-        lastModifiedAt: Date.now(),
-        lockedBy: null,
-        lockedAt: null,
-      };
-      
-      addShape(newShape);
+      if (editingTextId) {
+        // Update existing text
+        updateShape(editingTextId, {
+          text: trimmedText,
+          lastModifiedBy: user.id,
+          lastModifiedAt: Date.now(),
+        });
+      } else {
+        // Create new text shape
+        // Convert screen coordinates (relative to canvas-container) back to canvas coordinates
+        const rawCanvasX = (textEditPosition.x - viewport.x) / viewport.scale;
+        const rawCanvasY = (textEditPosition.y - viewport.y) / viewport.scale;
+        
+        // Apply boundary constraints
+        const constrained = constrainPoint(rawCanvasX, rawCanvasY);
+        
+        const newShape: TextShape = {
+          id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          type: 'text',
+          x: constrained.x,
+          y: constrained.y,
+          text: trimmedText,
+          fontSize: currentFontSize,
+          color: currentColor,
+          createdBy: user.id,
+          createdAt: Date.now(),
+          lastModifiedBy: user.id,
+          lastModifiedAt: Date.now(),
+          lockedBy: null,
+          lockedAt: null,
+        };
+        
+        addShape(newShape);
+      }
     }
     
     // Reset text editing state
     setIsEditingText(false);
     setTextEditPosition(null);
     setTextEditValue('');
+    setEditingTextId(null);
   };
 
   // Handle text input blur (de-focus)
@@ -499,54 +560,27 @@ export const Canvas = () => {
     }
   };
 
-  // Constrain shape position within canvas boundaries
-  const constrainShapePosition = (shape: CanvasShape, x: number, y: number) => {
-    let constrainedX = x;
-    let constrainedY = y;
-
-    if (shape.type === 'rectangle') {
-      // Constrain rectangle
-      constrainedX = Math.max(0, Math.min(x, CANVAS_WIDTH - shape.width));
-      constrainedY = Math.max(0, Math.min(y, CANVAS_HEIGHT - shape.height));
-    } else if (shape.type === 'circle') {
-      // Constrain circle (center must stay radius distance from edges)
-      constrainedX = Math.max(shape.radius, Math.min(x, CANVAS_WIDTH - shape.radius));
-      constrainedY = Math.max(shape.radius, Math.min(y, CANVAS_HEIGHT - shape.radius));
-    } else if (shape.type === 'text') {
-      // Constrain text (approximate height by fontSize)
-      const textHeight = shape.fontSize * 1.2; // Approximate line height
-      constrainedX = Math.max(0, Math.min(x, CANVAS_WIDTH));
-      constrainedY = Math.max(0, Math.min(y, CANVAS_HEIGHT - textHeight));
-    }
-
-    return { x: constrainedX, y: constrainedY };
-  };
-
   // Handle shape drag move (live update during drag)
+  // Note: Position constraints are handled by dragBoundFunc in Shape component
   const handleShapeDragMove = (id: string, x: number, y: number) => {
-    const shape = shapes.find((s) => s.id === id);
-    if (!shape) return;
-
-    const constrained = constrainShapePosition(shape, x, y);
-    updateShape(id, constrained);
+    updateShape(id, { x, y });
   };
 
   // Handle shape drag end (final position)
+  // Note: Position constraints are handled by dragBoundFunc in Shape component
   const handleShapeDragEnd = (id: string, x: number, y: number) => {
     if (!user) return;
     
-    const shape = shapes.find((s) => s.id === id);
-    if (!shape) return;
-
-    const constrained = constrainShapePosition(shape, x, y);
     updateShape(id, {
-      ...constrained,
+      x,
+      y,
       lastModifiedBy: user.id,
       lastModifiedAt: Date.now(),
     });
   };
 
   // Handle shape transform (resize/scale)
+  // Uses centralized boundary constraint functions from boundaries.ts
   const handleTransform = () => {
     if (!selectedShapeId) return;
     
@@ -568,12 +602,11 @@ export const Canvas = () => {
 
     // Update dimensions based on shape type with boundary constraints
     if (shape.type === 'rectangle') {
-      let width = Math.max(5, node.width() * scaleX);
-      let height = Math.max(5, node.height() * scaleY);
+      const rawWidth = Math.max(5, node.width() * scaleX);
+      const rawHeight = Math.max(5, node.height() * scaleY);
       
-      // Constrain width and height to stay within canvas
-      width = Math.min(width, CANVAS_WIDTH - nodeX);
-      height = Math.min(height, CANVAS_HEIGHT - nodeY);
+      // Use centralized constraint function
+      const { width, height } = constrainRectangleDimensions(nodeX, nodeY, rawWidth, rawHeight);
       
       // Update node dimensions for Transformer
       node.width(width);
@@ -586,38 +619,53 @@ export const Canvas = () => {
         height,
       });
     } else if (shape.type === 'circle') {
-      // For circles, use the average of scaleX and scaleY
-      let newRadius = Math.max(5, shape.radius * ((scaleX + scaleY) / 2));
+      // For circles, always use original shape radius as base to avoid accumulation
+      const rawRadius = Math.max(5, shape.radius * ((scaleX + scaleY) / 2));
       
-      // Constrain radius to stay within canvas
-      const maxRadiusX = Math.min(nodeX, CANVAS_WIDTH - nodeX);
-      const maxRadiusY = Math.min(nodeY, CANVAS_HEIGHT - nodeY);
-      newRadius = Math.min(newRadius, maxRadiusX, maxRadiusY);
+      // Check if circle with new radius would exceed canvas boundaries
+      const boundingBoxX = nodeX - rawRadius;
+      const boundingBoxY = nodeY - rawRadius;
+      const boundingBoxWidth = rawRadius * 2;
+      const boundingBoxHeight = rawRadius * 2;
       
-      updateShape(selectedShapeId, {
-        x: nodeX,
-        y: nodeY,
-        radius: newRadius,
-      });
-    } else if (shape.type === 'text') {
-      let width = Math.max(20, node.width() * scaleX);
-      let fontSize = Math.max(8, shape.fontSize * scaleY);
+      const isOut = 
+        boundingBoxX < 0 ||
+        boundingBoxY < 0 ||
+        boundingBoxX + boundingBoxWidth > CANVAS_WIDTH ||
+        boundingBoxY + boundingBoxHeight > CANVAS_HEIGHT;
       
-      // Constrain text size to stay within canvas
-      const textHeight = fontSize * 1.2;
-      if (nodeY + textHeight > CANVAS_HEIGHT) {
-        fontSize = Math.max(8, (CANVAS_HEIGHT - nodeY) / 1.2);
+      // If new size would exceed boundaries, keep the old radius and position
+      if (isOut) {
+        // Reset scale to prevent further attempts
+        node.scaleX(1);
+        node.scaleY(1);
+        // Reset position to previous position (stop movement)
+        node.x(shape.x);
+        node.y(shape.y);
+        return;
       }
       
+      // Use centralized constraint function
+      const radius = constrainCircleRadius(nodeX, nodeY, rawRadius);
+      
       // Update node dimensions for Transformer
-      node.width(width);
+      // Circle needs both radius and width/height for proper boundary detection
+      if ((node as any).radius) {
+        (node as any).radius(radius);
+      }
+      node.width(radius * 2);
+      node.height(radius * 2);
       
       updateShape(selectedShapeId, {
         x: nodeX,
         y: nodeY,
-        width,
-        fontSize,
+        radius,
       });
+    } else if (shape.type === 'text') {
+      // Text: no resizing, auto-fit to content
+      // Reset scale to 1
+      node.scaleX(1);
+      node.scaleY(1);
     }
   };
 
@@ -645,6 +693,22 @@ export const Canvas = () => {
     }
   };
 
+  const handleFontSizeChange = (fontSize: number) => {
+    setCurrentFontSize(fontSize);
+    
+    // If a text shape is selected, update its fontSize
+    if (selectedShapeId && user) {
+      const selectedShape = shapes.find(s => s.id === selectedShapeId);
+      if (selectedShape && selectedShape.type === 'text') {
+        updateShape(selectedShapeId, {
+          fontSize,
+          lastModifiedBy: user.id,
+          lastModifiedAt: Date.now(),
+        });
+      }
+    }
+  };
+
   // Register shape ref for transformer
   const setShapeRef = (id: string, node: Konva.Node | null) => {
     if (node) {
@@ -669,8 +733,10 @@ export const Canvas = () => {
       <CanvasToolbar
         currentTool={currentTool}
         currentColor={currentColor}
+        currentFontSize={currentFontSize}
         onToolChange={setCurrentTool}
         onColorChange={handleColorChange}
+        onFontSizeChange={handleFontSizeChange}
       />
 
       <div 
@@ -772,26 +838,7 @@ export const Canvas = () => {
               ref={transformerRef}
               onTransform={handleTransform}
               onTransformEnd={handleTransformEnd}
-              boundBoxFunc={(oldBox, newBox) => {
-                // Limit resize to minimum dimensions
-                if (newBox.width < 5 || newBox.height < 5) {
-                  return oldBox;
-                }
-                
-                // Constrain within canvas boundaries
-                const maxWidth = CANVAS_WIDTH - newBox.x;
-                const maxHeight = CANVAS_HEIGHT - newBox.y;
-                
-                if (newBox.width > maxWidth || newBox.height > maxHeight) {
-                  return {
-                    ...newBox,
-                    width: Math.min(newBox.width, maxWidth),
-                    height: Math.min(newBox.height, maxHeight),
-                  };
-                }
-                
-                return newBox;
-              }}
+              boundBoxFunc={getTransformerBoundBoxFunc}
             />
             
             {/* Render preview shape while drawing */}
@@ -832,15 +879,20 @@ export const Canvas = () => {
               position: 'absolute',
               left: `${textEditPosition.x}px`,
               top: `${textEditPosition.y}px`,
-              fontSize: `${24 * viewport.scale}px`,
+              fontSize: `${currentFontSize}px`,
               color: currentColor,
               backgroundColor: 'transparent',
-              border: '2px solid #00bcd4',
+              border: 'none',
+              borderBottom: '2px solid #00bcd4',
               outline: 'none',
-              padding: '2px 4px',
+              padding: '0',
+              margin: '0',
               fontFamily: 'Arial, sans-serif',
               minWidth: '100px',
+              lineHeight: '1',
               zIndex: 1000,
+              transform: `scale(${viewport.scale})`,
+              transformOrigin: 'top left',
             }}
             autoFocus
           />

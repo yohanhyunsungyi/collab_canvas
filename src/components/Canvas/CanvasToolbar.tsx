@@ -5,15 +5,19 @@ import './CanvasToolbar.css';
 interface CanvasToolbarProps {
   currentTool: ToolType;
   currentColor: string;
+  currentFontSize: number;
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
+  onFontSizeChange: (fontSize: number) => void;
 }
 
 export const CanvasToolbar = ({
   currentTool,
   currentColor,
+  currentFontSize,
   onToolChange,
   onColorChange,
+  onFontSizeChange,
 }: CanvasToolbarProps) => {
   const tools: { type: ToolType; label: string; icon: string }[] = [
     { type: 'select', label: 'Select', icon: '⬆️' },
@@ -46,6 +50,28 @@ export const CanvasToolbar = ({
       <div className="toolbar-section">
         <span className="toolbar-label">Style</span>
         <ColorPicker selectedColor={currentColor} onColorChange={onColorChange} />
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-section">
+        <span className="toolbar-label">Font Size</span>
+        <select
+          className="font-size-select"
+          value={currentFontSize}
+          onChange={(e) => onFontSizeChange(Number(e.target.value))}
+        >
+          <option value={12}>12px</option>
+          <option value={16}>16px</option>
+          <option value={20}>20px</option>
+          <option value={24}>24px</option>
+          <option value={32}>32px</option>
+          <option value={48}>48px</option>
+          <option value={64}>64px</option>
+          <option value={72}>72px</option>
+          <option value={96}>96px</option>
+          <option value={128}>128px</option>
+        </select>
       </div>
     </div>
   );

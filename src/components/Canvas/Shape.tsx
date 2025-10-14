@@ -1,6 +1,7 @@
 import { Rect, Circle, Text } from 'react-konva';
 import type Konva from 'konva';
-import type { CanvasShape } from '../../types/canvas.types';
+import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../../types/canvas.types';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../utils/boundaries';
 
 interface ShapeProps {
   shape: CanvasShape;
@@ -16,23 +17,75 @@ interface ShapeProps {
  * based on the shape type (rectangle, circle, text)
  */
 export const Shape = ({ shape, isSelected, onSelect, onDragMove, onDragEnd, shapeRef }: ShapeProps) => {
-  // Handle drag move
-  const handleDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
-    e.cancelBubble = true; // Prevent event from bubbling to Stage
-    const node = e.target;
-    onDragMove(shape.id, node.x(), node.y());
-  };
-
-  // Handle drag end
-  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    e.cancelBubble = true; // Prevent event from bubbling to Stage
-    const node = e.target;
-    onDragEnd(shape.id, node.x(), node.y());
-  };
-  
   // Handle drag start
   const handleDragStart = (e: Konva.KonvaEventObject<DragEvent>) => {
-    e.cancelBubble = true; // Prevent event from bubbling to Stage
+    e.cancelBubble = true;
+  };
+
+  // Handle drag move with boundary constraints
+  const handleDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
+    e.cancelBubble = true;
+    const node = e.target;
+    let x = node.x();
+    let y = node.y();
+    
+    // Apply boundary constraints based on shape type
+    if (shape.type === 'rectangle') {
+      const rectShape = shape as RectangleShape;
+      x = Math.max(0, Math.min(x, CANVAS_WIDTH - rectShape.width));
+      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - rectShape.height));
+    } else if (shape.type === 'circle') {
+      const circleShape = shape as CircleShape;
+      x = Math.max(circleShape.radius, Math.min(x, CANVAS_WIDTH - circleShape.radius));
+      y = Math.max(circleShape.radius, Math.min(y, CANVAS_HEIGHT - circleShape.radius));
+    } else if (shape.type === 'text') {
+      // Text: constrain both starting and ending positions
+      const textHeight = node.height();
+      const textWidth = node.width();
+      x = Math.max(0, Math.min(x, CANVAS_WIDTH - textWidth));
+      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - textHeight));
+    }
+    
+    // Update node position if constrained
+    if (node.x() !== x || node.y() !== y) {
+      node.x(x);
+      node.y(y);
+    }
+    
+    onDragMove(shape.id, x, y);
+  };
+
+  // Handle drag end with boundary constraints
+  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    e.cancelBubble = true;
+    const node = e.target;
+    let x = node.x();
+    let y = node.y();
+    
+    // Apply boundary constraints based on shape type
+    if (shape.type === 'rectangle') {
+      const rectShape = shape as RectangleShape;
+      x = Math.max(0, Math.min(x, CANVAS_WIDTH - rectShape.width));
+      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - rectShape.height));
+    } else if (shape.type === 'circle') {
+      const circleShape = shape as CircleShape;
+      x = Math.max(circleShape.radius, Math.min(x, CANVAS_WIDTH - circleShape.radius));
+      y = Math.max(circleShape.radius, Math.min(y, CANVAS_HEIGHT - circleShape.radius));
+    } else if (shape.type === 'text') {
+      // Text: constrain both starting and ending positions
+      const textHeight = node.height();
+      const textWidth = node.width();
+      x = Math.max(0, Math.min(x, CANVAS_WIDTH - textWidth));
+      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - textHeight));
+    }
+    
+    // Update node position if constrained
+    if (node.x() !== x || node.y() !== y) {
+      node.x(x);
+      node.y(y);
+    }
+    
+    onDragEnd(shape.id, x, y);
   };
 
   // Common props for all shapes
@@ -82,13 +135,14 @@ export const Shape = ({ shape, isSelected, onSelect, onDragMove, onDragEnd, shap
       );
 
     case 'text':
+      const textShape = shape as TextShape;
       return (
         <Text
           id={shape.id}
           x={shape.x}
           y={shape.y}
-          text={shape.text}
-          fontSize={shape.fontSize}
+          text={textShape.text}
+          fontSize={textShape.fontSize}
           fill={shape.color}
           ref={(node) => shapeRef(shape.id, node)}
           {...commonProps}

@@ -10,6 +10,7 @@ interface UseCanvasReturn {
   // Tool and style state
   currentTool: ToolType;
   currentColor: string;
+  currentFontSize: number;
   
   // Shape management functions
   addShape: (shape: CanvasShape) => void;
@@ -20,6 +21,7 @@ interface UseCanvasReturn {
   // Tool and style handlers
   setCurrentTool: (tool: ToolType) => void;
   setCurrentColor: (color: string) => void;
+  setCurrentFontSize: (fontSize: number) => void;
 }
 
 /**
@@ -34,6 +36,7 @@ export const useCanvas = (): UseCanvasReturn => {
   // Tool and style state
   const [currentTool, setCurrentTool] = useState<ToolType>('select');
   const [currentColor, setCurrentColor] = useState<string>(USER_COLORS[0]);
+  const [currentFontSize, setCurrentFontSize] = useState<number>(24);
 
   // Add a new shape to the canvas
   const addShape = useCallback((shape: CanvasShape) => {
@@ -71,6 +74,7 @@ export const useCanvas = (): UseCanvasReturn => {
     selectedShapeId,
     currentTool,
     currentColor,
+    currentFontSize,
     
     // Shape management
     addShape,
@@ -81,6 +85,7 @@ export const useCanvas = (): UseCanvasReturn => {
     // Tool and style
     setCurrentTool,
     setCurrentColor,
+    setCurrentFontSize,
   };
 };
 
