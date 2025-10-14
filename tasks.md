@@ -1139,7 +1139,6 @@ collab-canvas/
 - [x] **10.1: Add Loading States**
   - ✅ Show loading spinner on app load (AuthGuard)
   - ✅ Show loading during authentication (Login/Signup with inline spinners)
-  - ✅ Show loading while fetching canvas objects (Canvas loading overlay)
   - **Files Updated:**
     - `src/components/Auth/Login.tsx` - Added inline button spinners
     - `src/components/Auth/Signup.tsx` - Added inline button spinners

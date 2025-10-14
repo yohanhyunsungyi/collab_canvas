@@ -6,18 +6,22 @@ interface CanvasToolbarProps {
   currentTool: ToolType;
   currentColor: string;
   currentFontSize: number;
+  selectedShapeId: string | null;
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
   onFontSizeChange: (fontSize: number) => void;
+  onDelete: () => void;
 }
 
 export const CanvasToolbar = ({
   currentTool,
   currentColor,
   currentFontSize,
+  selectedShapeId,
   onToolChange,
   onColorChange,
   onFontSizeChange,
+  onDelete,
 }: CanvasToolbarProps) => {
   const tools: { type: ToolType; label: string; icon: string }[] = [
     { type: 'select', label: 'Select', icon: '⬆️' },
@@ -43,6 +47,20 @@ export const CanvasToolbar = ({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-section">
+        <span className="toolbar-label">Actions</span>
+        <button
+          className="delete-button"
+          onClick={onDelete}
+          disabled={currentTool !== 'select' || !selectedShapeId}
+          title={currentTool !== 'select' ? 'Switch to Select mode to delete' : !selectedShapeId ? 'Select a shape to delete' : 'Delete selected shape (Delete/Backspace)'}
+        >
+          🗑️ Delete
+        </button>
       </div>
 
       <div className="toolbar-divider" />

@@ -34,7 +34,6 @@ export const Canvas = () => {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
-  const [isLoadingShapes, setIsLoadingShapes] = useState(true);
   
     // Get current user for shape creation
     const { user } = useAuth();
@@ -85,18 +84,15 @@ export const Canvas = () => {
   // Effect for loading shapes from Firestore and subscribing to real-time updates
   useEffect(() => {
     let isInitialLoad = true;
-    setIsLoadingShapes(true);
     
     // Initial load: fetch all shapes
     fetchAllShapes()
       .then((allShapes) => {
         console.log(`[Canvas] Initial load: ${allShapes.length} shapes`);
         setShapes(allShapes);
-        setIsLoadingShapes(false);
       })
       .catch((error) => {
         console.error('[Canvas] Failed to load initial shapes:', error);
-        setIsLoadingShapes(false);
       });
     
     // Subscribe to real-time changes
@@ -825,9 +821,11 @@ export const Canvas = () => {
         currentTool={currentTool}
         currentColor={currentColor}
         currentFontSize={currentFontSize}
+        selectedShapeId={selectedShapeId}
         onToolChange={setCurrentTool}
         onColorChange={handleColorChange}
         onFontSizeChange={handleFontSizeChange}
+        onDelete={() => selectedShapeId && removeShape(selectedShapeId)}
         />
   
       <div className="canvas-main-content">
@@ -840,15 +838,6 @@ export const Canvas = () => {
                   'crosshair' 
         }}
       >
-        {isLoadingShapes && (
-          <div className="canvas-loading-overlay">
-            <div className="canvas-loading-spinner">
-              <div className="spinner"></div>
-              <p>Loading canvas...</p>
-            </div>
-          </div>
-        )}
-        
         <Stage
           ref={stageRef}
           width={containerSize.width}

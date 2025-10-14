@@ -128,3 +128,39 @@
   box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.15);
 }
 
+/* Delete Button */
+.delete-button {
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--color-error, #f44336);
+  border-radius: var(--radius-md, 6px);
+  background: white;
+  color: var(--color-error, #f44336);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base, 0.2s);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.delete-button:hover:not(:disabled) {
+  background: var(--color-error, #f44336);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md, 0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+.delete-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+}
+
+.delete-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--color-border, #e0e0e0);
+  color: var(--color-text-tertiary, #999);
+}
+
