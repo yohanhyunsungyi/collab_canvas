@@ -962,14 +962,14 @@ collab-canvas/
 
 ### Tasks:
 
-- [ ] **8.1: Create Cursor Service**
+- [x] **8.1: Create Cursor Service**
   - Function to update cursor position in Realtime DB
   - Function to subscribe to all cursor positions
   - Throttle updates to 60fps (every ~16ms)
   - **Files Created:**
     - `src/services/cursor.service.ts`
 
-- [ ] **8.2: Create Cursor Hook**
+- [x] **8.2: Create Cursor Hook**
   - Track own cursor position
   - Subscribe to other users' cursors
   - Update Realtime DB on mouse move
@@ -977,7 +977,7 @@ collab-canvas/
   - **Files Created:**
     - `src/hooks/useCursors.ts`
 
-- [ ] **8.3: Create MultiplayerCursors Component**
+- [x] **8.3: Create MultiplayerCursors Component**
   - Render cursor for each connected user
   - Display user name label next to cursor
   - Assign unique color to each user
@@ -985,7 +985,7 @@ collab-canvas/
   - **Files Created:**
     - `src/components/Canvas/MultiplayerCursors.tsx`
 
-- [ ] **8.4: Integrate Cursors into Canvas**
+- [x] **8.4: Integrate Cursors into Canvas**
   - Track mouse position on canvas
   - Convert mouse position to canvas coordinates
   - Update cursor position in Realtime DB
@@ -994,14 +994,14 @@ collab-canvas/
     - `src/components/Canvas/Canvas.tsx`
     - `src/hooks/useCanvas.ts`
 
-- [ ] **8.5: Test Cursor Sync**
+- [x] **8.5: Test Cursor Sync**
   - Open 2 windows, move mouse
   - Verify cursor appears in other window
   - Verify latency is <50ms
   - Test with 3-5 simultaneous users
   - **Testing only, no file changes**
 
-- [ ] **8.6: Unit Tests for Cursor Service**
+- [x] **8.6: Unit Tests for Cursor Service**
   - Test updateCursorPosition writes to Realtime DB
   - Test cursor position data structure is correct
   - Test throttling mechanism (if implemented)
@@ -1009,14 +1009,14 @@ collab-canvas/
   - **Files Created:**
     - `src/services/cursor.service.test.ts`
 
-- [ ] **8.7: Unit Tests for Cursor Hook**
+- [x] **8.7: Unit Tests for Cursor Hook**
   - Test useCursors subscribes to cursor positions
   - Test cursor updates trigger state changes
   - Test cleanup on unmount
   - **Files Created:**
     - `src/hooks/useCursors.test.ts`
 
-- [ ] **8.8: Component Tests for MultiplayerCursors**
+- [x] **8.8: Component Tests for MultiplayerCursors**
   - Test renders cursor for each user
   - Test displays user names correctly
   - Test applies unique colors per user
@@ -1025,15 +1025,15 @@ collab-canvas/
     - `src/components/Canvas/MultiplayerCursors.test.tsx`
 
 **PR Checklist Before Merge:**
-- [ ] Cursors show for all connected users
-- [ ] User names display next to cursors
-- [ ] Each user has unique cursor color
-- [ ] Cursor positions sync in <50ms
-- [ ] Cursors move smoothly (no jitter)
-- [ ] Own cursor is not rendered (only others)
-- [ ] Cursor service unit tests pass
-- [ ] Cursor hook unit tests pass
-- [ ] MultiplayerCursors component tests pass
+- [x] Cursors show for all connected users
+- [x] User names display next to cursors
+- [x] Each user has unique cursor color
+- [x] Cursor positions sync in <50ms
+- [x] Cursors move smoothly (no jitter)
+- [x] Own cursor is not rendered (only others)
+- [x] Cursor service unit tests pass (8/8)
+- [x] Cursor hook unit tests pass (9/9)
+- [x] MultiplayerCursors component tests pass (9/9)
 
 ---
 

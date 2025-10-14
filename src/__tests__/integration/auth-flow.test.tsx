@@ -23,6 +23,14 @@ vi.mock('react-konva', () => ({
   Transformer: () => <div data-testid="konva-transformer" />,
 }));
 
+// Mock useCursors hook
+vi.mock('../../hooks/useCursors', () => ({
+  useCursors: vi.fn(() => ({
+    cursors: {},
+    updateOwnCursor: vi.fn(),
+  })),
+}));
+
 describe('Auth Flow Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();

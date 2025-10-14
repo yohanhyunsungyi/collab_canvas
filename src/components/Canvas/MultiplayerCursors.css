@@ -1,0 +1,35 @@
+.multiplayer-cursors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.cursor {
+  position: absolute;
+  transform: translate(-2px, -2px);
+  transition: left 0.05s linear, top 0.05s linear;
+  pointer-events: none;
+}
+
+.cursor-pointer {
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.cursor-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin-left: 24px;
+  margin-top: -8px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+

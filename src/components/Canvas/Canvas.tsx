@@ -5,7 +5,9 @@ import type { Viewport, RectangleShape, CircleShape, CanvasShape } from '../../t
 import { CanvasToolbar } from './CanvasToolbar';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
+import { useCursors } from '../../hooks/useCursors';
 import { Shape } from './Shape';
+import { MultiplayerCursors } from './MultiplayerCursors';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
@@ -50,6 +52,9 @@ export const Canvas = () => {
     setShapes,
     applyShapeChanges,
   } = useCanvas();
+  
+  // Multiplayer cursors hook
+  const { cursors, updateOwnCursor } = useCursors();
   
   // Viewport state: position and scale
   const [viewport, setViewport] = useState<Viewport>({
@@ -377,10 +382,15 @@ export const Canvas = () => {
 
   // Handle mouse move for shape preview
   const handleStageMouseMove = () => {
+    // Update cursor position for multiplayer cursors
+    const pointer = getCanvasPointer();
+    if (pointer) {
+      updateOwnCursor(pointer.x, pointer.y);
+    }
+    
     if (!isDrawing || !startPoint) return;
     if (currentTool !== 'rectangle' && currentTool !== 'circle') return;
     
-    const pointer = getCanvasPointer();
     if (!pointer || !user) return;
     
     if (currentTool === 'rectangle') {
@@ -966,6 +976,9 @@ export const Canvas = () => {
             autoFocus
           />
         )}
+        
+        {/* Multiplayer cursors overlay */}
+        <MultiplayerCursors cursors={cursors} viewport={viewport} />
       </div>
     </div>
   );
