@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Transformer } from 'react-konva';
 import Konva from 'konva';
-import type { Viewport, RectangleShape, CircleShape, TextShape, CanvasShape } from '../../types/canvas.types';
+import type { Viewport, RectangleShape, CircleShape, CanvasShape } from '../../types/canvas.types';
 import { CanvasToolbar } from './CanvasToolbar';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
 import { Shape } from './Shape';
+import { subscribeToShapes } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -28,9 +29,10 @@ export const Canvas = () => {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isLoadingShapes, setIsLoadingShapes] = useState(true);
   
-  // Get current user for shape creation
-  const { user } = useAuth();
+    // Get current user for shape creation
+    const { user } = useAuth();
   
   // Canvas state management hook
   const {
@@ -45,6 +47,7 @@ export const Canvas = () => {
     addShape,
     updateShape,
     selectShape,
+    setShapes,
   } = useCanvas();
   
   // Viewport state: position and scale
@@ -66,6 +69,22 @@ export const Canvas = () => {
   const [editingTextId, setEditingTextId] = useState<string | null>(null); // For editing existing text
   const textInputRef = useRef<HTMLInputElement>(null);
   const textInputCreatedAt = useRef<number>(0);
+
+  // Effect for loading shapes from Firestore and subscribing to real-time updates
+  useEffect(() => {
+    setIsLoadingShapes(true);
+    
+    // Subscribe to shapes
+    const unsubscribe = subscribeToShapes((newShapes: CanvasShape[]) => {
+      setShapes(newShapes);
+      setIsLoadingShapes(false); // Mark as loaded after first update
+    });
+
+    // Unsubscribe on component unmount
+    return () => {
+      unsubscribe();
+    };
+  }, [setShapes]);
 
   // Calculate boundary constraints for panning
   const getBoundaryConstraints = useCallback((scale: number) => {
@@ -424,23 +443,16 @@ export const Canvas = () => {
         // Apply boundary constraints
         const constrained = constrainShapeCreation('rectangle', rawX, rawY, rawWidth, rawHeight);
         
-        const newShape: RectangleShape = {
-          id: `rect-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          type: 'rectangle',
+        const newShapeData = {
+          type: 'rectangle' as const,
           x: constrained.x,
           y: constrained.y,
           width: constrained.width ?? rawWidth,
           height: constrained.height ?? rawHeight,
           color: currentColor,
-          createdBy: user.id,
-          createdAt: Date.now(),
-          lastModifiedBy: user.id,
-          lastModifiedAt: Date.now(),
-          lockedBy: null,
-          lockedAt: null,
         };
         
-        addShape(newShape);
+        addShape(newShapeData, user.id);
       }
     } else if (currentTool === 'circle') {
       // Calculate radius from distance between start point and current pointer
@@ -453,22 +465,15 @@ export const Canvas = () => {
         // Apply boundary constraints
         const constrained = constrainShapeCreation('circle', startPoint.x, startPoint.y, undefined, undefined, radius);
         
-        const newShape: CircleShape = {
-          id: `circle-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          type: 'circle',
+        const newShapeData = {
+          type: 'circle' as const,
           x: constrained.x,
           y: constrained.y,
           radius: constrained.radius ?? radius,
           color: currentColor,
-          createdBy: user.id,
-          createdAt: Date.now(),
-          lastModifiedBy: user.id,
-          lastModifiedAt: Date.now(),
-          lockedBy: null,
-          lockedAt: null,
         };
         
-        addShape(newShape);
+        addShape(newShapeData, user.id);
       }
     }
     
@@ -508,7 +513,6 @@ export const Canvas = () => {
           lastModifiedAt: Date.now(),
         });
       } else {
-        // Create new text shape
         // Convert screen coordinates (relative to canvas-container) back to canvas coordinates
         const rawCanvasX = (textEditPosition.x - viewport.x) / viewport.scale;
         const rawCanvasY = (textEditPosition.y - viewport.y) / viewport.scale;
@@ -516,23 +520,16 @@ export const Canvas = () => {
         // Apply boundary constraints
         const constrained = constrainPoint(rawCanvasX, rawCanvasY);
         
-        const newShape: TextShape = {
-          id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          type: 'text',
+        const newShapeData = {
+          type: 'text' as const,
           x: constrained.x,
           y: constrained.y,
           text: trimmedText,
           fontSize: currentFontSize,
           color: currentColor,
-          createdBy: user.id,
-          createdAt: Date.now(),
-          lastModifiedBy: user.id,
-          lastModifiedAt: Date.now(),
-          lockedBy: null,
-          lockedAt: null,
         };
         
-        addShape(newShape);
+        addShape(newShapeData, user.id);
       }
     }
     
@@ -737,9 +734,9 @@ export const Canvas = () => {
         onToolChange={setCurrentTool}
         onColorChange={handleColorChange}
         onFontSizeChange={handleFontSizeChange}
-      />
-
-      <div 
+        />
+  
+        <div
         className="canvas-container"
         style={{ 
           cursor: isPanning ? 'grab' : 
@@ -748,6 +745,15 @@ export const Canvas = () => {
                   'crosshair' 
         }}
       >
+        {isLoadingShapes && (
+          <div className="canvas-loading-overlay">
+            <div className="canvas-loading-spinner">
+              <div className="spinner"></div>
+              <p>Loading canvas...</p>
+            </div>
+          </div>
+        )}
+        
         <Stage
           ref={stageRef}
           width={containerSize.width}

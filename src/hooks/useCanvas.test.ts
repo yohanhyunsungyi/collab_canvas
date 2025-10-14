@@ -1,32 +1,46 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useCanvas } from './useCanvas';
 import type { RectangleShape, CircleShape } from '../types/canvas.types';
+import { createShape } from '../services/canvas.service';
+
+vi.mock('../services/canvas.service', () => ({
+  createShape: vi.fn(),
+  updateShape: vi.fn(),
+  deleteShape: vi.fn(),
+}));
 
 describe('useCanvas', () => {
-  it('should add shapes to canvas state', () => {
+  // Clear mocks before each test
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should call createShape service when adding a shape', async () => {
     const { result } = renderHook(() => useCanvas());
+    const userId = 'user-123';
     
-    const newShape: RectangleShape = {
-      id: 'rect-1',
-      type: 'rectangle',
+    const shapeData = {
+      type: 'rectangle' as const,
       x: 100,
       y: 100,
       width: 200,
       height: 150,
       color: '#ff0000',
-      createdBy: 'user-1',
-      createdAt: Date.now(),
-      lastModifiedBy: 'user-1',
-      lastModifiedAt: Date.now(),
     };
 
-    act(() => {
-      result.current.addShape(newShape);
+    await act(async () => {
+      await result.current.addShape(shapeData, userId);
     });
 
-    expect(result.current.shapes).toHaveLength(1);
-    expect(result.current.shapes[0]).toEqual(newShape);
+    expect(createShape).toHaveBeenCalledTimes(1);
+    expect(createShape).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...shapeData,
+        createdBy: userId,
+        lastModifiedBy: userId,
+      })
+    );
   });
 
   it('should select and deselect shapes', () => {
@@ -59,10 +73,13 @@ describe('useCanvas', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     act(() => {
-      result.current.addShape(shape);
+      // Manually set initial shapes for this test, as addShape is now async service call
+      result.current.setShapes([shape]);
     });
 
     act(() => {
@@ -88,10 +105,13 @@ describe('useCanvas', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     act(() => {
-      result.current.addShape(shape);
+      // Manually set initial shapes
+      result.current.setShapes([shape]);
     });
 
     act(() => {
@@ -142,10 +162,12 @@ describe('useCanvas', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     act(() => {
-      result.current.addShape(shape);
+      result.current.setShapes([shape]);
       result.current.selectShape('rect-1');
     });
 

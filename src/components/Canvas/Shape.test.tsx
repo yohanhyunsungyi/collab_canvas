@@ -15,6 +15,8 @@ describe('Shape', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     expect(rectangleShape.type).toBe('rectangle');
@@ -34,6 +36,8 @@ describe('Shape', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     expect(circleShape.type).toBe('circle');
@@ -54,6 +58,8 @@ describe('Shape', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     expect(textShape.type).toBe('text');
@@ -74,6 +80,8 @@ describe('Shape', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     const isSelected = true;
@@ -94,6 +102,8 @@ describe('Shape', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     // Simulate drag
@@ -118,6 +128,8 @@ describe('Shape', () => {
       createdAt: Date.now(),
       lastModifiedBy: 'user-1',
       lastModifiedAt: Date.now(),
+      lockedBy: null,
+      lockedAt: null,
     };
 
     // Simulate resize
