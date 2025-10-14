@@ -9,6 +9,8 @@ import { useCursors } from '../../hooks/useCursors';
 import { Shape } from './Shape';
 import { MultiplayerCursors } from './MultiplayerCursors';
 import { PresenceSidebar } from '../Presence/PresenceSidebar';
+import { ErrorNotification } from '../UI/ErrorNotification';
+import { ConnectionStatus } from '../UI/ConnectionStatus';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
@@ -44,18 +46,21 @@ export const Canvas = () => {
     currentTool,
     currentColor,
     currentFontSize,
+    error: canvasError,
+    clearError: clearCanvasError,
     setCurrentTool,
     setCurrentColor,
     setCurrentFontSize,
     addShape,
     updateShape,
+    removeShape,
     selectShape,
     setShapes,
     applyShapeChanges,
   } = useCanvas();
   
   // Multiplayer cursors hook
-  const { cursors, updateOwnCursor } = useCursors();
+  const { cursors, updateOwnCursor, error: cursorsError } = useCursors();
   
   // Viewport state: position and scale
   const [viewport, setViewport] = useState<Viewport>({
@@ -192,13 +197,24 @@ export const Canvas = () => {
     }
   }, [selectedShapeId]);
 
-  // Handle spacebar key events for pan mode
+  // Handle keyboard events for pan mode and delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger pan mode while editing text or if target is an input
+      // Don't trigger keyboard shortcuts while editing text or if target is an input
       const target = e.target as HTMLElement;
       const isInputTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
       
+      // Handle Delete/Backspace key to delete selected shape
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputTarget && !isEditingText) {
+        e.preventDefault();
+        if (selectedShapeId) {
+          console.log('[Canvas] Deleting shape:', selectedShapeId);
+          removeShape(selectedShapeId);
+        }
+        return;
+      }
+      
+      // Handle spacebar for pan mode
       if (e.code === 'Space' && !isSpacePressed && !isEditingText && !isInputTarget) {
         e.preventDefault();
         setIsSpacePressed(true);
@@ -224,7 +240,7 @@ export const Canvas = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed, isEditingText]);
+  }, [isSpacePressed, isEditingText, selectedShapeId, removeShape]);
 
   // Handle drag end to update viewport state with constraints
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -590,15 +606,47 @@ export const Canvas = () => {
     }
   };
 
+  // Handle lock acquisition
+  const handleLockAcquire = useCallback(async (shapeId: string) => {
+    if (!user) return false;
+    
+    const shape = shapes.find(s => s.id === shapeId);
+    if (!shape) return false;
+    
+    // Check if already locked by another user
+    if (shape.lockedBy && shape.lockedBy !== user.id) {
+      // Check if lock has expired
+      if (!isLockExpired(shape.lockedAt)) {
+        console.log(`[Canvas] Cannot interact - shape ${shapeId} is locked by ${shape.lockedBy}`);
+        return false;
+      }
+    }
+    
+    // Attempt to acquire lock
+    const acquired = await acquireLock(shapeId, user.id);
+    if (acquired) {
+      console.log(`[Canvas] Lock acquired on shape ${shapeId}`);
+    }
+    return acquired;
+  }, [user, shapes]);
+
+  // Handle lock release
+  const handleLockRelease = useCallback(async (shapeId: string) => {
+    if (!user) return;
+    
+    await releaseLock(shapeId, user.id);
+    console.log(`[Canvas] Lock released on shape ${shapeId}`);
+  }, [user]);
+
   // Handle shape drag move (live update during drag)
   // Note: Position constraints are handled by dragBoundFunc in Shape component
-  const handleShapeDragMove = (id: string, x: number, y: number) => {
+  const handleShapeDragMove = useCallback((id: string, x: number, y: number) => {
     updateShape(id, { x, y });
-  };
+  }, [updateShape]);
 
   // Handle shape drag end (final position)
   // Note: Position constraints are handled by dragBoundFunc in Shape component
-  const handleShapeDragEnd = (id: string, x: number, y: number) => {
+  const handleShapeDragEnd = useCallback((id: string, x: number, y: number) => {
     if (!user) return;
     
     updateShape(id, {
@@ -610,7 +658,7 @@ export const Canvas = () => {
     
     // Release lock after drag ends
     handleLockRelease(id);
-  };
+  }, [user, updateShape, handleLockRelease]);
 
   // Handle shape transform (resize/scale)
   // Uses centralized boundary constraint functions from boundaries.ts
@@ -715,38 +763,6 @@ export const Canvas = () => {
     handleLockRelease(selectedShapeId);
   };
 
-  // Handle lock acquisition
-  const handleLockAcquire = useCallback(async (shapeId: string) => {
-    if (!user) return false;
-    
-    const shape = shapes.find(s => s.id === shapeId);
-    if (!shape) return false;
-    
-    // Check if already locked by another user
-    if (shape.lockedBy && shape.lockedBy !== user.id) {
-      // Check if lock has expired
-      if (!isLockExpired(shape.lockedAt)) {
-        console.log(`[Canvas] Cannot interact - shape ${shapeId} is locked by ${shape.lockedBy}`);
-        return false;
-      }
-    }
-    
-    // Attempt to acquire lock
-    const acquired = await acquireLock(shapeId, user.id);
-    if (acquired) {
-      console.log(`[Canvas] Lock acquired on shape ${shapeId}`);
-    }
-    return acquired;
-  }, [user, shapes]);
-
-  // Handle lock release
-  const handleLockRelease = useCallback(async (shapeId: string) => {
-    if (!user) return;
-    
-    await releaseLock(shapeId, user.id);
-    console.log(`[Canvas] Lock released on shape ${shapeId}`);
-  }, [user]);
-
   // Handle color change - update current color and selected shape color
   const handleColorChange = (color: string) => {
     setCurrentColor(color);
@@ -788,6 +804,12 @@ export const Canvas = () => {
 
   return (
     <div className="canvas-wrapper">
+      {/* Error Notifications */}
+      <ErrorNotification 
+        message={canvasError || cursorsError} 
+        onDismiss={clearCanvasError}
+      />
+      
       <header className="canvas-header">
         <h1>CollabCanvas</h1>
         <div className="canvas-info">
@@ -796,6 +818,7 @@ export const Canvas = () => {
           Position: ({Math.round(viewport.x)}, {Math.round(viewport.y)})
           {isSpacePressed && ' | 🖐️ Pan Mode'}
         </div>
+        <ConnectionStatus />
       </header>
 
       <CanvasToolbar

@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Rect, Circle, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../../types/canvas.types';
@@ -19,8 +20,9 @@ interface ShapeProps {
 /**
  * Generic Shape component that renders different Konva shapes
  * based on the shape type (rectangle, circle, text)
+ * Memoized for performance with many shapes
  */
-export const Shape = ({ 
+const ShapeComponent = ({ 
   shape, 
   isSelected, 
   onSelect, 
@@ -30,7 +32,7 @@ export const Shape = ({
   onLockRelease,
   currentUserId,
   shapeRef 
-}: ShapeProps) => {
+}: ShapeProps): JSX.Element | null => {
   // Check if shape is locked by another user
   const isLockedByOther = shape.lockedBy && 
     shape.lockedBy !== currentUserId && 
@@ -206,4 +208,28 @@ export const Shape = ({
       return null;
   }
 };
+
+// Memoize the component to prevent unnecessary re-renders
+// Only re-render when shape data, selection state, or lock state changes
+export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.shape.id === nextProps.shape.id &&
+    prevProps.shape.x === nextProps.shape.x &&
+    prevProps.shape.y === nextProps.shape.y &&
+    prevProps.shape.color === nextProps.shape.color &&
+    prevProps.shape.lockedBy === nextProps.shape.lockedBy &&
+    prevProps.shape.lockedAt === nextProps.shape.lockedAt &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.currentUserId === nextProps.currentUserId &&
+    // Check type-specific properties
+    (prevProps.shape.type !== 'rectangle' || 
+      ((prevProps.shape as RectangleShape).width === (nextProps.shape as RectangleShape).width &&
+       (prevProps.shape as RectangleShape).height === (nextProps.shape as RectangleShape).height)) &&
+    (prevProps.shape.type !== 'circle' || 
+      (prevProps.shape as CircleShape).radius === (nextProps.shape as CircleShape).radius) &&
+    (prevProps.shape.type !== 'text' || 
+      ((prevProps.shape as TextShape).text === (nextProps.shape as TextShape).text &&
+       (prevProps.shape as TextShape).fontSize === (nextProps.shape as TextShape).fontSize))
+  );
+});
 

@@ -15,6 +15,10 @@ interface UseCanvasReturn {
   currentColor: string;
   currentFontSize: number;
   
+  // Error state
+  error: string | null;
+  clearError: () => void;
+  
   // Shape management functions
   addShape: (shape: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>, userId: string) => Promise<void>;
   updateShape: (id: string, updates: Partial<CanvasShape>) => void;
@@ -41,6 +45,9 @@ export const useCanvas = (): UseCanvasReturn => {
   const [currentTool, setCurrentTool] = useState<ToolType>('select');
   const [currentColor, setCurrentColor] = useState<string>(USER_COLORS[0]);
   const [currentFontSize, setCurrentFontSize] = useState<number>(24);
+  
+  // Error state
+  const [error, setError] = useState<string | null>(null);
 
   // Add a new shape to the canvas and persist it to Firestore
   const addShape = useCallback(async (
@@ -65,37 +72,64 @@ export const useCanvas = (): UseCanvasReturn => {
       await canvasService.createShape(newShape);
     } catch (error) {
       console.error("Failed to add shape:", error);
-      // Here you could also set an error state to show in the UI
+      setError('Failed to create shape. Please check your connection.');
     }
   }, []);
 
   // Update an existing shape and persist it to Firestore
   const updateShape = useCallback(async (id: string, updates: Partial<CanvasShape>) => {
+    // Store original shape for potential rollback
+    let originalShape: CanvasShape | undefined;
+    
     // Optimistically update local state for better responsiveness
-    setShapes((prev) =>
-      prev.map((shape) => 
+    setShapes((prev) => {
+      originalShape = prev.find(s => s.id === id);
+      return prev.map((shape) => 
         shape.id === id ? { ...shape, ...updates } as CanvasShape : shape
-      )
-    );
+      );
+    });
     
     try {
       await canvasService.updateShape(id, updates);
     } catch (error) {
       console.error("Failed to update shape:", error);
-      // Here you could revert the optimistic update if the API call fails
+      setError('Failed to update shape. Please check your connection.');
+      // Revert optimistic update on failure
+      if (originalShape) {
+        setShapes((prev) =>
+          prev.map((shape) => 
+            shape.id === id ? originalShape! : shape
+          )
+        );
+      }
     }
   }, []);
 
-  // Remove a shape from the canvas
-  const removeShape = useCallback((id: string) => {
-    setShapes((prev) => prev.filter((shape) => shape.id !== id));
-    // Clear selection if the removed shape was selected
-    setSelectedShapeId((prev) => (prev === id ? null : prev));
+  // Remove a shape from the canvas and delete from Firestore
+  const removeShape = useCallback(async (id: string) => {
+    try {
+      // Optimistically remove from local state
+      setShapes((prev) => prev.filter((shape) => shape.id !== id));
+      // Clear selection if the removed shape was selected
+      setSelectedShapeId((prev) => (prev === id ? null : prev));
+      
+      // Delete from Firestore
+      await canvasService.deleteShape(id);
+    } catch (error) {
+      console.error("Failed to delete shape:", error);
+      setError('Failed to delete shape. Please check your connection.');
+      // Note: The shape will reappear via onSnapshot if deletion failed
+    }
   }, []);
 
   // Select a shape
   const selectShape = useCallback((id: string | null) => {
     setSelectedShapeId(id);
+  }, []);
+  
+  // Clear error state
+  const clearError = useCallback(() => {
+    setError(null);
   }, []);
 
   // Apply real-time shape changes from Firestore
@@ -158,6 +192,10 @@ export const useCanvas = (): UseCanvasReturn => {
     currentTool,
     currentColor,
     currentFontSize,
+    
+    // Error state
+    error,
+    clearError,
     
     // Shape management
     addShape,

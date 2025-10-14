@@ -10,6 +10,7 @@ import type { CursorPosition } from '../types/presence.types';
 export const useCursors = () => {
   const { user } = useAuth();
   const [cursors, setCursors] = useState<Record<string, CursorPosition>>({});
+  const [error, setError] = useState<string | null>(null);
   const lastUpdateTime = useRef<number>(0);
   
   // Throttle interval: 16ms = 60fps
@@ -36,8 +37,9 @@ export const useCursors = () => {
         y,
         userName: user.displayName,
         color: user.color,
-      }).catch((error) => {
-        console.error('[useCursors] Failed to update cursor:', error);
+      }).catch((err) => {
+        console.error('[useCursors] Failed to update cursor:', err);
+        setError('Failed to sync cursor position');
       });
     },
     [user]
@@ -70,6 +72,7 @@ export const useCursors = () => {
   return {
     cursors,
     updateOwnCursor,
+    error,
   };
 };
 
