@@ -552,7 +552,7 @@ collab-canvas/
   - **Result:** ✅ All shapes (Rectangle, Circle, Text) now work correctly with proper boundaries
   - **Tests:** 71/71 tests passing ✅
 
-- [ ] **4.8: Unit Tests for Canvas Hook**
+- [x] **4.8: Unit Tests for Canvas Hook**
   - Test adding shapes to canvas state
   - Test shape selection logic
   - Test shape movement updates state
@@ -561,7 +561,7 @@ collab-canvas/
   - **Files Updated:**
     - `src/hooks/useCanvas.test.ts`
 
-- [ ] **4.9: Component Tests for Shape**
+- [x] **4.9: Component Tests for Shape**
   - Test Shape component renders different types correctly
   - Test shape responds to selection
   - Test shape can be dragged
