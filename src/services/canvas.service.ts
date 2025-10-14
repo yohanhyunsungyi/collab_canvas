@@ -127,13 +127,15 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
       radius: shape.radius,
     };
   } else {
-    return {
+    // For text shapes, only include width/height if they exist
+    const textData: FirestoreShapeData = {
       ...baseData,
       text: shape.text,
       fontSize: shape.fontSize,
-      width: shape.width,
-      height: shape.height,
     };
+    if (shape.width !== undefined) textData.width = shape.width;
+    if (shape.height !== undefined) textData.height = shape.height;
+    return textData;
   }
 };
 
