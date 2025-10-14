@@ -5,6 +5,7 @@ import {
   deleteShape,
   fetchAllShapes,
   subscribeToShapes,
+  type ShapeChangeEvent,
 } from './canvas.service';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../types/canvas.types';
 
@@ -383,37 +384,36 @@ describe('Canvas Service', () => {
   });
 
   describe('subscribeToShapes', () => {
-    it('should subscribe to real-time shape updates', () => {
+    it('should subscribe to real-time shape updates with change detection', () => {
       const mockCallback = vi.fn();
       const mockUnsubscribe = vi.fn();
 
-      const mockShapes = [
-        {
-          id: 'rect-1',
-          type: 'rectangle',
-          x: 100,
-          y: 100,
-          width: 200,
-          height: 150,
-          color: '#FF6B6B',
-          createdBy: 'user-1',
-          createdAt: 1000000,
-          lastModifiedBy: 'user-1',
-          lastModifiedAt: 1000000,
-          lockedBy: null,
-          lockedAt: null,
-        },
-      ];
+      const mockShapeData = {
+        id: 'rect-1',
+        type: 'rectangle',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 150,
+        color: '#FF6B6B',
+        createdBy: 'user-1',
+        createdAt: 1000000,
+        lastModifiedBy: 'user-1',
+        lastModifiedAt: 1000000,
+        lockedBy: null,
+        lockedAt: null,
+      };
 
       (collection as Mock).mockReturnValue({ name: 'canvasObjects' });
       (onSnapshot as Mock).mockImplementation((query, callback) => {
-        // Simulate snapshot
+        // Simulate snapshot with docChanges
         const mockSnapshot = {
-          forEach: (fn: (doc: any) => void) => {
-            mockShapes.forEach((data) => {
-              fn({ id: data.id, data: () => data });
-            });
-          },
+          docChanges: () => [
+            {
+              type: 'added',
+              doc: { id: mockShapeData.id, data: () => mockShapeData },
+            },
+          ],
         };
         callback(mockSnapshot);
         return mockUnsubscribe;
@@ -424,7 +424,10 @@ describe('Canvas Service', () => {
       expect(mockCallback).toHaveBeenCalledTimes(1);
       expect(mockCallback).toHaveBeenCalledWith(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'rect-1', type: 'rectangle' }),
+          expect.objectContaining({ 
+            type: 'added', 
+            shape: expect.objectContaining({ id: 'rect-1', type: 'rectangle' }),
+          }),
         ])
       );
       expect(typeof unsubscribe).toBe('function');
@@ -434,16 +437,35 @@ describe('Canvas Service', () => {
       expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle empty snapshots', () => {
+    it('should handle modified shape updates', () => {
       const mockCallback = vi.fn();
       const mockUnsubscribe = vi.fn();
+
+      const mockShapeData = {
+        id: 'rect-1',
+        type: 'rectangle',
+        x: 150,
+        y: 150,
+        width: 200,
+        height: 150,
+        color: '#FF6B6B',
+        createdBy: 'user-1',
+        createdAt: 1000000,
+        lastModifiedBy: 'user-2',
+        lastModifiedAt: 1000100,
+        lockedBy: null,
+        lockedAt: null,
+      };
 
       (collection as Mock).mockReturnValue({ name: 'canvasObjects' });
       (onSnapshot as Mock).mockImplementation((query, callback) => {
         const mockSnapshot = {
-          forEach: (fn: (doc: any) => void) => {
-            // Empty
-          },
+          docChanges: () => [
+            {
+              type: 'modified',
+              doc: { id: mockShapeData.id, data: () => mockShapeData },
+            },
+          ],
         };
         callback(mockSnapshot);
         return mockUnsubscribe;
@@ -451,7 +473,78 @@ describe('Canvas Service', () => {
 
       subscribeToShapes(mockCallback);
 
-      expect(mockCallback).toHaveBeenCalledWith([]);
+      expect(mockCallback).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ 
+            type: 'modified', 
+            shape: expect.objectContaining({ id: 'rect-1', x: 150, y: 150 }),
+          }),
+        ])
+      );
+    });
+
+    it('should handle removed shape updates', () => {
+      const mockCallback = vi.fn();
+      const mockUnsubscribe = vi.fn();
+
+      const mockShapeData = {
+        id: 'rect-1',
+        type: 'rectangle',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 150,
+        color: '#FF6B6B',
+        createdBy: 'user-1',
+        createdAt: 1000000,
+        lastModifiedBy: 'user-1',
+        lastModifiedAt: 1000000,
+        lockedBy: null,
+        lockedAt: null,
+      };
+
+      (collection as Mock).mockReturnValue({ name: 'canvasObjects' });
+      (onSnapshot as Mock).mockImplementation((query, callback) => {
+        const mockSnapshot = {
+          docChanges: () => [
+            {
+              type: 'removed',
+              doc: { id: mockShapeData.id, data: () => mockShapeData },
+            },
+          ],
+        };
+        callback(mockSnapshot);
+        return mockUnsubscribe;
+      });
+
+      subscribeToShapes(mockCallback);
+
+      expect(mockCallback).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ 
+            type: 'removed', 
+            shape: expect.objectContaining({ id: 'rect-1' }),
+          }),
+        ])
+      );
+    });
+
+    it('should not call callback when there are no changes', () => {
+      const mockCallback = vi.fn();
+      const mockUnsubscribe = vi.fn();
+
+      (collection as Mock).mockReturnValue({ name: 'canvasObjects' });
+      (onSnapshot as Mock).mockImplementation((query, callback) => {
+        const mockSnapshot = {
+          docChanges: () => [], // No changes
+        };
+        callback(mockSnapshot);
+        return mockUnsubscribe;
+      });
+
+      subscribeToShapes(mockCallback);
+
+      expect(mockCallback).not.toHaveBeenCalled();
     });
   });
 });

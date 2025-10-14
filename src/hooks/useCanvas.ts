@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { CanvasShape, ToolType } from '../types/canvas.types';
 import { USER_COLORS } from '../utils/colors';
 import * as canvasService from '../services/canvas.service';
+import type { ShapeChangeEvent } from '../services/canvas.service';
 
 interface UseCanvasReturn {
   // Canvas objects state
@@ -19,6 +20,7 @@ interface UseCanvasReturn {
   updateShape: (id: string, updates: Partial<CanvasShape>) => void;
   removeShape: (id: string) => void;
   selectShape: (id: string | null) => void;
+  applyShapeChanges: (changes: ShapeChangeEvent[]) => void; // Handle real-time changes
   
   // Tool and style handlers
   setCurrentTool: (tool: ToolType) => void;
@@ -96,6 +98,58 @@ export const useCanvas = (): UseCanvasReturn => {
     setSelectedShapeId(id);
   }, []);
 
+  // Apply real-time shape changes from Firestore
+  const applyShapeChanges = useCallback((changes: ShapeChangeEvent[]) => {
+    const startTime = performance.now();
+    
+    setShapes((prevShapes) => {
+      let updatedShapes = [...prevShapes];
+      let addedCount = 0;
+      let modifiedCount = 0;
+      let removedCount = 0;
+      
+      changes.forEach((change) => {
+        const { type, shape } = change;
+        
+        if (type === 'added') {
+          // Add new shape if it doesn't already exist (prevent duplicates)
+          const exists = updatedShapes.some((s) => s.id === shape.id);
+          if (!exists) {
+            updatedShapes.push(shape);
+            addedCount++;
+            console.log(`[useCanvas] Added shape from real-time update: ${shape.id} (${shape.type})`);
+          } else {
+            console.log(`[useCanvas] Skipped duplicate shape: ${shape.id}`);
+          }
+        } else if (type === 'modified') {
+          // Update existing shape
+          updatedShapes = updatedShapes.map((s) =>
+            s.id === shape.id ? shape : s
+          );
+          modifiedCount++;
+          console.log(`[useCanvas] Modified shape from real-time update: ${shape.id}`);
+        } else if (type === 'removed') {
+          // Remove shape
+          updatedShapes = updatedShapes.filter((s) => s.id !== shape.id);
+          removedCount++;
+          console.log(`[useCanvas] Removed shape from real-time update: ${shape.id}`);
+          
+          // Clear selection if removed shape was selected
+          if (shape.id === selectedShapeId) {
+            setSelectedShapeId(null);
+          }
+        }
+      });
+      
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      
+      console.log(`[useCanvas] Applied ${changes.length} changes in ${duration.toFixed(2)}ms (added: ${addedCount}, modified: ${modifiedCount}, removed: ${removedCount})`);
+      
+      return updatedShapes;
+    });
+  }, [selectedShapeId]);
+
   return {
     // State
     shapes,
@@ -110,6 +164,7 @@ export const useCanvas = (): UseCanvasReturn => {
     updateShape,
     removeShape,
     selectShape,
+    applyShapeChanges, // Handle real-time changes
     
     // Tool and style
     setCurrentTool,

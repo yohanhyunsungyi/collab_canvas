@@ -254,12 +254,20 @@ export const fetchAllShapes = async (): Promise<CanvasShape[]> => {
 };
 
 /**
- * Subscribe to real-time shape changes
- * @param callback - Function to call when shapes change
+ * Shape change event types for real-time updates
+ */
+export interface ShapeChangeEvent {
+  type: 'added' | 'modified' | 'removed';
+  shape: CanvasShape;
+}
+
+/**
+ * Subscribe to real-time shape changes with granular change detection
+ * @param callback - Function to call when shapes change (receives change events)
  * @returns Unsubscribe function to stop listening
  */
 export const subscribeToShapes = (
-  callback: (shapes: CanvasShape[]) => void
+  callback: (changes: ShapeChangeEvent[]) => void
 ): Unsubscribe => {
   try {
     const shapesCollection = collection(firestore, CANVAS_COLLECTION);
@@ -270,14 +278,30 @@ export const subscribeToShapes = (
     const unsubscribe = onSnapshot(
       shapesQuery,
       (snapshot) => {
-        const shapes: CanvasShape[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data() as FirestoreShapeData;
-          shapes.push(firestoreToShape(data));
+        const changes: ShapeChangeEvent[] = [];
+        
+        // Process document changes to detect added/modified/removed
+        snapshot.docChanges().forEach((change) => {
+          const data = change.doc.data() as FirestoreShapeData;
+          const shape = firestoreToShape(data);
+          
+          if (change.type === 'added') {
+            changes.push({ type: 'added', shape });
+            console.log(`[Canvas Service] Shape added: ${shape.id} (${shape.type})`);
+          } else if (change.type === 'modified') {
+            changes.push({ type: 'modified', shape });
+            console.log(`[Canvas Service] Shape modified: ${shape.id} (${shape.type})`);
+          } else if (change.type === 'removed') {
+            changes.push({ type: 'removed', shape });
+            console.log(`[Canvas Service] Shape removed: ${shape.id}`);
+          }
         });
         
-        console.log(`[Canvas Service] Real-time update: ${shapes.length} shapes`);
-        callback(shapes);
+        // Only call callback if there are actual changes
+        if (changes.length > 0) {
+          console.log(`[Canvas Service] Real-time update: ${changes.length} changes`);
+          callback(changes);
+        }
       },
       (error) => {
         console.error('[Canvas Service] Error in real-time listener:', error);

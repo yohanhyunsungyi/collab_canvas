@@ -6,7 +6,7 @@ import { CanvasToolbar } from './CanvasToolbar';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
 import { Shape } from './Shape';
-import { subscribeToShapes } from '../../services/canvas.service';
+import { fetchAllShapes, subscribeToShapes } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -48,6 +48,7 @@ export const Canvas = () => {
     updateShape,
     selectShape,
     setShapes,
+    applyShapeChanges,
   } = useCanvas();
   
   // Viewport state: position and scale
@@ -72,19 +73,40 @@ export const Canvas = () => {
 
   // Effect for loading shapes from Firestore and subscribing to real-time updates
   useEffect(() => {
+    let isInitialLoad = true;
     setIsLoadingShapes(true);
     
-    // Subscribe to shapes
-    const unsubscribe = subscribeToShapes((newShapes: CanvasShape[]) => {
-      setShapes(newShapes);
-      setIsLoadingShapes(false); // Mark as loaded after first update
+    // Initial load: fetch all shapes
+    fetchAllShapes()
+      .then((allShapes) => {
+        console.log(`[Canvas] Initial load: ${allShapes.length} shapes`);
+        setShapes(allShapes);
+        setIsLoadingShapes(false);
+      })
+      .catch((error) => {
+        console.error('[Canvas] Failed to load initial shapes:', error);
+        setIsLoadingShapes(false);
+      });
+    
+    // Subscribe to real-time changes
+    const unsubscribe = subscribeToShapes((changes) => {
+      // Skip the first onSnapshot callback which contains all existing documents
+      // (we already loaded them via fetchAllShapes)
+      if (isInitialLoad) {
+        isInitialLoad = false;
+        console.log('[Canvas] Skipping initial snapshot (already loaded)');
+        return;
+      }
+      
+      console.log(`[Canvas] Applying ${changes.length} real-time changes`);
+      applyShapeChanges(changes);
     });
 
     // Unsubscribe on component unmount
     return () => {
       unsubscribe();
     };
-  }, [setShapes]);
+  }, [setShapes, applyShapeChanges]);
 
   // Calculate boundary constraints for panning
   const getBoundaryConstraints = useCallback((scale: number) => {

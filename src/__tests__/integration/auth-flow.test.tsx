@@ -5,6 +5,15 @@ import * as authService from '../../services/auth.service';
 
 vi.mock('../../services/auth.service');
 
+// Mock canvas service
+vi.mock('../../services/canvas.service', () => ({
+  fetchAllShapes: vi.fn().mockResolvedValue([]),
+  subscribeToShapes: vi.fn(() => vi.fn()), // Return unsubscribe function
+  createShape: vi.fn().mockResolvedValue('test-id'),
+  updateShape: vi.fn().mockResolvedValue(undefined),
+  deleteShape: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock Konva components to avoid canvas errors in tests
 vi.mock('react-konva', () => ({
   Stage: ({ children }: any) => <div data-testid="konva-stage">{children}</div>,

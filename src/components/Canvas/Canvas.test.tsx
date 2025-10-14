@@ -11,6 +11,15 @@ vi.mock('react-konva', () => ({
   Transformer: () => <div data-testid="konva-transformer" />,
 }));
 
+// Mock canvas service
+vi.mock('../../services/canvas.service', () => ({
+  fetchAllShapes: vi.fn().mockResolvedValue([]),
+  subscribeToShapes: vi.fn(() => vi.fn()), // Return unsubscribe function
+  createShape: vi.fn().mockResolvedValue('test-id'),
+  updateShape: vi.fn().mockResolvedValue(undefined),
+  deleteShape: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('Canvas Component', () => {
   it('should render canvas header', () => {
     render(<Canvas />);
