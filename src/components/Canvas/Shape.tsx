@@ -54,8 +54,8 @@ const ShapeComponent = ({
       return;
     }
     
-    // Acquire lock on drag start
-    if (currentUserId) {
+    // Acquire lock on drag start if not already locked by current user
+    if (currentUserId && (!shape.lockedBy || shape.lockedBy !== currentUserId)) {
       const acquired = await onLockAcquire(shape.id);
       if (!acquired) {
         e.target.stopDrag();

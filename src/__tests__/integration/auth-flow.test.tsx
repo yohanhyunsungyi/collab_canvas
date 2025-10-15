@@ -86,7 +86,7 @@ describe('Auth Flow Integration', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'CollabCanvas' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Collab Canvas by Yohan' })).toBeInTheDocument();
     });
   });
 });

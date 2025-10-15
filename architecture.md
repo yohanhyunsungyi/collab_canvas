@@ -1,175 +1,174 @@
 graph TB
-    subgraph ClientApp["Client Application - Browser"]
-        subgraph ReactApp["React Application"]
-            App[App.tsx<br/>Main App Component]
-            
-            subgraph AuthComp["Auth Components"]
-                Login[Login.tsx]
-                Signup[Signup.tsx]
-                AuthGuard[AuthGuard.tsx]
-            end
-            
-            subgraph CanvasComp["Canvas Components"]
-                Canvas[Canvas.tsx<br/>Konva Stage<br/>LOADS from Firestore on mount]
-                Toolbar[CanvasToolbar.tsx]
-                Shape[Shape.tsx<br/>Rect/Circle/Text<br/>WRITES to Firestore on<br/>create/move/resize]
-                Cursors[MultiplayerCursors.tsx]
-            end
-            
-            subgraph PresenceComp["Presence Components"]
-                Sidebar[PresenceSidebar.tsx]
-                Avatar[UserAvatar.tsx]
-            end
-            
-            subgraph Hooks["Custom Hooks"]
-                useAuth[useAuth.ts]
-                useCanvas[useCanvas.ts<br/>Manages shared canvas state]
-                useCursors[useCursors.ts]
-                usePresence[usePresence.ts]
-            end
-            
-            subgraph Services["Services Layer"]
-                AuthService[auth.service.ts<br/>signup/login/logout]
-                CanvasService[canvas.service.ts<br/>CRUD and Persistence<br/>Saves ALL changes<br/>create/move/resize]
-                CursorService[cursor.service.ts<br/>cursor updates]
-                PresenceService[presence.service.ts<br/>online/offline]
-                FirebaseConfig[firebase.ts<br/>SDK initialization]
-            end
-            
-            subgraph TypesUtils["Types and Utils"]
-                Types[TypeScript Types<br/>canvas/user/presence]
-                Utils[Utilities<br/>colors/validation]
-            end
+    subgraph Client["Client Application - React + TypeScript"]
+        subgraph UI["User Interface Layer"]
+            Canvas[Canvas Component<br/>Konva.js Stage]
+            Toolbar[Toolbar<br/>Tools + Actions]
+            AIPanel[AI Panel<br/>Command Input]
+            Comments[Comment Pins<br/>Collaborative Annotations]
+            Presence[Presence Sidebar<br/>Online Users]
+        end
+        
+        subgraph Components["Component Layer"]
+            Shape[Shape Components<br/>Rectangle/Circle/Text]
+            SelectionBox[Selection Box<br/>Multi-Select]
+            Cursors[Multiplayer Cursors]
+            CommentThread[Comment Threads]
+            ContextMenu[Context Menu<br/>Z-index + Actions]
+        end
+        
+        subgraph Hooks["Custom Hooks Layer"]
+            useCanvas[useCanvas<br/>Canvas State Management]
+            useAI[useAI<br/>AI Command State]
+            useComments[useComments<br/>Comment State]
+            useAuth[useAuth<br/>Authentication]
+            usePresence[usePresence<br/>Presence Tracking]
+            useCursors[useCursors<br/>Cursor Sync]
+            useHistory[useHistory<br/>Undo/Redo Stack]
+            useKeyboard[useKeyboardShortcuts<br/>Shortcut Handler]
+        end
+        
+        subgraph Services["Service Layer"]
+            CanvasService[Canvas Service<br/>CRUD + Persistence<br/>create/move/resize]
+            AIService[AI Service<br/>OpenAI/Claude API]
+            AIExecutor[AI Tool Executor<br/>Function Calling]
+            CommentService[Comment Service<br/>CRUD Comments]
+            AuthService[Auth Service<br/>Firebase Auth]
+            CursorService[Cursor Service<br/>Real-time Cursors]
+            PresenceService[Presence Service<br/>Online/Offline]
+        end
+        
+        subgraph Utils["Utility Functions"]
+            LayoutUtils[Layout Utils<br/>arrange/align/distribute]
+            ZIndexUtils[Z-Index Utils<br/>bring forward/back]
+            AlignmentUtils[Alignment Utils<br/>align/distribute]
+            AIToolsSchema[AI Tools Schema<br/>Function Definitions]
+        end
+        
+        subgraph State["State Management"]
+            HistoryStore[History Store<br/>Action Stack for Undo/Redo]
+            ClipboardState[Clipboard State<br/>Copy/Paste]
         end
     end
     
-    subgraph FirebaseBackend["Firebase Backend - PERSISTENT STORAGE"]
-        subgraph FirebaseServices["Firebase Services"]
-            FirebaseAuth[Firebase Authentication<br/>Email/Password]
-            
-            subgraph FirestoreDB["Firestore Database - SINGLE SHARED CANVAS"]
-                CanvasCollection[(canvasObjects Collection<br/>STORES ALL USERS WORK<br/>PERSISTS INDEFINITELY)]
-                ObjectDoc["Document Schema:<br/>id, type, x, y, width,<br/>height, color, radius,<br/>text, fontSize, createdBy,<br/>createdAt, lastModifiedBy,<br/>lastModifiedAt, lockedBy,<br/>lockedAt<br/><br/>EVERY shape from EVERY user<br/>stored here permanently"]
-            end
-            
-            subgraph RealtimeDB["Realtime Database - EPHEMERAL DATA"]
-                CursorPath[(cursorPositions/userId<br/>temporary, not persisted)]
-                CursorData["Cursor Data:<br/>x, y, name, color"]
-                PresencePath[(presence/userId<br/>temporary, not persisted)]
-                PresenceData["Presence Data:<br/>online, lastSeen"]
-            end
-            
-            FirebaseHosting[Firebase Hosting<br/>Static Site Serving]
+    subgraph AI["AI Provider"]
+        OpenAI[OpenAI GPT-4<br/>Function Calling]
+        Claude[Anthropic Claude 3.5<br/>Tool Use]
+    end
+    
+    subgraph Firebase["Firebase Backend"]
+        subgraph Auth["Firebase Authentication"]
+            FirebaseAuth[Email/Password Auth<br/>User Management]
         end
+        
+        subgraph Firestore["Firestore Database"]
+            CanvasObjects[(canvasObjects<br/>id, type, x, y, width,<br/>height, color, zIndex,<br/>createdBy, lockedBy)]
+            CommentsCollection[(comments<br/>id, text, author,<br/>x, y, resolved,<br/>replies, createdAt)]
+        end
+        
+        subgraph RealtimeDB["Realtime Database"]
+            Cursors[(cursorPositions/userId<br/>x, y, name, color)]
+            Presence[(presence/userId<br/>online, lastSeen)]
+        end
+        
+        Hosting[Firebase Hosting<br/>Static Site Deployment]
     end
     
-    subgraph Testing["Testing Infrastructure"]
-        Vitest[Vitest Test Runner]
-        TestUtils[Test Utilities<br/>Mocks and Helpers]
-        UnitTests[Unit Tests<br/>Services/Hooks/Components]
-        IntegrationTests[Integration Tests<br/>Complete Workflows<br/>Shared Canvas Tests]
+    subgraph Features["Feature Highlights"]
+        MVPFeatures[MVP Features<br/>✓ Real-time sync<br/>✓ Object locking<br/>✓ Persistence<br/>✓ Multi-select]
+        
+        AIFeatures[AI Features NEW<br/>✓ 8+ command types<br/>✓ Complex commands<br/>✓ Layout automation<br/>✓ Sub-2s response]
+        
+        AdvancedFeatures[Advanced Features NEW<br/>✓ Undo/Redo<br/>✓ Keyboard shortcuts<br/>✓ Copy/Paste<br/>✓ Z-index management<br/>✓ Alignment tools<br/>✓ Comments]
+        
+        BonusFeatures[Bonus Features NEW<br/>✓ AI suggestions<br/>✓ Smooth animations<br/>✓ 1000+ objects<br/>✓ 10+ users]
     end
     
-    subgraph UserFlow["User Experience Flow"]
-        UserA[User A creates and resizes shapes]
-        UserALeaves[User A logs out]
-        UserBJoins[User B logs in]
-        UserBSeesA[User B sees User A work<br/>with correct sizes]
-        UserBAdds[User B adds and resizes shapes]
-        UserBLeaves[User B logs out]
-        UserAReturns[User A returns later]
-        UserASeesAll[User A sees ALL work<br/>from both users<br/>all positions and sizes intact]
-    end
+    %% UI to Component connections
+    Canvas --> Shape
+    Canvas --> SelectionBox
+    Canvas --> Cursors
+    Canvas --> Comments
+    AIPanel --> CommentThread
     
     %% Component to Hook connections
-    Login --> useAuth
-    Signup --> useAuth
-    AuthGuard --> useAuth
     Canvas --> useCanvas
     Canvas --> useCursors
     Canvas --> usePresence
-    Sidebar --> usePresence
-    Cursors --> useCursors
+    Canvas --> useKeyboard
+    AIPanel --> useAI
+    Comments --> useComments
+    Toolbar --> useCanvas
+    Toolbar --> useHistory
     
     %% Hook to Service connections
-    useAuth --> AuthService
     useCanvas --> CanvasService
+    useAI --> AIService
+    useAI --> AIExecutor
+    useComments --> CommentService
+    useAuth --> AuthService
     useCursors --> CursorService
     usePresence --> PresenceService
     
+    %% Service to AI connections
+    AIService --> OpenAI
+    AIService --> Claude
+    AIExecutor --> CanvasService
+    AIExecutor --> LayoutUtils
+    AIExecutor --> AIToolsSchema
+    
     %% Service to Firebase connections
-    AuthService --> FirebaseConfig
-    CanvasService --> FirebaseConfig
-    CursorService --> FirebaseConfig
-    PresenceService --> FirebaseConfig
+    CanvasService --> CanvasObjects
+    CommentService --> CommentsCollection
+    CursorService --> Cursors
+    PresenceService --> Presence
+    AuthService --> FirebaseAuth
     
-    FirebaseConfig --> FirebaseAuth
-    FirebaseConfig --> CanvasCollection
-    FirebaseConfig --> CursorPath
-    FirebaseConfig --> PresencePath
+    %% Util connections
+    useCanvas --> LayoutUtils
+    useCanvas --> ZIndexUtils
+    useCanvas --> AlignmentUtils
+    useHistory --> HistoryStore
+    useKeyboard --> ClipboardState
     
-    %% Data structure relationships
-    CanvasCollection --> ObjectDoc
-    CursorPath --> CursorData
-    PresencePath --> PresenceData
+    %% Real-time sync connections
+    CanvasObjects -.->|onSnapshot<br/>real-time updates| CanvasService
+    CommentsCollection -.->|onSnapshot<br/>real-time updates| CommentService
+    Cursors -.->|onValue<br/>real-time updates| CursorService
+    Presence -.->|onValue<br/>real-time updates| PresenceService
     
-    %% Real-time sync AND persistence connections
-    CanvasCollection ==>|WRITES on every<br/>create/move/resize| CanvasService
-    CanvasService ==>|READS all shapes on load| CanvasCollection
-    CanvasCollection -.->|onSnapshot listener<br/>real-time updates| CanvasService
-    CursorPath -.->|onValue listener| CursorService
-    PresencePath -.->|onValue listener| PresenceService
+    %% Write operations
+    CanvasService ==>|WRITES<br/>create/move/resize| CanvasObjects
+    CommentService ==>|WRITES<br/>add/reply/resolve| CommentsCollection
+    CursorService ==>|WRITES<br/>position updates| Cursors
+    PresenceService ==>|WRITES<br/>online/offline| Presence
     
-    %% Canvas rendering connections
-    Canvas --> Shape
-    Canvas --> Cursors
-    Canvas --> Toolbar
-    useCanvas -.->|state management| Canvas
+    %% AI flow
+    AIPanel -->|User Command| AIService
+    AIService -->|Parse Intent| OpenAI
+    OpenAI -->|Function Calls| AIExecutor
+    AIExecutor -->|Execute Actions| CanvasService
+    CanvasService -->|Create Shapes| Canvas
     
-    %% Types and Utils
-    Types -.->|type definitions| Services
-    Types -.->|type definitions| Hooks
-    Utils -.->|helper functions| CanvasComp
-    
-    %% Testing connections
-    Vitest --> UnitTests
-    Vitest --> IntegrationTests
-    TestUtils --> UnitTests
-    TestUtils --> IntegrationTests
-    UnitTests -.->|tests| Services
-    UnitTests -.->|tests| Hooks
-    UnitTests -.->|tests| CanvasComp
-    IntegrationTests -.->|tests| App
-    
-    %% User Flow connections
-    UserA --> UserALeaves
-    UserALeaves --> UserBJoins
-    UserBJoins --> UserBSeesA
-    UserBSeesA --> UserBAdds
-    UserBAdds --> UserBLeaves
-    UserBLeaves --> UserAReturns
-    UserAReturns --> UserASeesAll
-    
-    %% User Flow to System
-    UserA -.->|creates shapes| Canvas
-    UserBJoins -.->|loads from| CanvasCollection
-    UserAReturns -.->|loads from| CanvasCollection
+    %% Feature connections
+    MVPFeatures -.->|builds on| AIFeatures
+    AIFeatures -.->|enhanced by| AdvancedFeatures
+    AdvancedFeatures -.->|polished with| BonusFeatures
     
     %% Deployment
-    App ==>|build and deploy| FirebaseHosting
-    FirebaseHosting ==>|serves static files| ClientApp
+    Client ==>|npm run build| Hosting
+    Hosting ==>|serves| Client
     
     %% Styling
-    classDef component fill:#61dafb,stroke:#333,stroke-width:2px,color:#000
-    classDef service fill:#ffa500,stroke:#333,stroke-width:2px,color:#000
-    classDef firebase fill:#ffca28,stroke:#333,stroke-width:2px,color:#000
-    classDef database fill:#4caf50,stroke:#333,stroke-width:2px,color:#000
-    classDef testing fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
-    classDef userflow fill:#e91e63,stroke:#333,stroke-width:2px,color:#fff
+    classDef uiLayer fill:#61dafb,stroke:#333,stroke-width:2px,color:#000
+    classDef serviceLayer fill:#ffa500,stroke:#333,stroke-width:2px,color:#000
+    classDef firebaseLayer fill:#ffca28,stroke:#333,stroke-width:2px,color:#000
+    classDef aiLayer fill:#10a37f,stroke:#333,stroke-width:2px,color:#fff
+    classDef featureLayer fill:#e91e63,stroke:#333,stroke-width:2px,color:#fff
+    classDef stateLayer fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
     
-    class Login,Signup,AuthGuard,Canvas,Toolbar,Shape,Cursors,Sidebar,Avatar component
-    class useAuth,useCanvas,useCursors,usePresence,AuthService,CanvasService,CursorService,PresenceService service
-    class FirebaseAuth,FirebaseHosting,FirebaseConfig firebase
-    class CanvasCollection,ObjectDoc,CursorPath,CursorData,PresencePath,PresenceData database
-    class Vitest,TestUtils,UnitTests,IntegrationTests testing
-    class UserA,UserALeaves,UserBJoins,UserBSeesA,UserBAdds,UserBLeaves,UserAReturns,UserASeesAll userflow
+    class Canvas,Toolbar,AIPanel,Comments,Presence,Shape,SelectionBox,Cursors,CommentThread,ContextMenu uiLayer
+    class CanvasService,AIService,AIExecutor,CommentService,AuthService,CursorService,PresenceService serviceLayer
+    class FirebaseAuth,CanvasObjects,CommentsCollection,Cursors,Presence,Hosting firebaseLayer
+    class OpenAI,Claude aiLayer
+    class MVPFeatures,AIFeatures,AdvancedFeatures,BonusFeatures featureLayer
+    class HistoryStore,ClipboardState stateLayer

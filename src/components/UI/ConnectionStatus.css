@@ -2,27 +2,21 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: 0 12px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #e0e0e0);
+  background: #ffffff;
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.3s ease;
 }
 
-.connection-status-online {
-  background-color: #e8f5e9;
-  color: #2e7d32;
-}
+.connection-status-online { color: #2e7d32; }
 
-.connection-status-offline {
-  background-color: #ffebee;
-  color: #c62828;
-}
+.connection-status-offline { color: #c62828; }
 
-.connection-status-checking {
-  background-color: #fff3e0;
-  color: #e65100;
-}
+.connection-status-checking { color: #e65100; }
 
 .status-dot {
   width: 8px;

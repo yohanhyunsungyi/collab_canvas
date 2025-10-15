@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { USER_COLORS } from '../../utils/colors';
+import { SHAPE_COLORS } from '../../utils/colors';
 import './ColorPicker.css';
 
 interface ColorPickerProps {
@@ -27,7 +27,7 @@ export const ColorPicker = ({ selectedColor, onColorChange }: ColorPickerProps) 
       {isOpen && (
         <div className="color-picker-dropdown">
           <div className="color-grid">
-            {USER_COLORS.map((color) => (
+            {SHAPE_COLORS.map((color) => (
               <button
                 key={color}
                 className={`color-option ${selectedColor === color ? 'selected' : ''}`}

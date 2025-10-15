@@ -30,6 +30,7 @@
   width: 28px;
   height: 28px;
   font-size: 12px;
+  border: 2px solid #ffffff; /* for overlapping stack contrast */
 }
 
 .user-avatar--medium .user-avatar__circle {

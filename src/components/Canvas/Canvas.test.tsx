@@ -24,7 +24,7 @@ vi.mock('../../services/canvas.service', () => ({
 describe('Canvas Component', () => {
   it('should render canvas header', () => {
     render(<Canvas />);
-    expect(screen.getByRole('heading', { name: 'CollabCanvas' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Collab Canvas by Yohan' })).toBeInTheDocument();
   });
 
   it('should display canvas info', () => {

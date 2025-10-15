@@ -69,7 +69,7 @@ export const Signup = ({ onSwitchToLogin }: SignupProps) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1>CollabCanvas</h1>
+        <h1>Collab Canvas by Yohan</h1>
         <h2>Sign Up</h2>
         
         <form onSubmit={handleSubmit} className="auth-form">

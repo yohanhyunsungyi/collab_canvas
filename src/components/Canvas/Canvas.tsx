@@ -9,9 +9,10 @@ import { useCursors } from '../../hooks/useCursors';
 import { Shape } from './Shape';
 import { Grid } from './Grid';
 import { MultiplayerCursors } from './MultiplayerCursors';
-import { PresenceSidebar } from '../Presence/PresenceSidebar';
+// Removed sidebar; presence is now displayed in top bar
 import { ErrorNotification } from '../UI/ErrorNotification';
 import { ConnectionStatus } from '../UI/ConnectionStatus';
+import { PresenceMenu } from '../Presence/PresenceMenu';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
@@ -635,6 +636,37 @@ export const Canvas = () => {
     console.log(`[Canvas] Lock released on shape ${shapeId}`);
   }, [user]);
 
+  // Effect to handle lock release when selection changes
+  useEffect(() => {
+    // Create a ref to track the previous selected shape
+    let prevSelectedShapeId: string | null = null;
+    
+    return () => {
+      // Cleanup: release lock when component unmounts
+      if (prevSelectedShapeId) {
+        handleLockRelease(prevSelectedShapeId);
+      }
+    };
+  }, []);
+
+  // Effect to manage lock when selection changes
+  useEffect(() => {
+    const manageLocks = async () => {
+      // Get previous selection from local state tracking
+      const prevSelectedShapeId = (window as any).__prevSelectedShapeId || null;
+      
+      // If we had a previous selection and it's different from current, release its lock
+      if (prevSelectedShapeId && prevSelectedShapeId !== selectedShapeId) {
+        await handleLockRelease(prevSelectedShapeId);
+      }
+      
+      // Track current selection globally for next comparison
+      (window as any).__prevSelectedShapeId = selectedShapeId;
+    };
+    
+    manageLocks();
+  }, [selectedShapeId, handleLockRelease]);
+
   // Handle shape drag move (live update during drag)
   // Note: Position constraints are handled by dragBoundFunc in Shape component
   const handleShapeDragMove = useCallback((id: string, x: number, y: number) => {
@@ -657,13 +689,18 @@ export const Canvas = () => {
     handleLockRelease(id);
   }, [user, updateShape, handleLockRelease]);
 
-  // Handle transform start - acquire lock when starting to resize
+  // Handle transform start - acquire lock when starting to resize (if not already locked)
   const handleTransformStart = useCallback(async () => {
-    if (!selectedShapeId) return;
+    if (!selectedShapeId || !user) return;
     
-    // Acquire lock when transform starts
-    await handleLockAcquire(selectedShapeId);
-  }, [selectedShapeId, handleLockAcquire]);
+    const shape = shapes.find(s => s.id === selectedShapeId);
+    if (!shape) return;
+    
+    // Only acquire lock if not already locked by current user
+    if (!shape.lockedBy || shape.lockedBy !== user.id) {
+      await handleLockAcquire(selectedShapeId);
+    }
+  }, [selectedShapeId, user, shapes, handleLockAcquire]);
 
   // Handle shape transform (resize/scale)
   // Uses centralized boundary constraint functions from boundaries.ts
@@ -816,14 +853,10 @@ export const Canvas = () => {
       />
       
       <header className="canvas-header">
-        <h1>CollabCanvas</h1>
-        <div className="canvas-info">
-          Canvas: {CANVAS_WIDTH}x{CANVAS_HEIGHT}px | 
-          Zoom: {Math.round(viewport.scale * 100)}% |
-          Position: ({Math.round(viewport.x)}, {Math.round(viewport.y)})
-          {isSpacePressed && ' | 🖐️ Pan Mode'}
-        </div>
+      <h1>Collab Canvas by Yohan</h1>
+        
         <div className="canvas-header-actions">
+          <PresenceMenu />
           <ConnectionStatus />
           {user && (
             <button 
@@ -837,27 +870,33 @@ export const Canvas = () => {
         </div>
       </header>
 
-      <CanvasToolbar
-        currentTool={currentTool}
-        currentColor={currentColor}
-        currentFontSize={currentFontSize}
-        selectedShapeId={selectedShapeId}
-        onToolChange={setCurrentTool}
-        onColorChange={handleColorChange}
-        onFontSizeChange={handleFontSizeChange}
-        onDelete={() => selectedShapeId && removeShape(selectedShapeId)}
-        />
-  
       <div className="canvas-main-content">
         <div
         className="canvas-container"
         style={{ 
-          cursor: isPanning ? 'grab' : 
+          cursor: (isPanning || currentTool === 'pan') ? 'grab' : 
                   currentTool === 'text' ? 'text' : 
                   currentTool === 'select' ? 'default' : 
                   'crosshair' 
         }}
       >
+        {/* Canvas Info Overlay: top-left, simple three-line readout */}
+        <div className="canvas-info-overlay" aria-live="polite">
+          <div>Canvas: {CANVAS_WIDTH}x{CANVAS_HEIGHT}px</div>
+          <div>Zoom: {Math.round(viewport.scale * 100)}%</div>
+          <div>Position: ({Math.round(viewport.x)}, {Math.round(viewport.y)})</div>
+        </div>
+
+        <CanvasToolbar
+          currentTool={currentTool}
+          currentColor={currentColor}
+          currentFontSize={currentFontSize}
+          selectedShapeId={selectedShapeId}
+          onToolChange={setCurrentTool}
+          onColorChange={handleColorChange}
+          onFontSizeChange={handleFontSizeChange}
+          onDelete={() => selectedShapeId && removeShape(selectedShapeId)}
+        />
         <Stage
           ref={stageRef}
           width={containerSize.width}
@@ -930,8 +969,24 @@ export const Canvas = () => {
             
             {/* Render all shapes */}
             {shapes.map((shape) => {
-              const handleShapeSelect = () => {
+              const handleShapeSelect = async () => {
                 console.log('[Canvas] onSelect called for shape:', shape.id, 'currentTool:', currentTool);
+                
+                // Check if shape is locked by another user
+                if (shape.lockedBy && shape.lockedBy !== user?.id && !isLockExpired(shape.lockedAt)) {
+                  console.log(`[Canvas] Cannot select - shape ${shape.id} is locked by ${shape.lockedBy}`);
+                  return;
+                }
+                
+                // Acquire lock on selection
+                if (user) {
+                  const acquired = await handleLockAcquire(shape.id);
+                  if (!acquired) {
+                    console.log(`[Canvas] Failed to acquire lock on shape ${shape.id}`);
+                    return;
+                  }
+                }
+                
                 // Allow selection in any tool mode, not just 'select' tool
                 console.log('[Canvas] Selecting shape:', shape.id);
                 selectShape(shape.id);
@@ -960,6 +1015,7 @@ export const Canvas = () => {
               onTransform={handleTransform}
               onTransformEnd={handleTransformEnd}
               boundBoxFunc={getTransformerBoundBoxFunc}
+              rotateEnabled={false}
             />
             
             {/* Render preview shape while drawing */}
@@ -1023,8 +1079,7 @@ export const Canvas = () => {
         <MultiplayerCursors cursors={cursors} viewport={viewport} />
       </div>
 
-      {/* Presence sidebar */}
-      <PresenceSidebar />
+      {/* Presence sidebar removed; presence shown in top bar */}
       </div>
     </div>
   );

@@ -19,7 +19,7 @@ export const CanvasPlaceholder = () => {
   return (
     <div className="canvas-placeholder">
       <header className="canvas-header">
-        <h1>CollabCanvas</h1>
+        <h1>Collab Canvas by Yohan</h1>
         <div className="user-info">
           <span className="user-name">👋 {user?.displayName}</span>
           <button onClick={handleLogout} className="logout-btn">

@@ -14,7 +14,7 @@ vi.mock('../../hooks/useAuth', () => ({
 describe('Login Component', () => {
   it('renders login form', () => {
     render(<Login />);
-    expect(screen.getByText('CollabCanvas')).toBeInTheDocument();
+    expect(screen.getByText('Collab Canvas by Yohan')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Login' })).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
