@@ -1,15 +1,16 @@
 // Predefined color palette for multiplayer users
+// 유저별로 확실히 구분되는 선명한 색상들
 const USER_COLORS = [
-  '#FF6B6B', // Red
-  '#4ECDC4', // Teal
-  '#45B7D1', // Blue
-  '#FFA07A', // Light Salmon
-  '#98D8C8', // Mint
-  '#F7DC6F', // Yellow
-  '#BB8FCE', // Purple
-  '#85C1E2', // Sky Blue
-  '#F8B88B', // Peach
-  '#A2D5AB', // Green
+  '#FF0000', // 빨강
+  '#00FF00', // 초록
+  '#0000FF', // 파랑
+  '#FFFF00', // 노랑
+  '#FF00FF', // 마젠타
+  '#00FFFF', // 시안
+  '#FF6B00', // 주황
+  '#9D00FF', // 보라
+  '#FF1493', // 핑크
+  '#00FF7F', // 청록
 ];
 
 /**

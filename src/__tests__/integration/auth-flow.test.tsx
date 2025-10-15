@@ -20,6 +20,7 @@ vi.mock('react-konva', () => ({
   Layer: ({ children }: any) => <div data-testid="konva-layer">{children}</div>,
   Rect: () => <div data-testid="konva-rect" />,
   Circle: () => <div data-testid="konva-circle" />,
+  Line: () => <div data-testid="konva-line" />,
   Transformer: () => <div data-testid="konva-transformer" />,
 }));
 

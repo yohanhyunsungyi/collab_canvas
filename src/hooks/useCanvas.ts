@@ -67,12 +67,15 @@ export const useCanvas = (): UseCanvasReturn => {
         lockedAt: null,
       } as CanvasShape; // Explicitly cast to handle union type
 
-      // No longer updating local state directly.
-      // Firestore listener will handle the update.
+      // Optimistic update: Add to local state immediately for better UX
+      setShapes(prevShapes => [...prevShapes, newShape]);
+
+      // Persist to Firestore (real-time listener will sync across users)
       await canvasService.createShape(newShape);
     } catch (error) {
       console.error("Failed to add shape:", error);
       setError('Failed to create shape. Please check your connection.');
+      // TODO: Rollback optimistic update on error if needed
     }
   }, []);
 

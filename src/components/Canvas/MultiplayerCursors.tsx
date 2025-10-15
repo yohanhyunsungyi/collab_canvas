@@ -39,8 +39,6 @@ export const MultiplayerCursors = ({ cursors, viewport }: MultiplayerCursorsProp
               <path
                 d="M5.5 3.21V20.79L12.5 13.79L15.5 20.79L17.5 20.29L14.5 13.29L21.5 11.29L5.5 3.21Z"
                 fill={cursor.color}
-                stroke="white"
-                strokeWidth="1"
               />
             </svg>
             <div

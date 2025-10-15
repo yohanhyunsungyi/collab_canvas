@@ -7,6 +7,7 @@ import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
 import { useCursors } from '../../hooks/useCursors';
 import { Shape } from './Shape';
+import { Grid } from './Grid';
 import { MultiplayerCursors } from './MultiplayerCursors';
 import { PresenceSidebar } from '../Presence/PresenceSidebar';
 import { ErrorNotification } from '../UI/ErrorNotification';
@@ -36,7 +37,7 @@ export const Canvas = () => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   
     // Get current user for shape creation
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
   
   // Canvas state management hook
   const {
@@ -656,6 +657,14 @@ export const Canvas = () => {
     handleLockRelease(id);
   }, [user, updateShape, handleLockRelease]);
 
+  // Handle transform start - acquire lock when starting to resize
+  const handleTransformStart = useCallback(async () => {
+    if (!selectedShapeId) return;
+    
+    // Acquire lock when transform starts
+    await handleLockAcquire(selectedShapeId);
+  }, [selectedShapeId, handleLockAcquire]);
+
   // Handle shape transform (resize/scale)
   // Uses centralized boundary constraint functions from boundaries.ts
   const handleTransform = () => {
@@ -814,7 +823,18 @@ export const Canvas = () => {
           Position: ({Math.round(viewport.x)}, {Math.round(viewport.y)})
           {isSpacePressed && ' | 🖐️ Pan Mode'}
         </div>
-        <ConnectionStatus />
+        <div className="canvas-header-actions">
+          <ConnectionStatus />
+          {user && (
+            <button 
+              className="logout-button"
+              onClick={logout}
+              title="Logout"
+            >
+              🚪 Logout
+            </button>
+          )}
+        </div>
       </header>
 
       <CanvasToolbar
@@ -855,6 +875,9 @@ export const Canvas = () => {
           onMouseUp={handleStageMouseUp}
         >
           <Layer>
+            {/* Grid background - renders behind all other elements */}
+            <Grid />
+            
             {/* Gray out area outside canvas bounds */}
             {/* Top gray area */}
             <Rect
@@ -906,29 +929,34 @@ export const Canvas = () => {
             />
             
             {/* Render all shapes */}
-            {shapes.map((shape) => (
-              <Shape
-                key={shape.id}
-                shape={shape}
-                isSelected={shape.id === selectedShapeId}
-                onSelect={() => {
-                  // Only allow selection when using select tool
-                  if (currentTool === 'select') {
-                    selectShape(shape.id);
-                  }
-                }}
-                onDragMove={handleShapeDragMove}
-                onDragEnd={handleShapeDragEnd}
-                onLockAcquire={handleLockAcquire}
-                onLockRelease={handleLockRelease}
-                currentUserId={user?.id}
-                shapeRef={setShapeRef}
-              />
-            ))}
+            {shapes.map((shape) => {
+              const handleShapeSelect = () => {
+                console.log('[Canvas] onSelect called for shape:', shape.id, 'currentTool:', currentTool);
+                // Allow selection in any tool mode, not just 'select' tool
+                console.log('[Canvas] Selecting shape:', shape.id);
+                selectShape(shape.id);
+              };
+              
+              return (
+                <Shape
+                  key={shape.id}
+                  shape={shape}
+                  isSelected={shape.id === selectedShapeId}
+                  onSelect={handleShapeSelect}
+                  onDragMove={handleShapeDragMove}
+                  onDragEnd={handleShapeDragEnd}
+                  onLockAcquire={handleLockAcquire}
+                  onLockRelease={handleLockRelease}
+                  currentUserId={user?.id}
+                  shapeRef={setShapeRef}
+                />
+              );
+            })}
 
             {/* Transformer for resizing selected shapes */}
             <Transformer
               ref={transformerRef}
+              onTransformStart={handleTransformStart}
               onTransform={handleTransform}
               onTransformEnd={handleTransformEnd}
               boundBoxFunc={getTransformerBoundBoxFunc}

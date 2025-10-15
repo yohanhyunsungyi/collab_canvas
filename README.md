@@ -4,7 +4,7 @@ A real-time collaborative canvas application where multiple users can draw, crea
 
 <div align="center">
 
-**[Live Demo](https://<your-project-id>.web.app)** • **[Documentation](#documentation)** • **[Report Bug](#troubleshooting)**
+**[Live Demo](https://gauntlet-collabcanvas-7d9d7.web.app)** • **[Documentation](#documentation)** • **[Report Bug](#troubleshooting)**
 
 </div>
 

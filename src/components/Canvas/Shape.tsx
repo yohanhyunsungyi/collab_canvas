@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type ReactElement } from 'react';
 import { Rect, Circle, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../../types/canvas.types';
@@ -32,26 +32,16 @@ const ShapeComponent = ({
   onLockRelease,
   currentUserId,
   shapeRef 
-}: ShapeProps): JSX.Element | null => {
+}: ShapeProps): ReactElement | null => {
   // Check if shape is locked by another user
   const isLockedByOther = shape.lockedBy && 
     shape.lockedBy !== currentUserId && 
     !isLockExpired(shape.lockedAt);
 
-  // Handle mouse down - attempt to acquire lock
-  const handleMouseDown = async (e: Konva.KonvaEventObject<MouseEvent>) => {
-    e.cancelBubble = true;
-    
-    // Don't allow interaction if locked by another user
-    if (isLockedByOther) {
-      console.log(`[Shape] Cannot interact - shape ${shape.id} is locked by ${shape.lockedBy}`);
-      return;
-    }
-    
-    // Attempt to acquire lock
-    if (currentUserId) {
-      await onLockAcquire(shape.id);
-    }
+  // Handle click for selection
+  const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true;  // Stop propagation to Stage
+    onSelect();
   };
 
   // Handle drag start
@@ -142,9 +132,8 @@ const ShapeComponent = ({
 
   // Common props for all shapes
   const commonProps = {
-    onClick: onSelect,
-    onTap: onSelect,
-    onMouseDown: handleMouseDown,
+    onClick: handleClick,
+    onTap: handleClick,
     // Make draggable only when selected and not locked by another user
     draggable: isSelected && !isLockedByOther,
     onDragStart: handleDragStart,
