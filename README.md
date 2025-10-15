@@ -21,6 +21,7 @@ CollabCanvas is a **single shared canvas** where all users collaborate in real-t
 - 🔒 **Object locking** - Prevents editing conflicts automatically
 - 🎨 **Simple tools** - Rectangles, circles, and text with color picker
 - 🖱️ **Smooth navigation** - Pan and zoom with 60 FPS performance
+ - 🧭 **Presence menu** - View active users from the header dropdown
 
 ---
 
@@ -41,7 +42,7 @@ CollabCanvas is a **single shared canvas** where all users collaborate in real-t
 - **Instant Sync** - All changes appear for other users in real-time (<100ms)
 - **Multiplayer Cursors** - See other users' cursor positions with name labels
 - **Object Locking** - Automatic locking prevents simultaneous edits on same object
-- **Presence Awareness** - See who's online with live user list in sidebar
+- **Presence Awareness** - See who's online via the header presence menu
 - **Cursor Cleanup** - Disconnected users' cursors automatically disappear
 
 #### 💾 Persistence & State
@@ -61,6 +62,7 @@ CollabCanvas is a **single shared canvas** where all users collaborate in real-t
 #### 🎯 User Experience
 - **Smooth 60 FPS** - Tested with 200+ shapes on canvas
 - **Canvas Boundaries** - Visual boundaries prevent objects going out of bounds
+- **Grid Background** - Lightweight grid overlay for spatial guidance
 - **Transform Handles** - Visual resize handles on selected shapes
 - **Keyboard Shortcuts** - Delete/Backspace to remove, Spacebar for pan mode
 - **Error Notifications** - Friendly error messages with auto-dismiss
@@ -100,6 +102,7 @@ VITE_FIREBASE_PROJECT_ID=your_project_id
 VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
 ```
 
    **Get your Firebase credentials:**
@@ -187,7 +190,7 @@ npm run dev
 ## 🏗️ Tech Stack
 
 ### Frontend
-- **React 18** - UI framework
+- **React 19** - UI framework
 - **TypeScript** - Type safety
 - **Vite** - Build tool with SWC
 - **Konva.js** - Canvas rendering library
@@ -202,7 +205,7 @@ npm run dev
 ### Testing
 - **Vitest** - Unit test runner
 - **React Testing Library** - Component testing
-- **Happy DOM** - DOM simulation for tests
+- **jsdom** - DOM simulation for tests
 
 ### Code Quality
 - **ESLint** - Linting
@@ -225,7 +228,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-**Current Test Status:** ✅ 196/196 tests passing
+<!-- Test status intentionally omitted; run the commands above locally. -->
 
 ### Test Coverage
 - Unit tests for all hooks, services, and components
@@ -233,7 +236,7 @@ npm run test:coverage
 - Real-time shape creation, updates, and persistence tests
 
 ### Manual Testing
-See **[TESTING_CHECKLIST.md](./TESTING_CHECKLIST.md)** for comprehensive manual testing guide with 200+ test cases.
+See integration tests under `src/__tests__/integration/` for end-to-end flows to replicate manually (auth, sync, locking, persistence).
 
 ---
 
@@ -243,8 +246,8 @@ See **[TESTING_CHECKLIST.md](./TESTING_CHECKLIST.md)** for comprehensive manual 
 src/
 ├── components/           # React components
 │   ├── Auth/            # Login, Signup, AuthGuard
-│   ├── Canvas/          # Canvas, Shape, Toolbar, Cursors, Placeholder
-│   ├── Presence/        # PresenceSidebar, UserAvatar
+│   ├── Canvas/          # Canvas, Shape, Toolbar, Cursors, Grid, Placeholder
+│   ├── Presence/        # PresenceMenu, UserAvatar
 │   └── UI/              # Button, ColorPicker, ErrorNotification, ConnectionStatus
 ├── hooks/               # Custom React hooks
 │   ├── useAuth.ts       # Authentication state
@@ -265,6 +268,7 @@ src/
 ├── utils/               # Utility functions
 │   ├── boundaries.ts    # Canvas boundary constraints
 │   └── colors.ts        # Color utilities
+├── __tests__/           # Test setup + integration specs
 ├── App.tsx              # Main app component
 └── main.tsx             # App entry point
 ```
@@ -342,7 +346,7 @@ This is an MVP focused on proving collaborative infrastructure. The following fe
 - ❌ No layers or z-index management
 - ❌ No image uploads
 - ❌ No shape styles (borders, shadows, gradients)
-- ❌ No grid or snap-to-grid
+- ❌ No snap-to-grid
 
 ### Performance Notes
 - **Tested with 200+ shapes** on canvas - smooth 60 FPS on modern hardware
@@ -496,9 +500,7 @@ This is an MVP focused on proving collaborative infrastructure. The following fe
 
 - **[PRD.md](./PRD.md)** - Product Requirements Document with user stories and success criteria
 - **[architecture.md](./architecture.md)** - Technical architecture and design decisions
-- **[tasks.md](./tasks.md)** - Detailed task breakdown and development progress (11 PRs)
-- **[TESTING_CHECKLIST.md](./TESTING_CHECKLIST.md)** - Comprehensive manual testing guide (200+ tests)
-- **[PERFORMANCE_TEST.md](./PERFORMANCE_TEST.md)** - Performance testing guide
+- **[tasks.md](./tasks.md)** - Detailed task breakdown and development progress
 
 ---
 
@@ -528,6 +530,7 @@ This is an MVP project. Future enhancements could include:
 | `VITE_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket | `my-app.appspot.com` |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID | `123456789` |
 | `VITE_FIREBASE_APP_ID` | Firebase app ID | `1:123456789:web:abc123` |
+| `VITE_FIREBASE_DATABASE_URL` | Realtime Database URL | `https://<project-id>-default-rtdb.firebaseio.com` |
 
 ---
 
@@ -574,12 +577,6 @@ See `firestore.rules` and `database.rules.json` for current security configurati
 
 ---
 
-## 📄 License
-
-MIT License - See [LICENSE](./LICENSE) for details
-
----
-
 ## 🙏 Acknowledgments
 
 - [React](https://react.dev/) - UI framework
@@ -594,10 +591,9 @@ MIT License - See [LICENSE](./LICENSE) for details
 
 If you encounter issues not covered in the troubleshooting section:
 
-1. Check the [TESTING_CHECKLIST.md](./TESTING_CHECKLIST.md) for test scenarios
-2. Review [architecture.md](./architecture.md) for technical details
-3. Check browser console for error messages
-4. Verify Firebase Console for service status
+1. Review [architecture.md](./architecture.md) for technical details
+2. Check browser console for error messages
+3. Verify Firebase Console for service status
 
 ---
 
