@@ -196,6 +196,9 @@ export const updateShape = async (
     if ('radius' in updates && updates.radius !== undefined) {
       firestoreUpdates.radius = updates.radius;
     }
+    if ('rotation' in updates && updates.rotation !== undefined) {
+      firestoreUpdates.rotation = updates.rotation;
+    }
     if ('text' in updates && updates.text !== undefined) {
       firestoreUpdates.text = updates.text;
     }

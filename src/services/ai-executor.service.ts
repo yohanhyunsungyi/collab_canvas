@@ -59,11 +59,21 @@ class AIExecutorService {
         case 'createMultipleShapes':
           return await this.createMultipleShapes(args, context);
 
+        // Smart manipulation tools (with auto-lookup)
+        case 'moveShapeByDescription':
+          return await this.moveShapeByDescription(args, context);
+        case 'resizeShapeByDescription':
+          return await this.resizeShapeByDescription(args, context);
+        case 'rotateShapeByDescription':
+          return await this.rotateShapeByDescription(args, context);
+
         // Manipulation tools
         case 'moveShape':
           return await this.moveShape(args, context);
         case 'resizeShape':
           return await this.resizeShape(args, context);
+        case 'rotateShape':
+          return await this.rotateShape(args, context);
         case 'changeColor':
           return await this.changeColor(args, context);
         case 'updateText':
@@ -72,6 +82,10 @@ class AIExecutorService {
           return await this.deleteShape(args, context);
         case 'deleteMultipleShapes':
           return await this.deleteMultipleShapes(args, context);
+
+        // Batch manipulation tools
+        case 'moveMultipleShapes':
+          return await this.moveMultipleShapes(args, context);
 
         // Query tools
         case 'getCanvasState':
@@ -142,18 +156,18 @@ class AIExecutorService {
   // ==========================================
 
   private async createRectangle(
-    args: { x: number; y: number; width: number; height: number; color: string },
+    args: { x?: number; y?: number; width: number; height: number; color?: string },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'rectangle',
-      x: args.x,
-      y: args.y,
+      x: args.x ?? 100,
+      y: args.y ?? 100,
       width: args.width,
       height: args.height,
-      color: args.color,
+      color: args.color ?? '#0000FF',
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -166,23 +180,23 @@ class AIExecutorService {
 
     return {
       success: true,
-      message: `Created rectangle at (${args.x}, ${args.y})`,
+      message: `Created rectangle at (${shape.x}, ${shape.y})`,
       data: { shapeId: shape.id },
     };
   }
 
   private async createCircle(
-    args: { x: number; y: number; radius: number; color: string },
+    args: { x?: number; y?: number; radius?: number; color?: string },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'circle',
-      x: args.x,
-      y: args.y,
-      radius: args.radius,
-      color: args.color,
+      x: args.x ?? 100,
+      y: args.y ?? 200,
+      radius: args.radius ?? 50,
+      color: args.color ?? '#FF0000',
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -195,24 +209,24 @@ class AIExecutorService {
 
     return {
       success: true,
-      message: `Created circle at (${args.x}, ${args.y})`,
+      message: `Created circle at (${shape.x}, ${shape.y})`,
       data: { shapeId: shape.id },
     };
   }
 
   private async createText(
-    args: { x: number; y: number; text: string; fontSize?: number; color?: string },
+    args: { x?: number; y?: number; text: string; fontSize?: number; color?: string },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'text',
-      x: args.x,
-      y: args.y,
+      x: args.x ?? 150,
+      y: args.y ?? 150,
       text: args.text,
-      fontSize: args.fontSize || 24,
-      color: args.color || '#000000',
+      fontSize: args.fontSize ?? 24,
+      color: args.color ?? '#000000',
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -225,7 +239,7 @@ class AIExecutorService {
 
     return {
       success: true,
-      message: `Created text "${args.text}" at (${args.x}, ${args.y})`,
+      message: `Created text "${args.text}" at (${shape.x}, ${shape.y})`,
       data: { shapeId: shape.id },
     };
   }
@@ -313,6 +327,132 @@ class AIExecutorService {
   }
 
   // ==========================================
+  // SMART MANIPULATION TOOLS IMPLEMENTATION
+  // ==========================================
+
+  private async moveShapeByDescription(
+    args: { type?: string; color?: string; x: number; y: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Find shapes matching the description
+    let matchingShapes = context.shapes;
+
+    if (args.type) {
+      matchingShapes = matchingShapes.filter(s => s.type === args.type);
+    }
+
+    if (args.color) {
+      const colorLower = args.color.toLowerCase();
+      matchingShapes = matchingShapes.filter(s => 
+        s.color.toLowerCase().includes(colorLower) ||
+        colorLower.includes(s.color.toLowerCase())
+      );
+    }
+
+    if (matchingShapes.length === 0) {
+      return {
+        success: false,
+        message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
+
+    // Use the first matching shape (or most recently created if multiple)
+    const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
+
+    // Call the underlying moveShape method
+    return await this.moveShape({ shapeId: targetShape.id, x: args.x, y: args.y }, context);
+  }
+
+  private async resizeShapeByDescription(
+    args: { type?: string; color?: string; scaleMultiplier?: number; newWidth?: number; newHeight?: number; newRadius?: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Find shapes matching the description
+    let matchingShapes = context.shapes;
+
+    if (args.type) {
+      matchingShapes = matchingShapes.filter(s => s.type === args.type);
+    }
+
+    if (args.color) {
+      const colorLower = args.color.toLowerCase();
+      matchingShapes = matchingShapes.filter(s => 
+        s.color.toLowerCase().includes(colorLower) ||
+        colorLower.includes(s.color.toLowerCase())
+      );
+    }
+
+    if (matchingShapes.length === 0) {
+      return {
+        success: false,
+        message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
+
+    // Use the first matching shape (or most recently created if multiple)
+    const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
+
+    // Calculate new dimensions
+    const resizeArgs: { shapeId: string; width?: number; height?: number; radius?: number } = {
+      shapeId: targetShape.id,
+    };
+
+    if (args.scaleMultiplier) {
+      // Scale current dimensions
+      if (targetShape.type === 'rectangle') {
+        resizeArgs.width = targetShape.width * args.scaleMultiplier;
+        resizeArgs.height = targetShape.height * args.scaleMultiplier;
+      } else if (targetShape.type === 'circle') {
+        resizeArgs.radius = targetShape.radius * args.scaleMultiplier;
+      }
+    } else {
+      // Use explicit dimensions
+      if (args.newWidth !== undefined) resizeArgs.width = args.newWidth;
+      if (args.newHeight !== undefined) resizeArgs.height = args.newHeight;
+      if (args.newRadius !== undefined) resizeArgs.radius = args.newRadius;
+    }
+
+    // Call the underlying resizeShape method
+    return await this.resizeShape(resizeArgs, context);
+  }
+
+  private async rotateShapeByDescription(
+    args: { type?: string; color?: string; rotation: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Find shapes matching the description
+    let matchingShapes = context.shapes;
+
+    if (args.type) {
+      matchingShapes = matchingShapes.filter(s => s.type === args.type);
+    }
+
+    if (args.color) {
+      const colorLower = args.color.toLowerCase();
+      matchingShapes = matchingShapes.filter(s => 
+        s.color.toLowerCase().includes(colorLower) ||
+        colorLower.includes(s.color.toLowerCase())
+      );
+    }
+
+    if (matchingShapes.length === 0) {
+      return {
+        success: false,
+        message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
+
+    // Use the first matching shape (or most recently created if multiple)
+    const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
+
+    // Call the underlying rotateShape method
+    return await this.rotateShape({ shapeId: targetShape.id, rotation: args.rotation }, context);
+  }
+
+  // ==========================================
   // MANIPULATION TOOLS IMPLEMENTATION
   // ==========================================
 
@@ -329,16 +469,25 @@ class AIExecutorService {
       };
     }
 
-    await updateShape(args.shapeId, {
-      x: args.x,
-      y: args.y,
-      lastModifiedBy: context.userId,
-    });
+    try {
+      await updateShape(args.shapeId, {
+        x: args.x,
+        y: args.y,
+        lastModifiedBy: context.userId,
+      });
 
-    return {
-      success: true,
-      message: `Moved shape to (${args.x}, ${args.y})`,
-    };
+      return {
+        success: true,
+        message: `Moved shape to (${args.x}, ${args.y})`,
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error moving shape:', error);
+      return {
+        success: false,
+        message: `Failed to move shape: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'UPDATE_FAILED',
+      };
+    }
   }
 
   private async resizeShape(
@@ -369,12 +518,54 @@ class AIExecutorService {
       };
     }
 
-    await updateShape(args.shapeId, updates);
+    try {
+      await updateShape(args.shapeId, updates);
 
-    return {
-      success: true,
-      message: `Resized ${shape.type}`,
-    };
+      return {
+        success: true,
+        message: `Resized ${shape.type}`,
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error resizing shape:', error);
+      return {
+        success: false,
+        message: `Failed to resize shape: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'UPDATE_FAILED',
+      };
+    }
+  }
+
+  private async rotateShape(
+    args: { shapeId: string; rotation: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const shape = context.shapes.find((s) => s.id === args.shapeId);
+    if (!shape) {
+      return {
+        success: false,
+        message: `Shape ${args.shapeId} not found`,
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
+
+    try {
+      await updateShape(args.shapeId, {
+        rotation: args.rotation,
+        lastModifiedBy: context.userId,
+      });
+
+      return {
+        success: true,
+        message: `Rotated shape to ${args.rotation} degrees`,
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error rotating shape:', error);
+      return {
+        success: false,
+        message: `Failed to rotate shape: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'UPDATE_FAILED',
+      };
+    }
   }
 
   private async changeColor(
@@ -468,6 +659,75 @@ class AIExecutorService {
   }
 
   // ==========================================
+  // BATCH MANIPULATION TOOLS IMPLEMENTATION
+  // ==========================================
+
+  private async moveMultipleShapes(
+    args: { 
+      shapeIds: string[]; 
+      deltaX?: number; 
+      deltaY?: number; 
+      x?: number; 
+      y?: number; 
+    },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // If shapeIds is empty, use all shapes
+    const targetIds = args.shapeIds.length === 0 
+      ? context.shapes.map(s => s.id) 
+      : args.shapeIds;
+    
+    let movedCount = 0;
+    const errors: string[] = [];
+
+    for (const shapeId of targetIds) {
+      const shape = context.shapes.find((s) => s.id === shapeId);
+      if (!shape) {
+        errors.push(`Shape ${shapeId} not found`);
+        continue;
+      }
+
+      // Calculate new position
+      let newX = shape.x;
+      let newY = shape.y;
+
+      if (args.deltaX !== undefined) {
+        newX += args.deltaX;
+      } else if (args.x !== undefined) {
+        newX = args.x;
+      }
+
+      if (args.deltaY !== undefined) {
+        newY += args.deltaY;
+      } else if (args.y !== undefined) {
+        newY = args.y;
+      }
+
+      try {
+        await updateShape(shapeId, {
+          x: newX,
+          y: newY,
+          lastModifiedBy: context.userId,
+        });
+        movedCount++;
+      } catch (error) {
+        errors.push(`Failed to move ${shapeId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    const message = errors.length > 0
+      ? `Moved ${movedCount}/${targetIds.length} shapes. ${errors.length} errors.`
+      : `Successfully moved ${movedCount} shapes`;
+
+    return {
+      success: errors.length === 0,
+      message,
+      data: { movedCount, totalShapes: targetIds.length, errors },
+      error: errors.length > 0 ? errors.join('; ') : undefined,
+    };
+  }
+
+  // ==========================================
   // QUERY TOOLS IMPLEMENTATION
   // ==========================================
 
@@ -527,18 +787,23 @@ class AIExecutorService {
   // ==========================================
 
   private async arrangeHorizontal(
-    args: { shapeIds: string[]; startX: number; y: number; spacing?: number },
+    args: { shapeIds: string[]; startX?: number; y?: number; spacing?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const spacing = args.spacing || 20;
-    let currentX = args.startX;
+    const spacing = args.spacing ?? 20;
+    const startX = args.startX ?? 50;
+    const y = args.y ?? 200;
+    
+    // If shapeIds is empty, use all shapes
+    const shapeIds = args.shapeIds.length === 0 ? context.shapes.map(s => s.id) : args.shapeIds;
+    let currentX = startX;
 
-    for (const shapeId of args.shapeIds) {
+    for (const shapeId of shapeIds) {
       const shape = context.shapes.find((s) => s.id === shapeId);
       if (shape) {
         await updateShape(shapeId, {
           x: currentX,
-          y: args.y,
+          y: y,
           lastModifiedBy: context.userId,
         });
 
@@ -550,7 +815,7 @@ class AIExecutorService {
 
     return {
       success: true,
-      message: `Arranged ${args.shapeIds.length} shapes horizontally`,
+      message: `Arranged ${shapeIds.length} shapes horizontally`,
     };
   }
 
@@ -656,10 +921,17 @@ class AIExecutorService {
   }
 
   private async distributeHorizontally(
-    args: { shapeIds: string[]; startX: number; endX: number; y: number },
+    args: { shapeIds: string[]; startX?: number; endX?: number; y?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const count = args.shapeIds.length;
+    const startX = args.startX ?? 50;
+    const endX = args.endX ?? 700;
+    const y = args.y ?? 200;
+    
+    // If shapeIds is empty, use all shapes
+    const shapeIds = args.shapeIds.length === 0 ? context.shapes.map(s => s.id) : args.shapeIds;
+    const count = shapeIds.length;
+    
     if (count < 2) {
       return {
         success: false,
@@ -668,13 +940,13 @@ class AIExecutorService {
       };
     }
 
-    const spacing = (args.endX - args.startX) / (count - 1);
+    const spacing = (endX - startX) / (count - 1);
 
     for (let i = 0; i < count; i++) {
-      const x = args.startX + i * spacing;
-      await updateShape(args.shapeIds[i], {
+      const x = startX + i * spacing;
+      await updateShape(shapeIds[i], {
         x,
-        y: args.y,
+        y: y,
         lastModifiedBy: context.userId,
       });
     }

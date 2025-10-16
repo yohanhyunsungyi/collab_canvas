@@ -8,6 +8,7 @@ export interface BaseShape {
   x: number;
   y: number;
   color: string;
+  rotation?: number; // Rotation in degrees
   createdBy: string;
   createdAt: number;
   lastModifiedBy: string;

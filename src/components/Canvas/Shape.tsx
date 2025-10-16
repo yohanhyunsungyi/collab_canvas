@@ -160,6 +160,8 @@ const ShapeComponent = ({
     onDragStart: handleDragStart,
     onDragMove: handleDragMove,
     onDragEnd: handleDragEnd,
+    // Rotation support
+    rotation: shape.rotation || 0,
     // Selection and lock styling
     stroke: isLockedByOther ? '#ff5722' : (isSelected ? '#00bcd4' : undefined),
     strokeWidth: (isSelected || isLockedByOther) ? 3 : 0,
@@ -229,6 +231,7 @@ export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
     prevProps.shape.x === nextProps.shape.x &&
     prevProps.shape.y === nextProps.shape.y &&
     prevProps.shape.color === nextProps.shape.color &&
+    prevProps.shape.rotation === nextProps.shape.rotation &&
     prevProps.shape.lockedBy === nextProps.shape.lockedBy &&
     prevProps.shape.lockedAt === nextProps.shape.lockedAt &&
     prevProps.isSelected === nextProps.isSelected &&

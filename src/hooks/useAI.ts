@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { CanvasShape } from '../types/canvas.types';
 import type { AICommandRequest, AICommandResponse } from '../types/ai.types';
 import { aiService } from '../services/ai.service';
+// Local parsing removed per requirement; rely solely on provider tool calls
 import { aiExecutorService, type ExecutionContext, type ToolExecutionResult } from '../services/ai-executor.service';
 import { aiToolsSchema } from '../services/ai-tools.schema';
 
@@ -32,6 +33,7 @@ interface UseAIReturn {
   sendCommand: (prompt: string) => Promise<AICommandResponse>;
   clearError: () => void;
   clearHistory: () => void;
+  deleteCommand: (commandId: string) => void;
   rerunCommand: (commandId: string) => Promise<AICommandResponse>;
 }
 
@@ -60,35 +62,46 @@ export const useAI = (
    */
   const sendCommand = useCallback(
     async (prompt: string): Promise<AICommandResponse> => {
-      if (!isAvailable) {
-        const response: AICommandResponse = {
-          success: false,
-          message: 'AI service is not available. Please check your API key configuration.',
-          error: 'SERVICE_UNAVAILABLE',
-        };
-        setError(response.message);
-        return response;
-      }
+      // Even if remote AI is unavailable, we still call the service to allow local parsing fallback
 
       try {
         setLoading(true);
         setError(null);
 
-        // Create command request
-        const request: AICommandRequest = {
+        // Create command request with shape count for intelligent model selection
+        const request: AICommandRequest & { shapeCount: number } = {
           prompt,
           userId,
+          shapeCount: shapes.length,
         };
 
-        // Send to AI service
+        // Send to AI service only
         const aiResponse = await aiService.sendCommand(request, aiToolsSchema);
 
         if (!aiResponse.success) {
-          setError(aiResponse.message);
-          
-          // Add to history
+          // Create friendly, specific error messages for toast
+          const remaining = Math.max(0, rateLimitStatus.remaining);
+          const resetInSec = Math.ceil((rateLimitStatus.resetIn || 0) / 1000);
+          let friendly = aiResponse.message || 'Failed to process command';
+          const raw = (aiResponse.error || '').toString().toLowerCase();
+          const msg = (aiResponse.message || '').toLowerCase();
+
+          if (raw.includes('openai client not initialized') || msg.includes('not available')) {
+            friendly = 'AI is not configured. Set VITE_OPENAI_API_KEY and reload.';
+          } else if (raw.includes('rate') || msg.includes('rate')) {
+            friendly = `Rate limit exceeded. ${remaining} remaining. Resets in ~${resetInSec}s.`;
+          } else if (raw.includes('timeout') || msg.includes('timeout')) {
+            friendly = 'AI request timed out (10s). Please try again.';
+          } else if (raw.includes('no_tool_calls') || msg.includes('no action')) {
+            friendly = 'Could not understand the command. Try: "Create a red circle at 100, 200" or "Move the selected rectangle to center"';
+          } else if (raw.includes('401') || raw.includes('unauthorized')) {
+            friendly = 'Unauthorized: Check your API key permissions.';
+          } else if (raw.includes('429')) {
+            friendly = `Too many requests. Please wait ~${resetInSec}s.`;
+          }
+
+          setError(friendly);
           addToHistory(prompt, aiResponse.success, aiResponse.message);
-          
           return aiResponse;
         }
 
@@ -124,7 +137,9 @@ export const useAI = (
           };
         }
 
-        // No tool calls executed
+        // No tool calls executed at all
+        const friendly = 'Could not understand the command. Try a creation or manipulation command.';
+        setError(friendly);
         addToHistory(prompt, false, 'No actions taken');
         
         return {
@@ -134,7 +149,12 @@ export const useAI = (
         };
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to process command';
-        setError(errorMessage);
+        let friendly = errorMessage;
+        const lower = errorMessage.toLowerCase();
+        if (lower.includes('timeout')) friendly = 'AI request timed out (10s). Please try again.';
+        if (lower.includes('network')) friendly = 'Network error contacting AI. Check your connection.';
+        if (lower.includes('unauthorized') || lower.includes('401')) friendly = 'Unauthorized: Check your API key.';
+        setError(friendly);
         
         addToHistory(prompt, false, errorMessage);
         
@@ -211,6 +231,13 @@ export const useAI = (
     setCommandHistory([]);
   }, []);
 
+  /**
+   * Delete a specific command from history
+   */
+  const deleteCommand = useCallback((commandId: string): void => {
+    setCommandHistory((prev) => prev.filter((cmd) => cmd.id !== commandId));
+  }, []);
+
   return {
     loading,
     error,
@@ -220,6 +247,7 @@ export const useAI = (
     sendCommand,
     clearError,
     clearHistory,
+    deleteCommand,
     rerunCommand,
   };
 };

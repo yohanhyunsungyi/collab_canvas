@@ -13,17 +13,17 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createRectangle',
-      description: 'Create a rectangle shape on the canvas',
+      description: 'Create a rectangle shape on the canvas. Example: "Make a 200x300 rectangle" → width=200, height=300, color=black (default), x=100 (default), y=100 (default). If position not specified, use defaults.',
       parameters: {
         type: 'object',
         properties: {
           x: {
             type: 'number',
-            description: 'X coordinate (pixels from left edge)',
+            description: 'X coordinate (pixels from left edge). Default: 100',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate (pixels from top edge)',
+            description: 'Y coordinate (pixels from top edge). Default: 100',
           },
           width: {
             type: 'number',
@@ -35,10 +35,10 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           },
           color: {
             type: 'string',
-            description: 'Color in hex format (e.g., "#FF0000" for red) or CSS color name',
+            description: 'Color in hex format (e.g., "#FF0000" for red) or CSS color name. Default: "#0000FF" (blue)',
           },
         },
-        required: ['x', 'y', 'width', 'height', 'color'],
+        required: ['width', 'height'],
       },
     },
   },
@@ -46,28 +46,28 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createCircle',
-      description: 'Create a circle shape on the canvas',
+      description: 'Create a circle shape on the canvas. Example: "Create a red circle at position 100, 200" → x=100, y=200, radius=50 (default), color=red. If position not specified, use x=100, y=200 as defaults.',
       parameters: {
         type: 'object',
         properties: {
           x: {
             type: 'number',
-            description: 'X coordinate of circle center (pixels from left edge)',
+            description: 'X coordinate of circle center (pixels from left edge). Default: 100',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate of circle center (pixels from top edge)',
+            description: 'Y coordinate of circle center (pixels from top edge). Default: 200',
           },
           radius: {
             type: 'number',
-            description: 'Radius of the circle in pixels',
+            description: 'Radius of the circle in pixels. Default: 50',
           },
           color: {
             type: 'string',
-            description: 'Color in hex format (e.g., "#00FF00" for green) or CSS color name',
+            description: 'Color in hex format (e.g., "#00FF00" for green) or CSS color name. Default: "#FF0000" (red)',
           },
         },
-        required: ['x', 'y', 'radius', 'color'],
+        required: [],
       },
     },
   },
@@ -75,17 +75,17 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createText',
-      description: 'Create a text element on the canvas',
+      description: 'Create a text element on the canvas. Example: "Add a text layer that says \'Hello World\'" → text="Hello World", x=150 (default), y=150 (default).',
       parameters: {
         type: 'object',
         properties: {
           x: {
             type: 'number',
-            description: 'X coordinate (pixels from left edge)',
+            description: 'X coordinate (pixels from left edge). Default: 150',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate (pixels from top edge)',
+            description: 'Y coordinate (pixels from top edge). Default: 150',
           },
           text: {
             type: 'string',
@@ -93,14 +93,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           },
           fontSize: {
             type: 'number',
-            description: 'Font size in pixels (default: 24)',
+            description: 'Font size in pixels. Default: 24',
           },
           color: {
             type: 'string',
-            description: 'Text color in hex format or CSS color name (default: "#000000")',
+            description: 'Text color in hex format or CSS color name. Default: "#000000"',
           },
         },
-        required: ['x', 'y', 'text'],
+        required: ['text'],
       },
     },
   },
@@ -108,7 +108,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createMultipleShapes',
-      description: 'Create multiple shapes at once (for complex layouts)',
+      description: 'Create multiple shapes at once. Example: "Create a grid of 3x3 squares" → create 9 squares in a 3x3 grid layout starting at (50,50) with 80px squares and 20px spacing.',
       parameters: {
         type: 'object',
         properties: {
@@ -132,7 +132,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
                 fontSize: { type: 'number', description: 'Font size (text only)' },
                 color: { type: 'string', description: 'Color' },
               },
-              required: ['type', 'x', 'y', 'color'],
+              required: ['type', 'x', 'y'],
             },
           },
         },
@@ -142,27 +142,125 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
   },
 
   // ==========================================
-  // MANIPULATION TOOLS
+  // SMART MANIPULATION TOOLS (Recommended - handle lookup automatically)
+  // ==========================================
+  {
+    type: 'function',
+    function: {
+      name: 'moveShapeByDescription',
+      description: 'Move a shape by describing it (color or type). Use THIS instead of moveShape when user says "move the blue rectangle" or "move the circle". Example: "Move the blue rectangle to center" → moveShapeByDescription(color="blue", type="rectangle", x=2500, y=2500). This tool finds the shape automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['rectangle', 'circle', 'text'],
+            description: 'Type of shape to find and move',
+          },
+          color: {
+            type: 'string',
+            description: 'Color of the shape to find (optional, use if user mentions color like "blue rectangle")',
+          },
+          x: {
+            type: 'number',
+            description: 'New X coordinate (0-5000). Canvas center is 2500.',
+          },
+          y: {
+            type: 'number',
+            description: 'New Y coordinate (0-5000). Canvas center is 2500.',
+          },
+        },
+        required: ['x', 'y'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resizeShapeByDescription',
+      description: 'Resize a shape by describing it. Use THIS for commands like "Resize the circle to be twice as big" or "Make the rectangle bigger". Example: "Resize the circle to be twice as big" → resizeShapeByDescription(type="circle", scaleMultiplier=2). This tool finds the shape and calculates new size automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['rectangle', 'circle', 'text'],
+            description: 'Type of shape to find and resize',
+          },
+          color: {
+            type: 'string',
+            description: 'Color of the shape (optional)',
+          },
+          scaleMultiplier: {
+            type: 'number',
+            description: 'Multiply current size by this number. For "twice as big" use 2, for "half size" use 0.5, for "three times bigger" use 3.',
+          },
+          newWidth: {
+            type: 'number',
+            description: 'Explicit new width (rectangles only, alternative to scaleMultiplier)',
+          },
+          newHeight: {
+            type: 'number',
+            description: 'Explicit new height (rectangles only, alternative to scaleMultiplier)',
+          },
+          newRadius: {
+            type: 'number',
+            description: 'Explicit new radius (circles only, alternative to scaleMultiplier)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'rotateShapeByDescription',
+      description: 'Rotate a shape by describing it. Use THIS for commands like "Rotate the text 45 degrees". Example: "Rotate the text 45 degrees" → rotateShapeByDescription(type="text", rotation=45). This tool finds the shape automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['rectangle', 'circle', 'text'],
+            description: 'Type of shape to find and rotate',
+          },
+          color: {
+            type: 'string',
+            description: 'Color of the shape (optional)',
+          },
+          rotation: {
+            type: 'number',
+            description: 'Rotation angle in degrees (0-360)',
+          },
+        },
+        required: ['rotation'],
+      },
+    },
+  },
+
+  // ==========================================
+  // LOW-LEVEL MANIPULATION TOOLS (Use only when shapeId is already known)
   // ==========================================
   {
     type: 'function',
     function: {
       name: 'moveShape',
-      description: 'Move a shape to a new position',
+      description: 'Move a shape to a new position using a known shapeId. ONLY use this if you already have the exact shapeId. Otherwise use moveShapeByDescription.',
       parameters: {
         type: 'object',
         properties: {
           shapeId: {
             type: 'string',
-            description: 'ID of the shape to move',
+            description: 'ID of the shape to move. Get this from findShapesByColor, findShapesByType, or getCanvasState first.',
           },
           x: {
             type: 'number',
-            description: 'New X coordinate',
+            description: 'New X coordinate (0-5000 for canvas)',
           },
           y: {
             type: 'number',
-            description: 'New Y coordinate',
+            description: 'New Y coordinate (0-5000 for canvas). Canvas center is 2500, 2500.',
           },
         },
         required: ['shapeId', 'x', 'y'],
@@ -173,28 +271,49 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'resizeShape',
-      description: 'Resize a shape (rectangle or circle)',
+      description: 'Resize a shape. CRITICAL TWO-STEP PROCESS: User says "Resize the circle to be twice as big" → Step 1: MUST call findShapesByType(type="circle") to get shapeId and current radius → Step 2: MUST call resizeShape(shapeId=<from_step1>, radius=current_radius*2) IN THE SAME RESPONSE. Do NOT stop after step 1!',
       parameters: {
         type: 'object',
         properties: {
           shapeId: {
             type: 'string',
-            description: 'ID of the shape to resize',
+            description: 'ID of the shape to resize. MUST be obtained from findShapesByType or findShapesByColor first.',
           },
           width: {
             type: 'number',
-            description: 'New width (rectangles only)',
+            description: 'New width in pixels (rectangles only)',
           },
           height: {
             type: 'number',
-            description: 'New height (rectangles only)',
+            description: 'New height in pixels (rectangles only)',
           },
           radius: {
             type: 'number',
-            description: 'New radius (circles only)',
+            description: 'New radius in pixels (circles only)',
           },
         },
         required: ['shapeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'rotateShape',
+      description: 'Rotate a shape by a specified angle in degrees. IMPORTANT: To rotate "the text" or "the rectangle", you MUST first call findShapesByType to get the shapeId, THEN call rotateShape. Example: User says "Rotate the text 45 degrees" → Step 1: Call findShapesByType(type="text") → Step 2: Call rotateShape with the returned shapeId and rotation=45.',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeId: {
+            type: 'string',
+            description: 'ID of the shape to rotate. Get this from findShapesByType, findShapesByColor, or getCanvasState first.',
+          },
+          rotation: {
+            type: 'number',
+            description: 'Rotation angle in degrees (0-360)',
+          },
+        },
+        required: ['shapeId', 'rotation'],
       },
     },
   },
@@ -281,6 +400,44 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
   },
 
   // ==========================================
+  // BATCH MANIPULATION TOOLS
+  // ==========================================
+  {
+    type: 'function',
+    function: {
+      name: 'moveMultipleShapes',
+      description: 'Move multiple shapes at once. Use for commands like "move all shapes to the right" or "move 500 objects". Can apply relative or absolute movements.',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of shape IDs to move. If empty, moves all shapes on canvas.',
+          },
+          deltaX: {
+            type: 'number',
+            description: 'Relative X movement (pixels). Use for "move right 100px" → deltaX=100. Mutually exclusive with x.',
+          },
+          deltaY: {
+            type: 'number',
+            description: 'Relative Y movement (pixels). Use for "move down 50px" → deltaY=50. Mutually exclusive with y.',
+          },
+          x: {
+            type: 'number',
+            description: 'Absolute X position (pixels). Use for "move all to x=500". Mutually exclusive with deltaX.',
+          },
+          y: {
+            type: 'number',
+            description: 'Absolute Y position (pixels). Use for "move all to y=300". Mutually exclusive with deltaY.',
+          },
+        },
+        required: ['shapeIds'],
+      },
+    },
+  },
+
+  // ==========================================
   // QUERY TOOLS
   // ==========================================
   {
@@ -354,29 +511,29 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeHorizontal',
-      description: 'Arrange multiple shapes in a horizontal row with equal spacing',
+      description: 'Arrange shapes in a horizontal row. Example: "Arrange these shapes in a horizontal row" → use ALL shapes on canvas, startX=50, y=200. If "these shapes" or "all shapes" or no specific shapes mentioned, pass empty array [] for shapeIds to use all shapes.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange',
+            description: 'Array of shape IDs to arrange. Use empty array [] to arrange ALL shapes on canvas.',
           },
           startX: {
             type: 'number',
-            description: 'Starting X coordinate for the first shape',
+            description: 'Starting X coordinate for the first shape. Default: 50',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate for all shapes (horizontal alignment)',
+            description: 'Y coordinate for all shapes (horizontal alignment). Default: 200',
           },
           spacing: {
             type: 'number',
-            description: 'Spacing between shapes in pixels (default: 20)',
+            description: 'Spacing between shapes in pixels. Default: 20',
           },
         },
-        required: ['shapeIds', 'startX', 'y'],
+        required: ['shapeIds'],
       },
     },
   },
@@ -477,29 +634,29 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'distributeHorizontally',
-      description: 'Distribute shapes evenly across horizontal space',
+      description: 'Distribute shapes evenly across horizontal space. Example: "Space these elements evenly" → use ALL shapes, startX=50, endX=700, y=200. If "these" or "all" or no specific shapes, pass empty array [] for shapeIds.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to distribute',
+            description: 'Array of shape IDs to distribute. Use empty array [] to distribute ALL shapes on canvas.',
           },
           startX: {
             type: 'number',
-            description: 'Starting X coordinate',
+            description: 'Starting X coordinate. Default: 50',
           },
           endX: {
             type: 'number',
-            description: 'Ending X coordinate',
+            description: 'Ending X coordinate. Default: 700',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate for alignment',
+            description: 'Y coordinate for alignment. Default: 200',
           },
         },
-        required: ['shapeIds', 'startX', 'endX', 'y'],
+        required: ['shapeIds'],
       },
     },
   },
@@ -573,14 +730,26 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
 export const getToolByName = (
   name: string
 ): OpenAI.Chat.ChatCompletionTool | undefined => {
-  return aiToolsSchema.find((tool) => tool.function.name === name);
+  const isFunctionTool = (
+    tool: OpenAI.Chat.ChatCompletionTool
+  ): tool is OpenAI.Chat.ChatCompletionTool & { function: { name: string } } => {
+    return (tool as any).function !== undefined;
+  };
+
+  return aiToolsSchema.find((tool) => isFunctionTool(tool) && tool.function.name === name);
 };
 
 /**
  * Get all tool names
  */
 export const getAllToolNames = (): string[] => {
-  return aiToolsSchema.map((tool) => tool.function.name);
+  const isFunctionTool = (
+    tool: OpenAI.Chat.ChatCompletionTool
+  ): tool is OpenAI.Chat.ChatCompletionTool & { function: { name: string } } => {
+    return (tool as any).function !== undefined;
+  };
+
+  return aiToolsSchema.filter(isFunctionTool).map((tool) => tool.function.name);
 };
 
 /**
@@ -588,7 +757,8 @@ export const getAllToolNames = (): string[] => {
  */
 export const TOOL_CATEGORIES = {
   CREATION: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes'],
-  MANIPULATION: ['moveShape', 'resizeShape', 'changeColor', 'updateText', 'deleteShape', 'deleteMultipleShapes'],
+  SMART_MANIPULATION: ['moveShapeByDescription', 'resizeShapeByDescription', 'rotateShapeByDescription'],
+  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'changeColor', 'updateText', 'deleteShape', 'deleteMultipleShapes'],
   QUERY: ['getCanvasState', 'findShapesByType', 'findShapesByColor', 'findShapesByText'],
   LAYOUT: ['arrangeHorizontal', 'arrangeVertical', 'arrangeGrid', 'centerShape', 'distributeHorizontally', 'distributeVertically'],
   UTILITY: ['getCanvasBounds', 'clearCanvas'],

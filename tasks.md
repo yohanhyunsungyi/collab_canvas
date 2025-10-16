@@ -229,12 +229,13 @@
 **Branch:** `feature/ai-ui-basic`
 
 **Goal:** AI interface + creation & manipulation commands
+You can press Cmd/Ctrl+K to open/focus the AI input instantly.
 
 **Estimated Time:** 8-10 hours
 
 ### Tasks:
 
-- [ ] **14.1: Create AI Input Panel Component**
+- [x] **14.1: Create AI Input Panel Component** ✅
   - Text input for commands
   - Send button
   - Loading indicator
@@ -245,14 +246,14 @@
     - `src/components/AI/AIInput.tsx`
     - `src/components/AI/AICommandHistory.tsx`
 
-- [ ] **14.2: Add AI Panel to Canvas Layout**
+- [x] **14.2: Add AI Panel to Canvas Layout** ✅
   - Position panel (sidebar or bottom)
   - Collapsible/expandable
   - Keyboard shortcut to focus (Cmd/Ctrl+K)
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
 
-- [ ] **14.3: Implement Creation Commands (3 commands)**
+- [x] **14.3: Implement Creation Commands (3 commands)** ✅
   - "Create a red circle at position 100, 200"
   - "Make a 200x300 blue rectangle"
   - "Add a text layer that says 'Hello World'"

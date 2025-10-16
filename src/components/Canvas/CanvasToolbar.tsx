@@ -8,11 +8,17 @@ interface CanvasToolbarProps {
   currentColor: string;
   currentFontSize: number;
   selectedShapeId: string | null;
+  selectedShapeCount: number; // Number of selected shapes for multi-select operations
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
   onFontSizeChange: (fontSize: number) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onAlignLeft: () => void;
+  onAlignCenter: () => void;
+  onAlignRight: () => void;
+  onDistributeHorizontally: () => void;
+  onDistributeVertically: () => void;
 }
 
 export const CanvasToolbar = ({
@@ -20,11 +26,17 @@ export const CanvasToolbar = ({
   currentColor,
   currentFontSize,
   selectedShapeId,
+  selectedShapeCount,
   onToolChange,
   onColorChange,
   onFontSizeChange,
   onDuplicate,
   onDelete,
+  onAlignLeft,
+  onAlignCenter,
+  onAlignRight,
+  onDistributeHorizontally,
+  onDistributeVertically,
 }: CanvasToolbarProps) => {
   const [isSelectMenuOpen, setIsSelectMenuOpen] = useState(false);
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
@@ -211,6 +223,70 @@ export const CanvasToolbar = ({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+        
+        {/* Align buttons */}
+        <button
+          className="duplicate-button"
+          onClick={onAlignLeft}
+          disabled={currentTool !== 'select' || selectedShapeCount < 2}
+          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Left'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="4" x2="3" y2="20"/>
+            <rect x="7" y="6" width="10" height="4"/>
+            <rect x="7" y="14" width="14" height="4"/>
+          </svg>
+        </button>
+        <button
+          className="duplicate-button"
+          onClick={onAlignCenter}
+          disabled={currentTool !== 'select' || selectedShapeCount < 2}
+          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Center'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="4" x2="12" y2="20"/>
+            <rect x="7" y="6" width="10" height="4"/>
+            <rect x="5" y="14" width="14" height="4"/>
+          </svg>
+        </button>
+        <button
+          className="duplicate-button"
+          onClick={onAlignRight}
+          disabled={currentTool !== 'select' || selectedShapeCount < 2}
+          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Right'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="21" y1="4" x2="21" y2="20"/>
+            <rect x="7" y="6" width="10" height="4"/>
+            <rect x="3" y="14" width="14" height="4"/>
+          </svg>
+        </button>
+        
+        {/* Distribute buttons */}
+        <button
+          className="duplicate-button"
+          onClick={onDistributeHorizontally}
+          disabled={currentTool !== 'select' || selectedShapeCount < 2}
+          title={currentTool !== 'select' ? 'Switch to Select mode to distribute' : selectedShapeCount < 2 ? 'Select at least 2 shapes to distribute' : 'Distribute Horizontally'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="8" width="4" height="8"/>
+            <rect x="10" y="8" width="4" height="8"/>
+            <rect x="16" y="8" width="4" height="8"/>
+          </svg>
+        </button>
+        <button
+          className="duplicate-button"
+          onClick={onDistributeVertically}
+          disabled={currentTool !== 'select' || selectedShapeCount < 2}
+          title={currentTool !== 'select' ? 'Switch to Select mode to distribute' : selectedShapeCount < 2 ? 'Select at least 2 shapes to distribute' : 'Distribute Vertically'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="8" y="4" width="8" height="4"/>
+            <rect x="8" y="10" width="8" height="4"/>
+            <rect x="8" y="16" width="8" height="4"/>
           </svg>
         </button>
       </div>

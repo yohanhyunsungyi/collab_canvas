@@ -14,6 +14,7 @@ import { MultiplayerCursors } from './MultiplayerCursors';
 import { ErrorNotification } from '../UI/ErrorNotification';
 import { ConnectionStatus } from '../UI/ConnectionStatus';
 import { PresenceMenu } from '../Presence/PresenceMenu';
+import { AIPanel, type AIPanelHandle } from '../AI/AIPanel';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
@@ -37,6 +38,7 @@ export const Canvas = () => {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const aiPanelRef = useRef<AIPanelHandle | null>(null);
   
     // Get current user for shape creation
     const { user, logout } = useAuth();
@@ -213,6 +215,12 @@ export const Canvas = () => {
   // Handle keyboard events for pan mode and delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+K focuses AI input
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        aiPanelRef.current?.focusInput();
+        return;
+      }
       // Don't trigger keyboard shortcuts while editing text or if target is an input
       const target = e.target as HTMLElement;
       const isInputTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
@@ -614,13 +622,10 @@ export const Canvas = () => {
           lastModifiedAt: Date.now(),
         });
       } else {
-        // Creating new text: convert screen coordinates back to canvas coordinates
-        // Note: For existing text edit, we don't need this conversion
-        if (!stageRef.current) return;
-        
-        const stageBox = stageRef.current.container().getBoundingClientRect();
-        const canvasX = (textEditPosition.x - stageBox.left - viewport.x) / viewport.scale;
-        const canvasY = (textEditPosition.y - stageBox.top - viewport.y) / viewport.scale;
+        // Creating new text: convert overlay screen coordinates (relative to container)
+        // back to canvas coordinates (inverse of placement transform)
+        const canvasX = (textEditPosition.x - viewport.x) / viewport.scale;
+        const canvasY = (textEditPosition.y - viewport.y) / viewport.scale;
         
         // Apply boundary constraints
         const constrained = constrainPoint(canvasX, canvasY);
@@ -692,20 +697,18 @@ export const Canvas = () => {
     // This handles all transformations (scale, rotation, parent transforms) automatically
     const textPosition = textNode.absolutePosition();
     
-    // Get the stage container's position on the page
-    const stageBox = stageRef.current.container().getBoundingClientRect();
-    
-    // Calculate absolute position on the page
-    // Following Konva best practices: https://konvajs.org/docs/sandbox/Editable_Text.html
+    // Calculate position relative to `.canvas-container` (the textarea's offset parent).
+    // Because the Stage is transformed via `viewport.x`/`viewport.scale`, we project
+    // the Konva node's position into screen space relative to the container.
     const areaPosition = {
-      x: stageBox.left + textPosition.x,
-      y: stageBox.top + textPosition.y,
+      x: textPosition.x * viewport.scale + viewport.x,
+      y: textPosition.y * viewport.scale + viewport.y,
     };
     
     console.log('[Canvas] Text edit position:', {
       canvasPos: { x: shape.x, y: shape.y },
       absolutePos: textPosition,
-      stageBox: { left: stageBox.left, top: stageBox.top },
+      viewport,
       finalPos: areaPosition
     });
     
@@ -719,7 +722,15 @@ export const Canvas = () => {
     // Focus the input after a short delay
     setTimeout(() => {
       textInputRef.current?.focus();
-      textInputRef.current?.select(); // Select all text for easy replacement
+      // Place caret at the end to preserve original content by default
+      if (textInputRef.current) {
+        const len = textInputRef.current.value.length;
+        try {
+          textInputRef.current.setSelectionRange(len, len);
+        } catch {
+          // Some browsers may not support setSelectionRange on textarea; safe to ignore
+        }
+      }
     }, 10);
   }, [shapes, user]);
 
@@ -1032,6 +1043,225 @@ export const Canvas = () => {
     }
   };
 
+  // Helper functions to get shape bounding box coordinates
+  // These account for different coordinate systems: circles use center, rectangles use top-left
+  
+  const getShapeLeft = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.x - shape.radius;
+    if (shape.type === 'rectangle') return shape.x;
+    if (shape.type === 'text') return shape.x;
+    return shape.x;
+  };
+
+  const getShapeRight = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.x + shape.radius;
+    if (shape.type === 'rectangle') return shape.x + shape.width;
+    if (shape.type === 'text') return shape.x + (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+    return shape.x;
+  };
+
+  const getShapeCenterX = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.x; // Circle x is already center
+    if (shape.type === 'rectangle') return shape.x + shape.width / 2;
+    if (shape.type === 'text') return shape.x + ((shape.text?.length || 0) * (shape.fontSize || 24) * 0.6) / 2;
+    return shape.x;
+  };
+
+  const getShapeTop = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.y - shape.radius;
+    if (shape.type === 'rectangle') return shape.y;
+    if (shape.type === 'text') return shape.y;
+    return shape.y;
+  };
+
+  const getShapeBottom = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.y + shape.radius;
+    if (shape.type === 'rectangle') return shape.y + shape.height;
+    if (shape.type === 'text') return shape.y + (shape.fontSize || 24);
+    return shape.y;
+  };
+
+  const getShapeCenterY = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.y; // Circle y is already center
+    if (shape.type === 'rectangle') return shape.y + shape.height / 2;
+    if (shape.type === 'text') return shape.y + (shape.fontSize || 24) / 2;
+    return shape.y;
+  };
+
+  const getShapeWidth = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.radius * 2;
+    if (shape.type === 'rectangle') return shape.width;
+    if (shape.type === 'text') return (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+    return 0;
+  };
+
+  const getShapeHeight = (shape: CanvasShape): number => {
+    if (shape.type === 'circle') return shape.radius * 2;
+    if (shape.type === 'rectangle') return shape.height;
+    if (shape.type === 'text') return shape.fontSize || 24;
+    return 0;
+  };
+
+  // Set shape's x position based on desired left edge
+  const setShapeLeft = (shape: CanvasShape, leftX: number): number => {
+    if (shape.type === 'circle') return leftX + shape.radius; // Circle x is center
+    return leftX; // Rectangle and text x is left edge
+  };
+
+  // Set shape's x position based on desired center
+  const setShapeCenterX = (shape: CanvasShape, centerX: number): number => {
+    if (shape.type === 'circle') return centerX; // Circle x is already center
+    if (shape.type === 'rectangle') return centerX - shape.width / 2;
+    if (shape.type === 'text') return centerX - ((shape.text?.length || 0) * (shape.fontSize || 24) * 0.6) / 2;
+    return centerX;
+  };
+
+  // Set shape's x position based on desired right edge
+  const setShapeRight = (shape: CanvasShape, rightX: number): number => {
+    if (shape.type === 'circle') return rightX - shape.radius; // Circle x is center
+    if (shape.type === 'rectangle') return rightX - shape.width;
+    if (shape.type === 'text') return rightX - (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+    return rightX;
+  };
+
+  // Set shape's y position based on desired top edge
+  const setShapeTop = (shape: CanvasShape, topY: number): number => {
+    if (shape.type === 'circle') return topY + shape.radius; // Circle y is center
+    return topY; // Rectangle and text y is top edge
+  };
+
+  // Set shape's y position based on desired center
+  const setShapeCenterY = (shape: CanvasShape, centerY: number): number => {
+    if (shape.type === 'circle') return centerY; // Circle y is already center
+    if (shape.type === 'rectangle') return centerY - shape.height / 2;
+    if (shape.type === 'text') return centerY - (shape.fontSize || 24) / 2;
+    return centerY;
+  };
+
+  // Set shape's y position based on desired bottom edge
+  const setShapeBottom = (shape: CanvasShape, bottomY: number): number => {
+    if (shape.type === 'circle') return bottomY - shape.radius; // Circle y is center
+    if (shape.type === 'rectangle') return bottomY - shape.height;
+    if (shape.type === 'text') return bottomY - (shape.fontSize || 24);
+    return bottomY;
+  };
+
+  // Align selected shapes to the left
+  const handleAlignLeft = () => {
+    if (selectedShapeIds.length < 2 || !user) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const leftmostX = Math.min(...selectedShapes.map(s => getShapeLeft(s)));
+    
+    selectedShapes.forEach(shape => {
+      updateShape(shape.id, {
+        x: setShapeLeft(shape, leftmostX),
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      });
+    });
+  };
+
+  // Align selected shapes to the center
+  const handleAlignCenter = () => {
+    if (selectedShapeIds.length < 2 || !user) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    
+    // Find the bounding box center
+    const leftmostX = Math.min(...selectedShapes.map(s => getShapeLeft(s)));
+    const rightmostX = Math.max(...selectedShapes.map(s => getShapeRight(s)));
+    const centerX = (leftmostX + rightmostX) / 2;
+    
+    selectedShapes.forEach(shape => {
+      updateShape(shape.id, {
+        x: setShapeCenterX(shape, centerX),
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      });
+    });
+  };
+
+  // Align selected shapes to the right
+  const handleAlignRight = () => {
+    if (selectedShapeIds.length < 2 || !user) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const rightmostX = Math.max(...selectedShapes.map(s => getShapeRight(s)));
+    
+    selectedShapes.forEach(shape => {
+      updateShape(shape.id, {
+        x: setShapeRight(shape, rightmostX),
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      });
+    });
+  };
+
+  // Distribute selected shapes horizontally with even spacing
+  const handleDistributeHorizontally = () => {
+    if (selectedShapeIds.length < 3 || !user) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    
+    // Sort shapes by their left edge
+    const sortedShapes = [...selectedShapes].sort((a, b) => getShapeLeft(a) - getShapeLeft(b));
+    
+    // Keep the leftmost and rightmost shapes in place
+    const leftmostLeft = getShapeLeft(sortedShapes[0]);
+    const rightmostRight = getShapeRight(sortedShapes[sortedShapes.length - 1]);
+    const totalSpace = rightmostRight - leftmostLeft;
+    
+    // Calculate total width of all shapes
+    const totalShapeWidth = sortedShapes.reduce((sum, shape) => sum + getShapeWidth(shape), 0);
+    
+    // Calculate spacing between shapes
+    const spacing = (totalSpace - totalShapeWidth) / (sortedShapes.length - 1);
+    
+    // Position each shape
+    let currentLeft = leftmostLeft;
+    sortedShapes.forEach(shape => {
+      updateShape(shape.id, {
+        x: setShapeLeft(shape, currentLeft),
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      });
+      currentLeft += getShapeWidth(shape) + spacing;
+    });
+  };
+
+  // Distribute selected shapes vertically with even spacing
+  const handleDistributeVertically = () => {
+    if (selectedShapeIds.length < 3 || !user) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    
+    // Sort shapes by their top edge
+    const sortedShapes = [...selectedShapes].sort((a, b) => getShapeTop(a) - getShapeTop(b));
+    
+    // Keep the topmost and bottommost shapes in place
+    const topmostTop = getShapeTop(sortedShapes[0]);
+    const bottommostBottom = getShapeBottom(sortedShapes[sortedShapes.length - 1]);
+    const totalSpace = bottommostBottom - topmostTop;
+    
+    // Calculate total height of all shapes
+    const totalShapeHeight = sortedShapes.reduce((sum, shape) => sum + getShapeHeight(shape), 0);
+    
+    // Calculate spacing between shapes
+    const spacing = (totalSpace - totalShapeHeight) / (sortedShapes.length - 1);
+    
+    // Position each shape
+    let currentTop = topmostTop;
+    sortedShapes.forEach(shape => {
+      updateShape(shape.id, {
+        y: setShapeTop(shape, currentTop),
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      });
+      currentTop += getShapeHeight(shape) + spacing;
+    });
+  };
+
   // Register shape ref for transformer
   const setShapeRef = (id: string, node: Konva.Node | null) => {
     if (node) {
@@ -1109,11 +1339,17 @@ export const Canvas = () => {
             return currentFontSize;
           })()}
           selectedShapeId={selectedShapeIds[0] || null}
+          selectedShapeCount={selectedShapeIds.length}
           onToolChange={setCurrentTool}
           onColorChange={handleColorChange}
           onFontSizeChange={handleFontSizeChange}
           onDuplicate={() => user && duplicateSelectedShapes(user.id)}
           onDelete={() => selectedShapeIds.forEach(id => removeShape(id))}
+          onAlignLeft={handleAlignLeft}
+          onAlignCenter={handleAlignCenter}
+          onAlignRight={handleAlignRight}
+          onDistributeHorizontally={handleDistributeHorizontally}
+          onDistributeVertically={handleDistributeVertically}
         />
         <Stage
           ref={stageRef}
@@ -1315,9 +1551,21 @@ export const Canvas = () => {
           const fontSize = editingShape?.fontSize || currentFontSize;
           const color = editingShape?.color || currentColor;
           
-          // Get the text node to retrieve its absolute scale
+          // Get the text node to retrieve its absolute scale and width
           const textNode = editingTextId ? shapeRefs.current.get(editingTextId) : null;
           const scale = textNode ? textNode.getAbsoluteScale().x : viewport.scale;
+          
+          // Calculate textarea width: for editing existing text, use text node's width scaled
+          // For new text, use minimum width
+          let textareaWidth: number;
+          if (textNode && editingTextId) {
+            // Get the text node's width (it should have a width property)
+            const nodeWidth = (textNode as any).width ? (textNode as any).width() : 200;
+            textareaWidth = Math.max(50, nodeWidth * scale);
+          } else {
+            // New text creation
+            textareaWidth = 200;
+          }
           
           return (
             <textarea
@@ -1330,22 +1578,20 @@ export const Canvas = () => {
                 position: 'absolute',
                 left: `${textEditPosition.x}px`,
                 top: `${textEditPosition.y}px`,
+                width: `${textareaWidth}px`,
+                height: 'auto',
                 fontSize: `${fontSize * scale}px`,
                 color: color,
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderBottom: editingTextId ? 'none' : '2px solid #00bcd4',
+                backgroundColor: 'white',
+                border: '1px solid #00bcd4',
                 outline: 'none',
-                padding: '0',
+                padding: '2px',
                 margin: '0',
                 fontFamily: 'Arial, sans-serif',
-                minWidth: editingTextId ? 'auto' : '100px',
-                width: 'auto',
-                height: 'auto',
                 lineHeight: '1.2',
                 overflow: 'hidden',
                 resize: 'none',
-                zIndex: 1000,
+                zIndex: 10000,
                 whiteSpace: 'pre-wrap',
                 transformOrigin: 'left top',
               }}
@@ -1360,6 +1606,17 @@ export const Canvas = () => {
 
       {/* Presence sidebar removed; presence shown in top bar */}
       </div>
+      {/* AI Panel floating dock */}
+      {user && (
+        <AIPanel
+          ref={aiPanelRef}
+          userId={user.id}
+          shapes={shapes}
+          canvasWidth={CANVAS_WIDTH}
+          canvasHeight={CANVAS_HEIGHT}
+          defaultCollapsed={true}
+        />
+      )}
     </div>
   );
 };

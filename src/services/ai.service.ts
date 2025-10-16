@@ -5,8 +5,10 @@ import type {
   AICommandRequest,
   AICommandResponse,
   RateLimitInfo,
+  OpenAIModelName,
 } from '../types/ai.types';
-import { AI_CONFIG } from '../types/ai.types';
+import { AI_CONFIG, OPENAI_MODELS } from '../types/ai.types';
+// Local fallback removed per requirement; rely solely on provider
 
 class AIService {
   private client: OpenAI | null = null;
@@ -42,6 +44,69 @@ class AIService {
    */
   isAvailable(): boolean {
     return this.client !== null;
+  }
+
+  /**
+   * Intelligently select the best model based on command complexity
+   * Uses heuristics to avoid hitting token limits
+   */
+  private selectModelForCommand(prompt: string, shapeCount: number = 0): OpenAIModelName {
+    // Heuristic factors:
+    // 1. Number of shapes involved (from keywords or shape count)
+    // 2. Complexity of operation (multi-step vs single-step)
+    // 3. Grid/batch operations
+    
+    const promptLower = prompt.toLowerCase();
+    
+    // Extract numbers from the prompt (e.g., "move 500 objects", "create a 20x20 grid")
+    const numbers = prompt.match(/\d+/g)?.map(Number) || [];
+    const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
+    
+    // Calculate complexity score
+    let complexityScore = 0;
+    
+    // Large numbers in prompt (e.g., "move 500", "create 100")
+    if (maxNumber >= 500) complexityScore += 100;
+    else if (maxNumber >= 100) complexityScore += 50;
+    else if (maxNumber >= 50) complexityScore += 30;
+    else if (maxNumber >= 20) complexityScore += 20;
+    else if (maxNumber >= 10) complexityScore += 10;
+    
+    // Grid operations (NxN multiplies complexity)
+    if (promptLower.includes('grid')) {
+      if (numbers.length >= 2) {
+        const gridSize = numbers[0] * numbers[1];
+        complexityScore += gridSize * 2; // Each cell requires a tool call
+      } else {
+        complexityScore += 20;
+      }
+    }
+    
+    // Batch operations
+    if (promptLower.match(/\b(all|every|multiple|batch)\b/)) complexityScore += 30;
+    
+    // Multi-step operations
+    if (promptLower.match(/\b(and then|after|arrange|organize|distribute)\b/)) complexityScore += 15;
+    
+    // Shape count on canvas
+    complexityScore += Math.min(shapeCount / 10, 50); // Up to 50 points for shape count
+    
+    // Select model based on complexity score
+    console.log(`[AI Service] Complexity score: ${complexityScore} for prompt: "${prompt.substring(0, 50)}..."`);
+    
+    if (complexityScore >= 80) {
+      console.log(`[AI Service] Selected gpt-4o for high complexity operation`);
+      return 'gpt-4o'; // Highest capacity for very complex operations
+    } else if (complexityScore >= 40) {
+      console.log(`[AI Service] Selected gpt-4o-mini for medium complexity operation`);
+      return 'gpt-4o-mini'; // Good balance for medium operations
+    } else if (complexityScore >= 20) {
+      console.log(`[AI Service] Selected gpt-4-turbo for moderate complexity operation`);
+      return 'gpt-4-turbo'; // Balanced for moderate operations
+    } else {
+      console.log(`[AI Service] Selected gpt-3.5-turbo for simple operation`);
+      return 'gpt-3.5-turbo'; // Fast for simple operations
+    }
   }
 
   /**
@@ -83,7 +148,7 @@ class AIService {
    * Send a command to the AI with function calling support
    */
   async sendCommand(
-    request: AICommandRequest,
+    request: AICommandRequest & { shapeCount?: number },
     tools: OpenAI.Chat.ChatCompletionTool[]
   ): Promise<AICommandResponse> {
     if (!this.client) {
@@ -104,13 +169,31 @@ class AIService {
     }
 
     try {
+      // Intelligently select model based on command complexity
+      const selectedModel = this.selectModelForCommand(request.prompt, request.shapeCount || 0);
+      const modelConfig = OPENAI_MODELS[selectedModel];
+      
+      console.log(`[AI Service] Using model: ${selectedModel} (max tokens: ${modelConfig.maxOutputTokens})`);
+
       const messages: AIMessage[] = [
         {
           role: 'system',
-          content: `You are a helpful AI assistant for a collaborative canvas application. 
+          content: `You are a helpful AI assistant for a collaborative canvas application (5000x5000px canvas, center is 2500,2500). 
 Your role is to help users create, manipulate, and organize shapes on a canvas.
-Be precise with coordinates and dimensions. The canvas has a coordinate system where (0,0) is the top-left corner.
-Always use the provided tools to execute user commands.`,
+
+CRITICAL RULES:
+1. For commands like "Move the blue rectangle" or "Resize the circle", you MUST make TWO tool calls:
+   - First: Call findShapesByColor/findShapesByType to get the shapeId
+   - Second: Call moveShape/resizeShape/rotateShape with that shapeId
+2. ALWAYS complete BOTH steps in the same response - do not stop after the query step
+3. For "Create a grid of NxN", break into individual createRectangle calls (one per square)
+4. For batch operations on many objects (e.g., "move 500 objects"), use the smart manipulation tools like moveShapeByDescription or use batch tools efficiently
+5. Be precise with coordinates and dimensions
+6. Always use the provided tools to execute user commands
+
+Example: "Move the blue rectangle to center"
+→ Call findShapesByColor(color="blue") to get IDs
+→ Call moveShape(shapeId=<result_from_step1>, x=2500, y=2500)`,
         },
         {
           role: 'user',
@@ -126,15 +209,14 @@ Always use the provided tools to execute user commands.`,
         )
       );
 
-      // Make API call with timeout
+      // Make API call with timeout and dynamic model selection
       const completion = await Promise.race([
         this.client.chat.completions.create({
-          model: AI_CONFIG.MODEL,
+          model: selectedModel,
           messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
           tools,
           tool_choice: 'auto',
-          temperature: 0.7,
-          max_tokens: 1000,
+          max_completion_tokens: Math.min(modelConfig.maxOutputTokens, 16000),  // Use model's max capacity
         }),
         timeoutPromise,
       ]);
@@ -156,9 +238,7 @@ Always use the provided tools to execute user commands.`,
       };
     } catch (error) {
       console.error('AI service error:', error);
-
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
       return {
         success: false,
         message: 'Failed to process command',
