@@ -859,8 +859,7 @@ export const Canvas = () => {
               lastModifiedAt: Date.now(),
             });
           }
-          // Release lock for each shape
-          handleLockRelease(shapeId);
+          // Lock will be released when shape is deselected (via selection management effect)
         });
       }
 
@@ -876,10 +875,9 @@ export const Canvas = () => {
         lastModifiedAt: Date.now(),
       });
       
-      // Release lock after drag ends
-      handleLockRelease(id);
+      // Lock will be released when shape is deselected (via selection management effect)
     }
-  }, [user, updateShape, handleLockRelease, selectedShapeIds, groupDragInitialPositions]);
+  }, [user, updateShape, selectedShapeIds, groupDragInitialPositions]);
 
   // Handle transform start - acquire lock when starting to resize (if not already locked)
   const handleTransformStart = useCallback(async () => {
@@ -996,8 +994,8 @@ export const Canvas = () => {
       lastModifiedAt: Date.now(),
     });
     
-    // Release lock after transform ends
-    handleLockRelease(shapeId);
+    // Lock will be released when shape is deselected (via selection management effect)
+    // Keeping the lock active while shape remains selected prevents other users from selecting it
   };
 
   // Handle color change - update current color and selected shape(s) color
@@ -1088,8 +1086,28 @@ export const Canvas = () => {
 
         <CanvasToolbar
           currentTool={currentTool}
-          currentColor={currentColor}
-          currentFontSize={currentFontSize}
+          currentColor={(() => {
+            // If a shape is selected, show its color in the toolbar
+            if (selectedShapeIds.length === 1) {
+              const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+              if (selectedShape) {
+                return selectedShape.color;
+              }
+            }
+            // Otherwise, show the current default color
+            return currentColor;
+          })()}
+          currentFontSize={(() => {
+            // If a single text shape is selected, show its font size in the toolbar
+            if (selectedShapeIds.length === 1) {
+              const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+              if (selectedShape?.type === 'text') {
+                return selectedShape.fontSize;
+              }
+            }
+            // Otherwise, show the current default font size
+            return currentFontSize;
+          })()}
           selectedShapeId={selectedShapeIds[0] || null}
           onToolChange={setCurrentTool}
           onColorChange={handleColorChange}

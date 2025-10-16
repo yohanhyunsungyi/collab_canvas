@@ -62,19 +62,25 @@
   - Text value pre-filled and selected for easy editing
   - Locks text during editing
   - Updates persist to Firestore
+  - **Fixed positioning issue:** Using Konva's `absolutePosition()` best practice
+  - Textarea now appears exactly at the text location (no offset)
+  - Handles all transformations (scale, rotation, parent transforms) correctly
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
     - `src/components/Canvas/Shape.tsx`
 
 - [x] **12.5: Unit Tests** ✅
-  - Test shift-click selection
-  - Test drag-to-select
-  - Test duplicate functionality
-  - Test group operations (delete, move, update)
-  - Test selection state management
+  - Test shift-click selection (5 tests)
+  - Test drag-to-select (5 tests)
+  - Test duplicate functionality (5 tests)
+  - Test group operations (4 tests - delete, move, update)
+  - Test edge cases (5 tests)
+  - **Files Created:**
+    - `src/hooks/useCanvas.multi-select.test.ts`
   - **Files Updated:**
-    - `src/hooks/useCanvas.test.ts` (added Group Operations test suite)
-  - **All 14 tests passing** ✅
+    - `src/hooks/useCanvas.test.ts` (existing tests)
+  - **All 24 comprehensive multi-select tests passing** ✅
+  - **Total coverage: 64 tests across all useCanvas test files** ✅
 
 **PR Checklist:**
 - [x] Shift-click adds/removes from selection ✅
@@ -100,83 +106,121 @@
 
 ### Tasks:
 
-- [ ] **13.1: Set Up AI Provider (OpenAI or Anthropic)**
-  - Create OpenAI/Anthropic account
+- [x] **13.1: Set Up AI Provider (OpenAI)** ✅
+  - Create OpenAI account
   - Get API key
   - Add to environment variables
-  - Install SDK: `npm install openai` or `npm install @anthropic-ai/sdk`
+  - Install SDK: `npm install openai`
+  - **Model:** GPT-5 Nano (gpt-5-nano)
   - **Files Updated:**
     - `.env.local`
     - `package.json`
 
-- [ ] **13.2: Create AI Service Layer**
+- [x] **13.2: Create AI Service Layer** ✅
   - AI service for sending prompts
   - Function calling setup
   - Error handling
   - Rate limiting (prevent spam)
+  - **Features Implemented:**
+    - OpenAI client initialization with GPT-5 nano
+    - Rate limiting: 10 requests per minute per user
+    - Request timeout: 10 seconds
+    - Function calling support with auto tool selection
+    - Comprehensive error handling
+    - Rate limit status tracking
   - **Files Created:**
     - `src/services/ai.service.ts`
     - `src/types/ai.types.ts`
 
-- [ ] **13.3: Define AI Function Calling Schema**
+- [x] **13.3: Define AI Function Calling Schema** ✅
   - Define all canvas manipulation functions
   - JSON schema for OpenAI function calling
-  - Tool definitions for Anthropic Claude
+  - OpenAI ChatCompletionTool format
+  - **Tools Implemented (23 total):**
+    - **Creation (4):** createRectangle, createCircle, createText, createMultipleShapes
+    - **Manipulation (6):** moveShape, resizeShape, changeColor, updateText, deleteShape, deleteMultipleShapes
+    - **Query (4):** getCanvasState, findShapesByType, findShapesByColor, findShapesByText
+    - **Layout (6):** arrangeHorizontal, arrangeVertical, arrangeGrid, centerShape, distributeHorizontally, distributeVertically
+    - **Utility (2):** getCanvasBounds, clearCanvas
+  - **Helper Functions:** getToolByName, getAllToolNames, TOOL_CATEGORIES
   - **Files Created:**
     - `src/services/ai-tools.schema.ts`
 
-```typescript
-// Example schema structure
-export const aiToolsSchema = [
-  {
-    name: 'createShape',
-    description: 'Create a shape on the canvas',
-    parameters: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', enum: ['rectangle', 'circle', 'text'] },
-        x: { type: 'number', description: 'X position' },
-        y: { type: 'number', description: 'Y position' },
-        // ... more properties
-      },
-      required: ['type']
-    }
-  },
-  // ... more tools
-];
-```
-
-- [ ] **13.4: Create AI Tool Executor**
+- [x] **13.4: Create AI Tool Executor** ✅
   - Execute AI function calls on canvas
   - Call canvas service functions
   - Handle errors gracefully
+  - **Features Implemented:**
+    - Single tool execution with error handling
+    - Batch tool execution (multiple tools in sequence)
+    - All 23 tools fully implemented and working
+    - ExecutionContext with userId and canvas state
+    - Detailed success/error results with data
+    - Shape ID generation using existing pattern
+    - Integration with canvas.service for persistence
+  - **Tool Categories Implemented:**
+    - Creation: 4 tools (single and batch shape creation)
+    - Manipulation: 6 tools (move, resize, color, text, delete)
+    - Query: 4 tools (state, find by type/color/text)
+    - Layout: 6 tools (arrange, center, distribute)
+    - Utility: 2 tools (bounds, clear)
   - **Files Created:**
     - `src/services/ai-executor.service.ts`
 
-- [ ] **13.5: Create AI Hook**
+- [x] **13.5: Create AI Hook** ✅
   - Hook for AI state management
   - Loading states
   - Error states
   - Command history
+  - **Features Implemented:**
+    - `sendCommand` - Send AI commands with automatic execution
+    - `rerunCommand` - Re-execute commands from history
+    - `clearError` / `clearHistory` - State management helpers
+    - Loading state tracking during AI processing
+    - Error handling with detailed error messages
+    - Command history (last 50 commands) with timestamps
+    - Rate limit status tracking
+    - AI service availability checking
+    - Integration with aiService and aiExecutorService
+    - Execution context with userId and canvas state
+    - Success/failure tracking for each command
+    - Tool execution results stored in history
   - **Files Created:**
     - `src/hooks/useAI.ts`
 
-- [ ] **13.6: Unit Tests for AI Service**
+- [x] **13.6: Unit Tests for AI Service** ✅
   - Test API integration (mocked)
   - Test function calling schema
   - Test tool executor
   - Test error handling
+  - **Test Coverage:**
+    - **AI Service Tests (11 tests):**
+      - Service initialization and availability
+      - Rate limiting (10 req/min per user)
+      - Command execution with tool calls
+      - Error handling (API errors, timeouts)
+      - Response parsing
+    - **AI Executor Tests (29 tests):**
+      - All 23 tools tested individually
+      - Creation tools (4 tests)
+      - Manipulation tools (8 tests)
+      - Query tools (4 tests)
+      - Layout tools (7 tests)
+      - Utility tools (3 tests)
+      - Error handling (2 tests)
+      - Batch execution (1 test)
+  - **All 40 tests passing** ✅
   - **Files Created:**
     - `src/services/ai.service.test.ts`
     - `src/services/ai-executor.service.test.ts`
 
 **PR Checklist:**
-- [ ] AI service connects to OpenAI/Anthropic
-- [ ] Function calling schema defined
-- [ ] Tool executor can call canvas functions
-- [ ] Error handling works
-- [ ] All tests pass
-- [ ] No API keys in code (use env variables)
+- [x] AI service connects to OpenAI (GPT-5 nano) ✅
+- [x] Function calling schema defined (23 tools) ✅
+- [x] Tool executor can call canvas functions ✅
+- [x] Error handling works ✅
+- [x] All tests pass (40/40) ✅
+- [x] No API keys in code (use env variables) ✅
 
 ---
 
