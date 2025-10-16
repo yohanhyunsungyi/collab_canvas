@@ -353,7 +353,7 @@ describe('Canvas Collaboration Integration Tests', () => {
       expect(result.current.shapes).toBeDefined();
       expect(result.current.currentTool).toBeDefined();
       expect(result.current.currentColor).toBeDefined();
-      expect(result.current.selectedShapeId).toBeDefined();
+      expect(result.current.selectedShapeIds).toBeDefined();
       expect(result.current.error).toBeDefined();
       expect(result.current.clearError).toBeDefined();
     });

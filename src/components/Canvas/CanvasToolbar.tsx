@@ -11,6 +11,7 @@ interface CanvasToolbarProps {
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
   onFontSizeChange: (fontSize: number) => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }
 
@@ -22,6 +23,7 @@ export const CanvasToolbar = ({
   onToolChange,
   onColorChange,
   onFontSizeChange,
+  onDuplicate,
   onDelete,
 }: CanvasToolbarProps) => {
   const [isSelectMenuOpen, setIsSelectMenuOpen] = useState(false);
@@ -157,33 +159,35 @@ export const CanvasToolbar = ({
           </div>
           <div className="toolbar-divider" />
 
-          {/* Text remains a direct tool */}
-          <button
-            className={`tool-button tool-button--text ${currentTool === textTool.type ? 'active' : ''}`}
-            onClick={() => onToolChange(textTool.type)}
-            title={textTool.label}
-          >
-            <span className="tool-label">{textTool.label}</span>
-          </button>
+          {/* Text and font size grouped together */}
+          <div className="text-with-font-size">
+            <button
+              className={`tool-button tool-button--text ${currentTool === textTool.type ? 'active' : ''}`}
+              onClick={() => onToolChange(textTool.type)}
+              title={textTool.label}
+            >
+              <span className="tool-label">{textTool.label}</span>
+            </button>
 
-          {/* Font size selector moved next to Text button */}
-          <select
-            className="font-size-select"
-            aria-label="Font size"
-            value={currentFontSize}
-            onChange={(e) => onFontSizeChange(Number(e.target.value))}
-          >
-            <option value={12}>12px</option>
-            <option value={16}>16px</option>
-            <option value={20}>20px</option>
-            <option value={24}>24px</option>
-            <option value={32}>32px</option>
-            <option value={48}>48px</option>
-            <option value={64}>64px</option>
-            <option value={72}>72px</option>
-            <option value={96}>96px</option>
-            <option value={128}>128px</option>
-          </select>
+            {/* Font size selector moved next to Text button */}
+            <select
+              className="font-size-select"
+              aria-label="Font size"
+              value={currentFontSize}
+              onChange={(e) => onFontSizeChange(Number(e.target.value))}
+            >
+              <option value={12}>12px</option>
+              <option value={16}>16px</option>
+              <option value={20}>20px</option>
+              <option value={24}>24px</option>
+              <option value={32}>32px</option>
+              <option value={48}>48px</option>
+              <option value={64}>64px</option>
+              <option value={72}>72px</option>
+              <option value={96}>96px</option>
+              <option value={128}>128px</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -198,6 +202,22 @@ export const CanvasToolbar = ({
 
       <div className="toolbar-section">
         <span className="toolbar-label">Actions</span>
+        <button
+          className="duplicate-button"
+          onClick={onDuplicate}
+          disabled={currentTool !== 'select' || !selectedShapeId}
+          title={currentTool !== 'select' ? 'Switch to Select mode to duplicate' : !selectedShapeId ? 'Select a shape to duplicate' : 'Duplicate selected shape (Cmd/Ctrl+D)'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-section">
         <button
           className="delete-button"
           onClick={onDelete}

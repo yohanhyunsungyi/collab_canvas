@@ -21,7 +21,7 @@
 
 ### Tasks:
 
-- [ ] **12.1: Implement Shift-Click Multi-Select**
+- [x] **12.1: Implement Shift-Click Multi-Select** ✅
   - Hold shift + click to add to selection
   - Visual indication of multiple selected objects
   - Selection bounding box around multiple objects
@@ -31,7 +31,7 @@
     - `src/components/Canvas/Canvas.tsx`
     - `src/hooks/useCanvas.ts`
 
-- [ ] **12.2: Implement Drag-to-Select**
+- [x] **12.2: Implement Drag-to-Select** ✅
   - Click and drag on empty canvas to create selection rectangle
   - All objects within rectangle get selected
   - Visual selection rectangle during drag
@@ -40,7 +40,7 @@
     - `src/components/Canvas/SelectionBox.tsx`
     - `src/hooks/useCanvas.ts`
 
-- [ ] **12.3: Add Duplicate Functionality**
+- [x] **12.3: Add Duplicate Functionality** ✅
   - Duplicate selected object(s)
   - Keyboard shortcut: Cmd/Ctrl+D
   - Offset duplicate position slightly
@@ -49,7 +49,7 @@
     - `src/hooks/useCanvas.ts`
     - `src/services/canvas.service.ts`
 
-- [ ] **12.4: Group Operations on Multiple Selected Objects**
+- [x] **12.4: Group Operations on Multiple Selected Objects** ✅
   - Move multiple objects together
   - Delete multiple objects
   - Cannot resize multiple objects (not in scope)
@@ -57,22 +57,36 @@
     - `src/hooks/useCanvas.ts`
     - `src/components/Canvas/Canvas.tsx`
 
-- [ ] **12.5: Unit Tests**
+- [x] **12.4b: Make Text Editable (Double Click)** ✅
+  - Double-click on text shape to enter edit mode
+  - Text value pre-filled and selected for easy editing
+  - Locks text during editing
+  - Updates persist to Firestore
+  - **Files Updated:**
+    - `src/components/Canvas/Canvas.tsx`
+    - `src/components/Canvas/Shape.tsx`
+
+- [x] **12.5: Unit Tests** ✅
   - Test shift-click selection
   - Test drag-to-select
   - Test duplicate functionality
-  - Test group operations
-  - **Files Created:**
-    - `src/hooks/useCanvas.multi-select.test.ts`
+  - Test group operations (delete, move, update)
+  - Test selection state management
+  - **Files Updated:**
+    - `src/hooks/useCanvas.test.ts` (added Group Operations test suite)
+  - **All 14 tests passing** ✅
 
 **PR Checklist:**
-- [ ] Shift-click adds/removes from selection
-- [ ] Drag-to-select works smoothly
-- [ ] Can duplicate single and multiple objects
-- [ ] Multiple selected objects move together
-- [ ] Multiple selected objects delete together
-- [ ] All tests pass
-- [ ] Performance maintained (60 FPS)
+- [x] Shift-click adds/removes from selection ✅
+- [x] Drag-to-select works smoothly ✅
+- [x] Can duplicate single and multiple objects ✅
+- [x] Multiple selected objects move together ✅
+- [x] Multiple selected objects delete together ✅
+- [x] Double-click text editing works ✅
+- [x] Text editing positioned correctly ✅
+- [x] Duplicate button in toolbar ✅
+- [x] All tests pass (14/14) ✅
+- [x] Performance maintained (60 FPS) ✅
 
 ---
 

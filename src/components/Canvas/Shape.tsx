@@ -8,7 +8,10 @@ import { isLockExpired } from '../../services/canvas.service';
 interface ShapeProps {
   shape: CanvasShape;
   isSelected: boolean;
-  onSelect: () => void;
+  isEditing?: boolean;
+  onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onDoubleClick?: (shapeId: string) => void;
+  onDragStart?: (id: string) => void;
   onDragMove: (id: string, x: number, y: number) => void;
   onDragEnd: (id: string, x: number, y: number) => void;
   onLockAcquire: (shapeId: string) => Promise<boolean>;
@@ -24,8 +27,11 @@ interface ShapeProps {
  */
 const ShapeComponent = ({ 
   shape, 
-  isSelected, 
-  onSelect, 
+  isSelected,
+  isEditing = false,
+  onSelect,
+  onDoubleClick,
+  onDragStart,
   onDragMove, 
   onDragEnd, 
   onLockAcquire,
@@ -41,7 +47,15 @@ const ShapeComponent = ({
   // Handle click for selection
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;  // Stop propagation to Stage
-    onSelect();
+    onSelect(e);  // Pass event to parent for shift-key detection
+  };
+
+  // Handle double-click (for text editing)
+  const handleDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true;  // Stop propagation to Stage
+    if (onDoubleClick && shape.type === 'text') {
+      onDoubleClick(shape.id);
+    }
   };
 
   // Handle drag start
@@ -61,6 +75,11 @@ const ShapeComponent = ({
         e.target.stopDrag();
         return;
       }
+    }
+
+    // Call parent's onDragStart callback (for group movement)
+    if (onDragStart) {
+      onDragStart(shape.id);
     }
   };
 
@@ -134,8 +153,10 @@ const ShapeComponent = ({
   const commonProps = {
     onClick: handleClick,
     onTap: handleClick,
+    onDblClick: handleDoubleClick,
+    onDblTap: handleDoubleClick,
     // Make draggable only when selected and not locked by another user
-    draggable: isSelected && !isLockedByOther,
+    draggable: isSelected && !isLockedByOther && !isEditing,
     onDragStart: handleDragStart,
     onDragMove: handleDragMove,
     onDragEnd: handleDragEnd,
@@ -147,6 +168,8 @@ const ShapeComponent = ({
     shadowOpacity: (isSelected || isLockedByOther) ? 0.5 : 0,
     // Change cursor style for locked shapes
     opacity: isLockedByOther ? 0.7 : 1,
+    // Hide text when editing (Konva best practice)
+    visible: shape.type === 'text' ? !isEditing : true,
   };
 
   // Render based on shape type
@@ -199,7 +222,7 @@ const ShapeComponent = ({
 };
 
 // Memoize the component to prevent unnecessary re-renders
-// Only re-render when shape data, selection state, or lock state changes
+// Only re-render when shape data, selection state, editing state, or lock state changes
 export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
   return (
     prevProps.shape.id === nextProps.shape.id &&
@@ -209,6 +232,7 @@ export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
     prevProps.shape.lockedBy === nextProps.shape.lockedBy &&
     prevProps.shape.lockedAt === nextProps.shape.lockedAt &&
     prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isEditing === nextProps.isEditing &&
     prevProps.currentUserId === nextProps.currentUserId &&
     // Check type-specific properties
     (prevProps.shape.type !== 'rectangle' || 

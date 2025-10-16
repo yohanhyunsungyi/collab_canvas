@@ -8,7 +8,7 @@ interface UseCanvasReturn {
   // Canvas objects state
   shapes: CanvasShape[];
   setShapes: (shapes: CanvasShape[]) => void; // Added for initial load
-  selectedShapeId: string | null;
+  selectedShapeIds: string[]; // Changed from selectedShapeId for multi-select
   
   // Tool and style state
   currentTool: ToolType;
@@ -23,7 +23,11 @@ interface UseCanvasReturn {
   addShape: (shape: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>, userId: string) => Promise<void>;
   updateShape: (id: string, updates: Partial<CanvasShape>) => void;
   removeShape: (id: string) => void;
-  selectShape: (id: string | null) => void;
+  selectShape: (id: string | null) => void; // Select single shape (clears others)
+  toggleShapeSelection: (id: string) => void; // Add/remove from selection (for shift-click)
+  clearSelection: () => void; // Clear all selections
+  selectShapesInArea: (x1: number, y1: number, x2: number, y2: number) => void; // Select shapes within rectangle
+  duplicateSelectedShapes: (userId: string) => Promise<void>; // Duplicate selected shapes
   applyShapeChanges: (changes: ShapeChangeEvent[]) => void; // Handle real-time changes
   
   // Tool and style handlers
@@ -39,7 +43,7 @@ interface UseCanvasReturn {
 export const useCanvas = (): UseCanvasReturn => {
   // Canvas objects state
   const [shapes, setShapes] = useState<CanvasShape[]>([]);
-  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]); // Changed to array for multi-select
   
   // Tool and style state
   const [currentTool, setCurrentTool] = useState<ToolType>('select');
@@ -114,7 +118,7 @@ export const useCanvas = (): UseCanvasReturn => {
       // Optimistically remove from local state
       setShapes((prev) => prev.filter((shape) => shape.id !== id));
       // Clear selection if the removed shape was selected
-      setSelectedShapeId((prev) => (prev === id ? null : prev));
+      setSelectedShapeIds((prev) => prev.filter(shapeId => shapeId !== id));
       
       // Delete from Firestore
       await canvasService.deleteShape(id);
@@ -125,10 +129,157 @@ export const useCanvas = (): UseCanvasReturn => {
     }
   }, []);
 
-  // Select a shape
+  // Select a single shape (clears other selections)
   const selectShape = useCallback((id: string | null) => {
-    setSelectedShapeId(id);
+    setSelectedShapeIds(id ? [id] : []);
   }, []);
+
+  // Toggle shape selection (for shift-click multi-select)
+  const toggleShapeSelection = useCallback((id: string) => {
+    setSelectedShapeIds((prev) => {
+      if (prev.includes(id)) {
+        // Remove from selection
+        return prev.filter(shapeId => shapeId !== id);
+      } else {
+        // Add to selection
+        return [...prev, id];
+      }
+    });
+  }, []);
+
+  // Clear all selections
+  const clearSelection = useCallback(() => {
+    setSelectedShapeIds([]);
+  }, []);
+
+  // Select shapes within a rectangular area (for drag-to-select)
+  const selectShapesInArea = useCallback((x1: number, y1: number, x2: number, y2: number) => {
+    // Normalize coordinates (handle dragging in any direction)
+    const minX = Math.min(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxX = Math.max(x1, x2);
+    const maxY = Math.max(y1, y2);
+
+    // Find all shapes that intersect with the selection rectangle
+    const shapesInArea = shapes.filter(shape => {
+      let shapeMinX: number, shapeMinY: number, shapeMaxX: number, shapeMaxY: number;
+
+      if (shape.type === 'rectangle') {
+        shapeMinX = shape.x;
+        shapeMinY = shape.y;
+        shapeMaxX = shape.x + shape.width;
+        shapeMaxY = shape.y + shape.height;
+      } else if (shape.type === 'circle') {
+        shapeMinX = shape.x - shape.radius;
+        shapeMinY = shape.y - shape.radius;
+        shapeMaxX = shape.x + shape.radius;
+        shapeMaxY = shape.y + shape.radius;
+      } else if (shape.type === 'text') {
+        // For text, use approximate bounding box
+        const estimatedWidth = shape.width || shape.text.length * shape.fontSize * 0.6;
+        const estimatedHeight = shape.height || shape.fontSize * 1.2;
+        shapeMinX = shape.x;
+        shapeMinY = shape.y;
+        shapeMaxX = shape.x + estimatedWidth;
+        shapeMaxY = shape.y + estimatedHeight;
+      } else {
+        return false;
+      }
+
+      // Check if shape bounding box intersects with selection rectangle
+      const intersects = !(
+        shapeMaxX < minX || // Shape is to the left of selection
+        shapeMinX > maxX || // Shape is to the right of selection
+        shapeMaxY < minY || // Shape is above selection
+        shapeMinY > maxY    // Shape is below selection
+      );
+
+      return intersects;
+    });
+
+    // Select all shapes in the area
+    setSelectedShapeIds(shapesInArea.map(shape => shape.id));
+  }, [shapes]);
+
+  // Duplicate selected shapes
+  const duplicateSelectedShapes = useCallback(async (userId: string) => {
+    if (selectedShapeIds.length === 0) return;
+
+    const selectedShapes = shapes.filter(shape => selectedShapeIds.includes(shape.id));
+    const duplicateOffset = 20; // Offset duplicates by 20px
+    const newShapeIds: string[] = [];
+
+    try {
+      // Create duplicates for each selected shape
+      for (const shape of selectedShapes) {
+        let newShape: CanvasShape;
+
+        if (shape.type === 'rectangle') {
+          newShape = {
+            type: 'rectangle',
+            x: shape.x + duplicateOffset,
+            y: shape.y + duplicateOffset,
+            width: shape.width,
+            height: shape.height,
+            color: shape.color,
+            id: `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            createdBy: userId,
+            createdAt: Date.now(),
+            lastModifiedBy: userId,
+            lastModifiedAt: Date.now(),
+            lockedBy: null,
+            lockedAt: null,
+          };
+        } else if (shape.type === 'circle') {
+          newShape = {
+            type: 'circle',
+            x: shape.x + duplicateOffset,
+            y: shape.y + duplicateOffset,
+            radius: shape.radius,
+            color: shape.color,
+            id: `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            createdBy: userId,
+            createdAt: Date.now(),
+            lastModifiedBy: userId,
+            lastModifiedAt: Date.now(),
+            lockedBy: null,
+            lockedAt: null,
+          };
+        } else if (shape.type === 'text') {
+          newShape = {
+            type: 'text',
+            x: shape.x + duplicateOffset,
+            y: shape.y + duplicateOffset,
+            text: shape.text,
+            fontSize: shape.fontSize,
+            color: shape.color,
+            id: `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            createdBy: userId,
+            createdAt: Date.now(),
+            lastModifiedBy: userId,
+            lastModifiedAt: Date.now(),
+            lockedBy: null,
+            lockedAt: null,
+          };
+        } else {
+          continue; // Skip unknown types
+        }
+
+        // Optimistic update
+        setShapes(prevShapes => [...prevShapes, newShape]);
+        newShapeIds.push(newShape.id);
+
+        // Persist to Firestore
+        await canvasService.createShape(newShape);
+      }
+
+      // Select the newly duplicated shapes
+      setSelectedShapeIds(newShapeIds);
+    } catch (error) {
+      console.error("Failed to duplicate shapes:", error);
+      setError('Failed to duplicate shapes. Please check your connection.');
+    }
+  }, [selectedShapeIds, shapes]);
   
   // Clear error state
   const clearError = useCallback(() => {
@@ -170,11 +321,6 @@ export const useCanvas = (): UseCanvasReturn => {
           updatedShapes = updatedShapes.filter((s) => s.id !== shape.id);
           removedCount++;
           console.log(`[useCanvas] Removed shape from real-time update: ${shape.id}`);
-          
-          // Clear selection if removed shape was selected
-          if (shape.id === selectedShapeId) {
-            setSelectedShapeId(null);
-          }
         }
       });
       
@@ -185,13 +331,20 @@ export const useCanvas = (): UseCanvasReturn => {
       
       return updatedShapes;
     });
-  }, [selectedShapeId]);
+    
+    // Clear selection for any removed shapes
+    changes.forEach((change) => {
+      if (change.type === 'removed') {
+        setSelectedShapeIds((prev) => prev.filter(id => id !== change.shape.id));
+      }
+    });
+  }, []);
 
   return {
     // State
     shapes,
     setShapes, // Added for initial load
-    selectedShapeId,
+    selectedShapeIds, // Changed from selectedShapeId
     currentTool,
     currentColor,
     currentFontSize,
@@ -204,7 +357,11 @@ export const useCanvas = (): UseCanvasReturn => {
     addShape,
     updateShape,
     removeShape,
-    selectShape,
+    selectShape, // Select single shape
+    toggleShapeSelection, // Toggle selection for shift-click
+    clearSelection, // Clear all selections
+    selectShapesInArea, // Select shapes in rectangular area
+    duplicateSelectedShapes, // Duplicate selected shapes
     applyShapeChanges, // Handle real-time changes
     
     // Tool and style
