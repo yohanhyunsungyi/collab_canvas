@@ -1,10 +1,18 @@
 /**
  * Boundary constraint utilities for Konva canvas shapes
  * Provides centralized logic for constraining shapes within canvas boundaries
+ * 
+ * Canvas coordinate system: (0, 0) is at the center
+ * X range: -CANVAS_WIDTH/2 to CANVAS_WIDTH/2
+ * Y range: -CANVAS_HEIGHT/2 to CANVAS_HEIGHT/2
  */
 
 export const CANVAS_WIDTH = 5000;
 export const CANVAS_HEIGHT = 5000;
+export const CANVAS_MIN_X = -CANVAS_WIDTH / 2;
+export const CANVAS_MAX_X = CANVAS_WIDTH / 2;
+export const CANVAS_MIN_Y = -CANVAS_HEIGHT / 2;
+export const CANVAS_MAX_Y = CANVAS_HEIGHT / 2;
 
 /**
  * Constrain a position to stay within canvas boundaries
@@ -12,8 +20,8 @@ export const CANVAS_HEIGHT = 5000;
  */
 export function constrainPoint(x: number, y: number): { x: number; y: number } {
   return {
-    x: Math.max(0, Math.min(x, CANVAS_WIDTH)),
-    y: Math.max(0, Math.min(y, CANVAS_HEIGHT)),
+    x: Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X)),
+    y: Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y)),
   };
 }
 
@@ -37,12 +45,12 @@ export function getTransformerBoundBoxFunc(
     return oldBox;
   }
   
-  // Check if newBox exceeds canvas boundaries
+  // Check if newBox exceeds canvas boundaries (centered coordinate system)
   const isOut = 
-    newBox.x < 0 ||
-    newBox.y < 0 ||
-    newBox.x + newBox.width > CANVAS_WIDTH ||
-    newBox.y + newBox.height > CANVAS_HEIGHT;
+    newBox.x < CANVAS_MIN_X ||
+    newBox.y < CANVAS_MIN_Y ||
+    newBox.x + newBox.width > CANVAS_MAX_X ||
+    newBox.y + newBox.height > CANVAS_MAX_Y;
   
   if (isOut) {
     return oldBox; // Reject transformation
@@ -62,8 +70,8 @@ export function constrainRectangleDimensions(
   height: number
 ): { width: number; height: number } {
   return {
-    width: Math.max(5, Math.min(width, CANVAS_WIDTH - x)),
-    height: Math.max(5, Math.min(height, CANVAS_HEIGHT - y)),
+    width: Math.max(5, Math.min(width, CANVAS_MAX_X - x)),
+    height: Math.max(5, Math.min(height, CANVAS_MAX_Y - y)),
   };
 }
 
@@ -73,12 +81,12 @@ export function constrainRectangleDimensions(
  */
 export function constrainCircleRadius(x: number, y: number, radius: number): number {
   // Ensure x and y are within canvas bounds first
-  const safeX = Math.max(0, Math.min(x, CANVAS_WIDTH));
-  const safeY = Math.max(0, Math.min(y, CANVAS_HEIGHT));
+  const safeX = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X));
+  const safeY = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y));
   
   // Calculate maximum radius based on distance to nearest edge
-  const maxRadiusX = Math.min(safeX, CANVAS_WIDTH - safeX);
-  const maxRadiusY = Math.min(safeY, CANVAS_HEIGHT - safeY);
+  const maxRadiusX = Math.min(safeX - CANVAS_MIN_X, CANVAS_MAX_X - safeX);
+  const maxRadiusY = Math.min(safeY - CANVAS_MIN_Y, CANVAS_MAX_Y - safeY);
   const maxRadius = Math.min(maxRadiusX, maxRadiusY);
   
   // Constrain radius between 5 and maxRadius
@@ -98,23 +106,23 @@ export function constrainShapeCreation(
   radius?: number
 ): { x: number; y: number; width?: number; height?: number; radius?: number } {
   if (type === 'rectangle' && width !== undefined && height !== undefined) {
-    const constrainedX = Math.max(0, Math.min(x, CANVAS_WIDTH - width));
-    const constrainedY = Math.max(0, Math.min(y, CANVAS_HEIGHT - height));
+    const constrainedX = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - width));
+    const constrainedY = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - height));
     return {
       x: constrainedX,
       y: constrainedY,
-      width: Math.min(width, CANVAS_WIDTH - constrainedX),
-      height: Math.min(height, CANVAS_HEIGHT - constrainedY),
+      width: Math.min(width, CANVAS_MAX_X - constrainedX),
+      height: Math.min(height, CANVAS_MAX_Y - constrainedY),
     };
   } else if (type === 'circle' && radius !== undefined) {
     // First constrain the radius to ensure it fits within canvas from the current position
-    const maxRadiusFromX = Math.min(x, CANVAS_WIDTH - x);
-    const maxRadiusFromY = Math.min(y, CANVAS_HEIGHT - y);
+    const maxRadiusFromX = Math.min(x - CANVAS_MIN_X, CANVAS_MAX_X - x);
+    const maxRadiusFromY = Math.min(y - CANVAS_MIN_Y, CANVAS_MAX_Y - y);
     const constrainedRadius = Math.max(5, Math.min(radius, maxRadiusFromX, maxRadiusFromY));
     
     // Then constrain the position to keep the circle within bounds
-    const constrainedX = Math.max(constrainedRadius, Math.min(x, CANVAS_WIDTH - constrainedRadius));
-    const constrainedY = Math.max(constrainedRadius, Math.min(y, CANVAS_HEIGHT - constrainedRadius));
+    const constrainedX = Math.max(CANVAS_MIN_X + constrainedRadius, Math.min(x, CANVAS_MAX_X - constrainedRadius));
+    const constrainedY = Math.max(CANVAS_MIN_Y + constrainedRadius, Math.min(y, CANVAS_MAX_Y - constrainedRadius));
     
     return {
       x: constrainedX,

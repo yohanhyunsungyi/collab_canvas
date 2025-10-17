@@ -47,66 +47,12 @@ class AIService {
   }
 
   /**
-   * Intelligently select the best model based on command complexity
-   * Uses heuristics to avoid hitting token limits
+   * Select model for command
+   * Always use gpt-4o-mini for reliability and consistency
    */
   private selectModelForCommand(prompt: string, shapeCount: number = 0): OpenAIModelName {
-    // Heuristic factors:
-    // 1. Number of shapes involved (from keywords or shape count)
-    // 2. Complexity of operation (multi-step vs single-step)
-    // 3. Grid/batch operations
-    
-    const promptLower = prompt.toLowerCase();
-    
-    // Extract numbers from the prompt (e.g., "move 500 objects", "create a 20x20 grid")
-    const numbers = prompt.match(/\d+/g)?.map(Number) || [];
-    const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
-    
-    // Calculate complexity score
-    let complexityScore = 0;
-    
-    // Large numbers in prompt (e.g., "move 500", "create 100")
-    if (maxNumber >= 500) complexityScore += 100;
-    else if (maxNumber >= 100) complexityScore += 50;
-    else if (maxNumber >= 50) complexityScore += 30;
-    else if (maxNumber >= 20) complexityScore += 20;
-    else if (maxNumber >= 10) complexityScore += 10;
-    
-    // Grid operations (NxN multiplies complexity)
-    if (promptLower.includes('grid')) {
-      if (numbers.length >= 2) {
-        const gridSize = numbers[0] * numbers[1];
-        complexityScore += gridSize * 2; // Each cell requires a tool call
-      } else {
-        complexityScore += 20;
-      }
-    }
-    
-    // Batch operations
-    if (promptLower.match(/\b(all|every|multiple|batch)\b/)) complexityScore += 30;
-    
-    // Multi-step operations
-    if (promptLower.match(/\b(and then|after|arrange|organize|distribute)\b/)) complexityScore += 15;
-    
-    // Shape count on canvas
-    complexityScore += Math.min(shapeCount / 10, 50); // Up to 50 points for shape count
-    
-    // Select model based on complexity score
-    console.log(`[AI Service] Complexity score: ${complexityScore} for prompt: "${prompt.substring(0, 50)}..."`);
-    
-    if (complexityScore >= 80) {
-      console.log(`[AI Service] Selected gpt-4o for high complexity operation`);
-      return 'gpt-4o'; // Highest capacity for very complex operations
-    } else if (complexityScore >= 40) {
-      console.log(`[AI Service] Selected gpt-4o-mini for medium complexity operation`);
-      return 'gpt-4o-mini'; // Good balance for medium operations
-    } else if (complexityScore >= 20) {
-      console.log(`[AI Service] Selected gpt-4-turbo for moderate complexity operation`);
-      return 'gpt-4-turbo'; // Balanced for moderate operations
-    } else {
-      console.log(`[AI Service] Selected gpt-3.5-turbo for simple operation`);
-      return 'gpt-3.5-turbo'; // Fast for simple operations
-    }
+    console.log(`[AI Service] Using gpt-4o-mini for prompt: "${prompt.substring(0, 50)}..."`);
+    return 'gpt-4o-mini';
   }
 
   /**
@@ -178,18 +124,45 @@ class AIService {
       const messages: AIMessage[] = [
         {
           role: 'system',
-          content: `You are a helpful AI assistant for a collaborative canvas application (5000x5000px canvas, center is 2500,2500).
+          content: `You are a helpful AI assistant for a collaborative canvas application with a 5000x5000px canvas.
+
+COORDINATE SYSTEM:
+- Canvas uses a centered coordinate system where (0, 0) is at the CENTER
+- X coordinates range from -2500 (left edge) to 2500 (right edge)
+- Y coordinates range from -2500 (top edge) to 2500 (bottom edge)
+- Center of canvas: (0, 0)
+- Top-left corner: (-2500, -2500)
+- Bottom-right corner: (2500, 2500)
+
 Your job is to help users create, manipulate, and organize shapes on the canvas using the provided tools.
 
 CRITICAL RULES:
 1. Prefer the smart manipulation tools (moveShapeByDescription, resizeShapeByDescription) whenever the user describes a shape by type or color. These tools automatically locate shapes and compute new sizes. Example: "Resize the circle to be twice as big" → resizeShapeByDescription(type="circle", scaleMultiplier=2).
 2. Only fall back to findShapes* plus low-level tools (moveShape, resizeShape) when you already know the exact shapeId or the user explicitly asks for IDs. When you use low-level tools you MUST provide explicit numeric values (rectangles need width & height, circles need radius, text needs fontSize/text).
-3. For "Create a grid of NxN", break into individual createRectangle calls (one per square).
-4. For batch operations on many objects (e.g., "move 500 objects"), use the smart manipulation or batch tools to avoid long call lists.
-5. Be precise with coordinates and dimensions; default to sensible values when the user omits them.
-6. Always respond with the required tool calls to execute the user's request; do not leave commands partially complete.
-7. IMPORTANT FOR LAYOUT COMMANDS: For "Arrange these shapes" or "Space these elements", DIRECTLY call arrangeHorizontal/arrangeVertical/distributeHorizontally with shapeIds=[] to arrange ALL shapes. DO NOT call getCanvasState first - the layout tools handle this automatically! Example: "Arrange these shapes in a horizontal row" → arrangeHorizontal(shapeIds=[], startX=50, y=200, spacing=20).
-8. FOR ROTATION: ALWAYS use rotateShapes with shapeIds=[] to rotate shapes. Example: "Rotate the text 45 degrees" → rotateShapes(shapeIds=[], rotation=45). Do NOT use rotateShapeByDescription. This works for all shape types and follows toolbar logic.`,
+3. FOR GRID LAYOUTS: For ANY of these commands: "Create a grid of NxN", "Create NxN grid", "Create N blue squares arranged in NxN grid", "Create a clean NxN grid":
+   - Step 1: Use clearCanvas(confirm=true) ONLY if user explicitly says "clear" or "clean"
+   - Step 2: Use createMultipleShapes to create all N*N shapes. IMPORTANT: Use the SAME x,y position (like x=0, y=0) for ALL shapes - do NOT pre-calculate grid positions!
+   - Step 3: Use arrangeGrid(shapeIds=[], columns=N, spacingX=120, spacingY=120) to arrange them
+   - Example 1: "Create a grid of 3x3 squares" → 
+     1) createMultipleShapes(shapes=[{type:"rectangle", x:0, y:0, width:100, height:100, color:"#4A90E2"}, ... repeat 9 times with SAME x:0, y:0])
+     2) arrangeGrid(shapeIds=[], columns=3, spacingX=120, spacingY=120)
+   - Example 2: "Clear the canvas and create a clean 3x3 grid" → 
+     1) clearCanvas(confirm=true)
+     2) createMultipleShapes(shapes=[{type:"rectangle", x:0, y:0, width:100, height:100, color:"#4A90E2"}, ... repeat 9 times with SAME x:0, y:0])
+     3) arrangeGrid(shapeIds=[], columns=3, spacingX=120, spacingY=120)
+   - CRITICAL: In createMultipleShapes, ALL shapes must have the SAME x and y coordinates (e.g., x:0, y:0). The arrangeGrid tool will handle the final positioning!
+4. FOR VERTICAL LINE: "Create N shapes in a vertical line" → TWO SEQUENTIAL CALLS REQUIRED:
+   - Step 1: Use createMultipleShapes to create N shapes ALL at x:0, y:0 (SAME coordinates)
+   - Step 2: Use arrangeVertical(shapeIds=[], x=100, startY=100) to arrange them vertically
+   - Example: "Create 5 circles in a vertical line" →
+     1) createMultipleShapes(shapes=[{type:"circle", x:0, y:0}, ... repeat 5 times with SAME x:0, y:0])
+     2) arrangeVertical(shapeIds=[], x=100, startY=100)
+5. FOR HORIZONTAL ARRANGEMENT: "Arrange these shapes in a horizontal row" → arrangeHorizontal(shapeIds=[], startX=-400, y=0, spacing=150). Use shapeIds=[] to arrange ALL existing shapes.
+6. FOR EVEN SPACING: "Space these elements evenly" → distributeEvenly(shapeIds=[], direction="horizontal" or "vertical" based on context). Use shapeIds=[] to distribute ALL existing shapes.
+7. For batch operations on many objects (e.g., "move 500 objects"), use the smart manipulation or batch tools to avoid long call lists.
+8. Be precise with coordinates and dimensions; default to sensible values when the user omits them. Remember the coordinate system is centered at (0,0).
+9. Always respond with the required tool calls to execute the user's request; do not leave commands partially complete.
+10. FOR ROTATION: ALWAYS use rotateShapes with shapeIds=[] to rotate shapes. Example: "Rotate the text 45 degrees" → rotateShapes(shapeIds=[], rotation=45). Do NOT use rotateShapeByDescription. This works for all shape types and follows toolbar logic.`,
         },
         {
           role: 'user',

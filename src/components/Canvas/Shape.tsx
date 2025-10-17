@@ -2,7 +2,7 @@ import { memo, useMemo, type ReactElement } from 'react';
 import { Rect, Circle, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../../types/canvas.types';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../utils/boundaries';
+import { CANVAS_MIN_X, CANVAS_MAX_X, CANVAS_MIN_Y, CANVAS_MAX_Y } from '../../utils/boundaries';
 import { isLockExpired } from '../../services/canvas.service';
 
 interface ShapeProps {
@@ -92,21 +92,21 @@ const ShapeComponent = ({
     let x = node.x();
     let y = node.y();
     
-    // Apply boundary constraints based on shape type
+    // Apply boundary constraints based on shape type (centered coordinate system)
     if (shape.type === 'rectangle') {
       const rectShape = shape as RectangleShape;
-      x = Math.max(0, Math.min(x, CANVAS_WIDTH - rectShape.width));
-      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - rectShape.height));
+      x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - rectShape.width));
+      y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - rectShape.height));
     } else if (shape.type === 'circle') {
       const circleShape = shape as CircleShape;
-      x = Math.max(circleShape.radius, Math.min(x, CANVAS_WIDTH - circleShape.radius));
-      y = Math.max(circleShape.radius, Math.min(y, CANVAS_HEIGHT - circleShape.radius));
+      x = Math.max(CANVAS_MIN_X + circleShape.radius, Math.min(x, CANVAS_MAX_X - circleShape.radius));
+      y = Math.max(CANVAS_MIN_Y + circleShape.radius, Math.min(y, CANVAS_MAX_Y - circleShape.radius));
     } else if (shape.type === 'text') {
       // Text: constrain both starting and ending positions
       const textHeight = node.height();
       const textWidth = node.width();
-      x = Math.max(0, Math.min(x, CANVAS_WIDTH - textWidth));
-      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - textHeight));
+      x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - textWidth));
+      y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - textHeight));
     }
     
     // Update node position if constrained
@@ -125,21 +125,21 @@ const ShapeComponent = ({
     let x = node.x();
     let y = node.y();
     
-    // Apply boundary constraints based on shape type
+    // Apply boundary constraints based on shape type (centered coordinate system)
     if (shape.type === 'rectangle') {
       const rectShape = shape as RectangleShape;
-      x = Math.max(0, Math.min(x, CANVAS_WIDTH - rectShape.width));
-      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - rectShape.height));
+      x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - rectShape.width));
+      y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - rectShape.height));
     } else if (shape.type === 'circle') {
       const circleShape = shape as CircleShape;
-      x = Math.max(circleShape.radius, Math.min(x, CANVAS_WIDTH - circleShape.radius));
-      y = Math.max(circleShape.radius, Math.min(y, CANVAS_HEIGHT - circleShape.radius));
+      x = Math.max(CANVAS_MIN_X + circleShape.radius, Math.min(x, CANVAS_MAX_X - circleShape.radius));
+      y = Math.max(CANVAS_MIN_Y + circleShape.radius, Math.min(y, CANVAS_MAX_Y - circleShape.radius));
     } else if (shape.type === 'text') {
       // Text: constrain both starting and ending positions
       const textHeight = node.height();
       const textWidth = node.width();
-      x = Math.max(0, Math.min(x, CANVAS_WIDTH - textWidth));
-      y = Math.max(0, Math.min(y, CANVAS_HEIGHT - textHeight));
+      x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - textWidth));
+      y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - textHeight));
     }
     
     // Update node position if constrained

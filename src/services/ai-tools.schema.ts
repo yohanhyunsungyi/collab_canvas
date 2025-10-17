@@ -108,13 +108,13 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createMultipleShapes',
-      description: 'Create multiple shapes at once. Example: "Create a grid of 3x3 squares" → create 9 squares in a 3x3 grid layout starting at (50,50) with 80px squares and 20px spacing.',
+      description: 'Create multiple shapes at once. For grid layouts: Create all N*N shapes with the SAME x,y coordinates (like x:0, y:0), then call arrangeGrid to position them. Example: "Create a 3x3 grid" → createMultipleShapes with 9 shapes ALL at x:0, y:0, THEN arrangeGrid(shapeIds=[], columns=3). Do NOT pre-calculate grid positions - let arrangeGrid handle positioning!',
       parameters: {
         type: 'object',
         properties: {
           shapes: {
             type: 'array',
-            description: 'Array of shape definitions to create',
+            description: 'Array of shape definitions to create. For grid layouts, use the SAME x,y for ALL shapes (e.g., x:0, y:0).',
             items: {
               type: 'object',
               properties: {
@@ -123,8 +123,8 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
                   enum: ['rectangle', 'circle', 'text'],
                   description: 'Type of shape to create',
                 },
-                x: { type: 'number', description: 'X coordinate' },
-                y: { type: 'number', description: 'Y coordinate' },
+                x: { type: 'number', description: 'X coordinate. For grid layouts, use the SAME value for all shapes (e.g., 0).' },
+                y: { type: 'number', description: 'Y coordinate. For grid layouts, use the SAME value for all shapes (e.g., 0).' },
                 width: { type: 'number', description: 'Width (rectangle only)' },
                 height: { type: 'number', description: 'Height (rectangle only)' },
                 radius: { type: 'number', description: 'Radius (circle only)' },
@@ -148,7 +148,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'moveShapeByDescription',
-      description: 'Move a shape by describing it (color or type). Use THIS instead of moveShape when user says "move the blue rectangle" or "move the circle". Example: "Move the blue rectangle to center" → moveShapeByDescription(color="blue", type="rectangle", x=2500, y=2500). This tool finds the shape automatically.',
+      description: 'Move a shape by describing it (color or type). Use THIS instead of moveShape when user says "move the blue rectangle" or "move the circle". Example: "Move the blue rectangle to center" → moveShapeByDescription(color="blue", type="rectangle", x=0, y=0). This tool finds the shape automatically. Remember: canvas center is at (0, 0).',
       parameters: {
         type: 'object',
         properties: {
@@ -163,11 +163,11 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           },
           x: {
             type: 'number',
-            description: 'New X coordinate (0-5000). Canvas center is 2500.',
+            description: 'New X coordinate (-2500 to 2500). Canvas center is 0.',
           },
           y: {
             type: 'number',
-            description: 'New Y coordinate (0-5000). Canvas center is 2500.',
+            description: 'New Y coordinate (-2500 to 2500). Canvas center is 0.',
           },
         },
         required: ['x', 'y'],
@@ -256,11 +256,11 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           },
           x: {
             type: 'number',
-            description: 'New X coordinate (0-5000 for canvas)',
+            description: 'New X coordinate (-2500 to 2500 for canvas). Canvas center is 0.',
           },
           y: {
             type: 'number',
-            description: 'New Y coordinate (0-5000 for canvas). Canvas center is 2500, 2500.',
+            description: 'New Y coordinate (-2500 to 2500 for canvas). Canvas center is 0, 0.',
           },
         },
         required: ['shapeId', 'x', 'y'],
@@ -643,29 +643,29 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeVertical',
-      description: 'Arrange multiple shapes in a vertical column with equal spacing',
+      description: 'Arrange shapes in a vertical column/line. IMPORTANT: Pass empty array [] for shapeIds to arrange ALL shapes on canvas automatically - you do NOT need to call getCanvasState first. Example: User says "Create 5 circles in a vertical line" → FIRST call createMultipleShapes with 5 circles at x:0, y:0, THEN IMMEDIATELY call arrangeVertical with shapeIds=[], x=100, startY=100. The tool will find all shapes automatically.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange',
+            description: 'Array of shape IDs to arrange. IMPORTANT: Use empty array [] to automatically arrange ALL shapes on canvas without needing to query them first.',
           },
           x: {
             type: 'number',
-            description: 'X coordinate for all shapes (vertical alignment)',
+            description: 'X coordinate for all shapes (vertical alignment). Default: 100',
           },
           startY: {
             type: 'number',
-            description: 'Starting Y coordinate for the first shape',
+            description: 'Starting Y coordinate for the first shape. Default: 100',
           },
           spacing: {
             type: 'number',
-            description: 'Spacing between shapes in pixels (default: 20)',
+            description: 'Spacing between shapes in pixels. Default: 120',
           },
         },
-        required: ['shapeIds', 'x', 'startY'],
+        required: ['shapeIds'],
       },
     },
   },
@@ -673,37 +673,37 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeGrid',
-      description: 'Arrange shapes in a grid layout with rows and columns',
+      description: 'Arrange shapes in a grid layout with rows and columns. MUST be called AFTER createMultipleShapes to arrange the created shapes. Use shapeIds=[] (empty array) to arrange ALL shapes on canvas. The grid will be automatically centered. This tool repositions shapes, so do NOT pre-calculate grid positions in createMultipleShapes.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange in a grid',
+            description: 'Array of shape IDs to arrange in a grid. MUST use [] (empty array) to arrange all shapes on canvas after createMultipleShapes.',
           },
           startX: {
             type: 'number',
-            description: 'Starting X coordinate for the grid',
+            description: 'Starting X coordinate for the grid (optional, defaults to auto-centered based on grid size)',
           },
           startY: {
             type: 'number',
-            description: 'Starting Y coordinate for the grid',
+            description: 'Starting Y coordinate for the grid (optional, defaults to auto-centered based on grid size)',
           },
           columns: {
             type: 'number',
-            description: 'Number of columns in the grid',
+            description: 'Number of columns in the grid. For a 3x3 grid, use columns=3.',
           },
           spacingX: {
             type: 'number',
-            description: 'Horizontal spacing between shapes (default: 20)',
+            description: 'Horizontal spacing between shapes in pixels (default: 20, recommended: 120 for typical shapes)',
           },
           spacingY: {
             type: 'number',
-            description: 'Vertical spacing between shapes (default: 20)',
+            description: 'Vertical spacing between shapes in pixels (default: 20, recommended: 120 for typical shapes)',
           },
         },
-        required: ['shapeIds', 'startX', 'startY', 'columns'],
+        required: ['shapeIds', 'columns'],
       },
     },
   },

@@ -19,6 +19,10 @@ import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpi
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
+  CANVAS_MIN_X,
+  CANVAS_MAX_X,
+  CANVAS_MIN_Y,
+  CANVAS_MAX_Y,
   getTransformerBoundBoxFunc,
   constrainRectangleDimensions,
   constrainCircleRadius,
@@ -177,16 +181,19 @@ export const Canvas = () => {
     };
   }, [setShapes, applyShapeChanges]);
 
-  // Calculate boundary constraints for panning
+  // Calculate boundary constraints for panning (centered coordinate system)
   const getBoundaryConstraints = useCallback((scale: number) => {
-    const scaledWidth = CANVAS_WIDTH * scale;
-    const scaledHeight = CANVAS_HEIGHT * scale;
+    // In centered coordinate system:
+    // - Canvas coordinates range from CANVAS_MIN_X to CANVAS_MAX_X
+    // - Stage.x represents where canvas coordinate 0 appears on screen
+    // - When canvas right edge (CANVAS_MAX_X) is at screen left (0): Stage.x = -CANVAS_MAX_X * scale
+    // - When canvas left edge (CANVAS_MIN_X) is at screen right (containerWidth): Stage.x = containerWidth - CANVAS_MIN_X * scale
     
     return {
-      minX: Math.min(0, containerSize.width - scaledWidth),
-      maxX: 0,
-      minY: Math.min(0, containerSize.height - scaledHeight),
-      maxY: 0,
+      minX: -CANVAS_MAX_X * scale,  // Allow panning right to see left side of canvas
+      maxX: containerSize.width - CANVAS_MIN_X * scale,  // Allow panning left to see right side of canvas
+      minY: -CANVAS_MAX_Y * scale,  // Allow panning down to see top of canvas
+      maxY: containerSize.height - CANVAS_MIN_Y * scale,  // Allow panning up to see bottom of canvas
     };
   }, [containerSize.width, containerSize.height]);
 
@@ -213,9 +220,10 @@ export const Canvas = () => {
           height: newHeight,
         });
         
-        // Center the viewport on initial load
-        const centerX = (newWidth / 2) - (CANVAS_WIDTH / 2);
-        const centerY = (newHeight / 2) - (CANVAS_HEIGHT / 2);
+        // Center the viewport to show canvas origin (0, 0) at screen center
+        // Since canvas is now centered at (0, 0), position viewport so (0, 0) appears at screen center
+        const centerX = newWidth / 2;
+        const centerY = newHeight / 2;
         const constrained = constrainPosition(centerX, centerY, INITIAL_SCALE);
         
         setViewport({
@@ -1001,10 +1009,10 @@ export const Canvas = () => {
       const boundingBoxHeight = rawRadius * 2;
       
       const isOut = 
-        boundingBoxX < 0 ||
-        boundingBoxY < 0 ||
-        boundingBoxX + boundingBoxWidth > CANVAS_WIDTH ||
-        boundingBoxY + boundingBoxHeight > CANVAS_HEIGHT;
+        boundingBoxX < CANVAS_MIN_X ||
+        boundingBoxY < CANVAS_MIN_Y ||
+        boundingBoxX + boundingBoxWidth > CANVAS_MAX_X ||
+        boundingBoxY + boundingBoxHeight > CANVAS_MAX_Y;
       
       // If new size would exceed boundaries, keep the old radius and position
       if (isOut) {
@@ -1425,29 +1433,29 @@ export const Canvas = () => {
             {/* Grid background - renders behind all other elements */}
             <Grid />
             
-            {/* Gray out area outside canvas bounds */}
+            {/* Gray out area outside canvas bounds (centered coordinate system) */}
             {/* Top gray area */}
             <Rect
-              x={-10000}
-              y={-10000}
-              width={25000}
+              x={CANVAS_MIN_X - 10000}
+              y={CANVAS_MIN_Y - 10000}
+              width={CANVAS_WIDTH + 20000}
               height={10000}
               fill="rgba(128, 128, 128, 0.5)"
               listening={false}
             />
             {/* Bottom gray area */}
             <Rect
-              x={-10000}
-              y={CANVAS_HEIGHT}
-              width={25000}
+              x={CANVAS_MIN_X - 10000}
+              y={CANVAS_MAX_Y}
+              width={CANVAS_WIDTH + 20000}
               height={10000}
               fill="rgba(128, 128, 128, 0.5)"
               listening={false}
             />
             {/* Left gray area */}
             <Rect
-              x={-10000}
-              y={0}
+              x={CANVAS_MIN_X - 10000}
+              y={CANVAS_MIN_Y}
               width={10000}
               height={CANVAS_HEIGHT}
               fill="rgba(128, 128, 128, 0.5)"
@@ -1455,8 +1463,8 @@ export const Canvas = () => {
             />
             {/* Right gray area */}
             <Rect
-              x={CANVAS_WIDTH}
-              y={0}
+              x={CANVAS_MAX_X}
+              y={CANVAS_MIN_Y}
               width={10000}
               height={CANVAS_HEIGHT}
               fill="rgba(128, 128, 128, 0.5)"
@@ -1465,8 +1473,8 @@ export const Canvas = () => {
             
             {/* Canvas boundary rectangle - visual indicator */}
             <Rect
-              x={0}
-              y={0}
+              x={CANVAS_MIN_X}
+              y={CANVAS_MIN_Y}
               width={CANVAS_WIDTH}
               height={CANVAS_HEIGHT}
               stroke="#ff0000"
