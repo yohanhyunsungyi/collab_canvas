@@ -2,12 +2,20 @@ import type { CanvasShape } from '../types/canvas.types';
 import { createShape, updateShape, deleteShape } from './canvas.service';
 import type { AIToolCall } from '../types/ai.types';
 import { normalizeHexColor, resolveColorQuery } from '../utils/colorMatching';
+import { SHAPE_COLORS } from '../utils/colors';
 
 /**
  * Generate a unique ID for shapes
  */
 const generateShapeId = (): string => {
   return `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+};
+
+/**
+ * Get a random color from the shape color palette
+ */
+const getRandomColor = (): string => {
+  return SHAPE_COLORS[Math.floor(Math.random() * SHAPE_COLORS.length)];
 };
 
 /**
@@ -126,6 +134,8 @@ class AIExecutorService {
           return await this.arrangeGrid(args, context);
         case 'centerShape':
           return await this.centerShape(args, context);
+        case 'distributeEvenly':
+          return await this.distributeEvenly(args, context);
 
         // Utility tools
         case 'getCanvasBounds':
@@ -204,14 +214,17 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
+    // Default to center-ish position (-100, -100) in centered coordinate system
+    const defaultX = args.x ?? -100;
+    const defaultY = args.y ?? -100;
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'rectangle',
-      x: args.x ?? 100,
-      y: args.y ?? 100,
+      x: defaultX,
+      y: defaultY,
       width: args.width,
       height: args.height,
-      color: args.color ?? '#0000FF',
+      color: args.color ?? getRandomColor(),
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -235,13 +248,14 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
+    // Default to center-ish position (0, 0) in centered coordinate system
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'circle',
-      x: args.x ?? 100,
-      y: args.y ?? 200,
+      x: args.x ?? 0,
+      y: args.y ?? 0,
       radius: args.radius ?? 50,
-      color: args.color ?? '#FF0000',
+      color: args.color ?? getRandomColor(),
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -265,14 +279,15 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
+    // Default to center-ish position (-50, -50) in centered coordinate system
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'text',
-      x: args.x ?? 150,
-      y: args.y ?? 150,
+      x: args.x ?? -50,
+      y: args.y ?? -50,
       text: args.text,
       fontSize: args.fontSize ?? 24,
-      color: args.color ?? '#000000',
+      color: args.color ?? getRandomColor(),
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -321,7 +336,7 @@ class AIExecutorService {
           y: shapeData.y,
           width: shapeData.width || 100,
           height: shapeData.height || 100,
-          color: shapeData.color,
+          color: shapeData.color ?? getRandomColor(),
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -336,7 +351,7 @@ class AIExecutorService {
           x: shapeData.x,
           y: shapeData.y,
           radius: shapeData.radius || 50,
-          color: shapeData.color,
+          color: shapeData.color ?? getRandomColor(),
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -352,7 +367,7 @@ class AIExecutorService {
           y: shapeData.y,
           text: shapeData.text || 'Text',
           fontSize: shapeData.fontSize || 24,
-          color: shapeData.color,
+          color: shapeData.color ?? getRandomColor(),
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -1259,20 +1274,34 @@ class AIExecutorService {
   }
 
   private async arrangeVertical(
-    args: { shapeIds: string[]; x: number; startY: number; spacing?: number },
+    args: { shapeIds: string[]; x?: number; startY?: number; spacing?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const spacing = args.spacing || 20;
-    let currentY = args.startY;
+    const spacing = args.spacing ?? 120;
+    const x = args.x ?? 100;
+    const startY = args.startY ?? 100;
+    
+    // If shapeIds is empty, use all shapes from canvas
+    const targetShapeIds = args.shapeIds.length === 0 
+      ? context.shapes.map(s => s.id)
+      : args.shapeIds;
 
-    for (const shapeId of args.shapeIds) {
+    let currentY = startY;
+
+    for (const shapeId of targetShapeIds) {
       const shape = context.shapes.find((s) => s.id === shapeId);
       if (shape) {
         await updateShape(shapeId, {
-          x: args.x,
+          x: x,
           y: currentY,
           lastModifiedBy: context.userId,
         });
+
+        // Update shape in context
+        const shapeIndex = context.shapes.findIndex((s) => s.id === shapeId);
+        if (shapeIndex !== -1) {
+          context.shapes[shapeIndex] = { ...shape, x, y: currentY };
+        }
 
         // Calculate height for spacing
         const height = shape.type === 'rectangle' ? shape.height : shape.type === 'circle' ? shape.radius * 2 : 50;
@@ -1282,33 +1311,64 @@ class AIExecutorService {
 
     return {
       success: true,
-      message: `Arranged ${args.shapeIds.length} shapes vertically`,
+      message: `Arranged ${targetShapeIds.length} shapes vertically`,
     };
   }
 
   private async arrangeGrid(
     args: {
       shapeIds: string[];
-      startX: number;
-      startY: number;
+      startX?: number;
+      startY?: number;
       columns: number;
       spacingX?: number;
       spacingY?: number;
     },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
+    // Get shapes to arrange (support empty array to arrange all shapes)
+    let defaultIds: string[];
+    
+    if (args.shapeIds.length === 0) {
+      // When shapeIds=[], use context.shapes instead of Firestore
+      // This ensures we arrange the shapes that were just created in the same execution context
+      defaultIds =
+        context.selectedShapeIds && context.selectedShapeIds.length > 0
+          ? context.selectedShapeIds
+          : context.shapes.map((s) => s.id);
+    } else {
+      defaultIds = args.shapeIds;
+    }
+    
+    const uniqueShapeIds = Array.from(new Set(defaultIds));
+
+    if (uniqueShapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No shapes to arrange in grid',
+        error: 'NO_SHAPES',
+      };
+    }
+
     const spacingX = args.spacingX || 20;
     const spacingY = args.spacingY || 20;
     const cellWidth = 100;
     const cellHeight = 100;
 
-    for (let i = 0; i < args.shapeIds.length; i++) {
+    // Calculate default start position (centered for the grid)
+    const rows = Math.ceil(uniqueShapeIds.length / args.columns);
+    const gridWidth = args.columns * (cellWidth + spacingX) - spacingX;
+    const gridHeight = rows * (cellHeight + spacingY) - spacingY;
+    const defaultStartX = args.startX ?? -gridWidth / 2;
+    const defaultStartY = args.startY ?? -gridHeight / 2;
+
+    for (let i = 0; i < uniqueShapeIds.length; i++) {
       const row = Math.floor(i / args.columns);
       const col = i % args.columns;
-      const x = args.startX + col * (cellWidth + spacingX);
-      const y = args.startY + row * (cellHeight + spacingY);
+      const x = defaultStartX + col * (cellWidth + spacingX);
+      const y = defaultStartY + row * (cellHeight + spacingY);
 
-      await updateShape(args.shapeIds[i], {
+      await updateShape(uniqueShapeIds[i], {
         x,
         y,
         lastModifiedBy: context.userId,
@@ -1317,7 +1377,7 @@ class AIExecutorService {
 
     return {
       success: true,
-      message: `Arranged ${args.shapeIds.length} shapes in a grid`,
+      message: `Arranged ${uniqueShapeIds.length} shapes in a ${args.columns}-column grid`,
     };
   }
 
@@ -1334,17 +1394,22 @@ class AIExecutorService {
       };
     }
 
-    const canvasWidth = args.canvasWidth || context.canvasWidth || 1200;
-    const canvasHeight = args.canvasHeight || context.canvasHeight || 800;
-
-    let centerX = canvasWidth / 2;
-    let centerY = canvasHeight / 2;
+    // Canvas uses centered coordinate system where (0, 0) is at the center
+    let centerX = 0;
+    let centerY = 0;
 
     if (shape.type === 'rectangle') {
+      // For rectangles, x,y is top-left corner, so offset by half dimensions
       centerX -= shape.width / 2;
       centerY -= shape.height / 2;
     } else if (shape.type === 'circle') {
       // Circle's x,y is already the center
+    } else if (shape.type === 'text') {
+      // For text, x,y is top-left corner, so offset by half dimensions
+      const textWidth = (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+      const textHeight = shape.fontSize || 24;
+      centerX -= textWidth / 2;
+      centerY -= textHeight / 2;
     }
 
     await updateShape(args.shapeId, {
@@ -1472,18 +1537,39 @@ class AIExecutorService {
     };
   }
 
+  private async distributeEvenly(
+    args: { shapeIds: string[]; direction: 'horizontal' | 'vertical' },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    if (args.direction === 'horizontal') {
+      return await this.distributeHorizontally({ shapeIds: args.shapeIds }, context);
+    } else if (args.direction === 'vertical') {
+      return await this.distributeVertically({ shapeIds: args.shapeIds }, context);
+    } else {
+      return {
+        success: false,
+        message: 'Invalid direction. Must be "horizontal" or "vertical"',
+        error: 'INVALID_DIRECTION',
+      };
+    }
+  }
+
   // ==========================================
   // UTILITY TOOLS IMPLEMENTATION
   // ==========================================
 
   private getCanvasBounds(context: ExecutionContext): ToolExecutionResult {
-    const width = context.canvasWidth || 1200;
-    const height = context.canvasHeight || 800;
+    const width = context.canvasWidth || 5000;
+    const height = context.canvasHeight || 5000;
+    const minX = -width / 2;
+    const maxX = width / 2;
+    const minY = -height / 2;
+    const maxY = height / 2;
 
     return {
       success: true,
-      message: `Canvas dimensions: ${width}x${height}`,
-      data: { width, height },
+      message: `Canvas dimensions: ${width}x${height}. Coordinate system: x from ${minX} to ${maxX}, y from ${minY} to ${maxY}. Center is at (0, 0).`,
+      data: { width, height, minX, maxX, minY, maxY },
     };
   }
 
@@ -1503,6 +1589,9 @@ class AIExecutorService {
     for (const shape of context.shapes) {
       await deleteShape(shape.id);
     }
+
+    // Clear the context.shapes array to reflect the cleared canvas
+    context.shapes.splice(0, context.shapes.length);
 
     return {
       success: true,
