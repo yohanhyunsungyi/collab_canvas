@@ -246,7 +246,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'moveShape',
-      description: 'Move a shape to a new position using a known shapeId. ONLY use this if you already have the exact shapeId. Otherwise use moveShapeByDescription.',
+      description: 'Move a shape to a new position using a known shapeId. Prefer moveShapeByDescription when the user describes the shape. Use this only when you already have the exact shapeId and destination coordinates.',
       parameters: {
         type: 'object',
         properties: {
@@ -271,7 +271,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'resizeShape',
-      description: 'Resize a shape. CRITICAL TWO-STEP PROCESS: User says "Resize the circle to be twice as big" → Step 1: MUST call findShapesByType(type="circle") to get shapeId and current radius → Step 2: MUST call resizeShape(shapeId=<from_step1>, radius=current_radius*2) IN THE SAME RESPONSE. Do NOT stop after step 1!',
+      description: 'Resize a shape when you already have the exact shapeId and the precise numeric dimensions. Circles require radius, rectangles require width & height. Prefer resizeShapeByDescription when the user describes the target shape.',
       parameters: {
         type: 'object',
         properties: {
@@ -360,6 +360,28 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['shapeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'changeFontSize',
+      description: 'Change font size of selected text shapes. Use empty array [] for shapeIds to change font size of ALL selected text shapes. Example: "Make the text bigger" → changeFontSize(shapeIds=[], fontSize=32). This uses the same logic as the toolbar font size selector.',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+          },
+          fontSize: {
+            type: 'number',
+            description: 'New font size in pixels (e.g., 12, 16, 24, 32, 48, 64)',
+          },
+        },
+        required: ['shapeIds', 'fontSize'],
       },
     },
   },
@@ -505,20 +527,78 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
   },
 
   // ==========================================
-  // LAYOUT TOOLS
+  // ALIGNMENT TOOLS (from toolbar)
   // ==========================================
   {
     type: 'function',
     function: {
-      name: 'arrangeHorizontal',
-      description: 'Arrange shapes in a horizontal row. Example: "Arrange these shapes in a horizontal row" → use ALL shapes on canvas, startX=50, y=200. If "these shapes" or "all shapes" or no specific shapes mentioned, pass empty array [] for shapeIds to use all shapes.',
+      name: 'alignLeft',
+      description: 'Align selected shapes to the left edge. Use empty array [] for shapeIds to align ALL selected shapes. Example: "Align these shapes to the left" → alignLeft(shapeIds=[]).',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange. Use empty array [] to arrange ALL shapes on canvas.',
+            description: 'Array of shape IDs to align. Use empty array [] to align all selected shapes.',
+          },
+        },
+        required: ['shapeIds'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'alignCenter',
+      description: 'Align selected shapes to their collective center. Use empty array [] for shapeIds to align ALL selected shapes. Example: "Align these shapes to center" → alignCenter(shapeIds=[]).',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of shape IDs to align. Use empty array [] to align all selected shapes.',
+          },
+        },
+        required: ['shapeIds'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'alignRight',
+      description: 'Align selected shapes to the right edge. Use empty array [] for shapeIds to align ALL selected shapes. Example: "Align these shapes to the right" → alignRight(shapeIds=[]).',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of shape IDs to align. Use empty array [] to align all selected shapes.',
+          },
+        },
+        required: ['shapeIds'],
+      },
+    },
+  },
+
+  // ==========================================
+  // DISTRIBUTION TOOLS (from toolbar)
+  // ==========================================
+  {
+    type: 'function',
+    function: {
+      name: 'arrangeHorizontal',
+      description: 'Arrange shapes in a horizontal row. IMPORTANT: Pass empty array [] for shapeIds to arrange ALL shapes on canvas automatically - you do NOT need to call getCanvasState first. Example: User says "Arrange these shapes in a horizontal row" → DIRECTLY call arrangeHorizontal with shapeIds=[], startX=50, y=200. The tool will find all shapes automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of shape IDs to arrange. IMPORTANT: Use empty array [] to automatically arrange ALL shapes on canvas without needing to query them first.',
           },
           startX: {
             type: 'number',
@@ -634,14 +714,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'distributeHorizontally',
-      description: 'Distribute shapes evenly across horizontal space. Example: "Space these elements evenly" → use ALL shapes, startX=50, endX=700, y=200. If "these" or "all" or no specific shapes, pass empty array [] for shapeIds.',
+      description: 'Distribute shapes evenly across horizontal space. IMPORTANT: Pass empty array [] for shapeIds to distribute ALL shapes automatically - you do NOT need to call getCanvasState first. Example: "Space these elements evenly" → DIRECTLY call distributeHorizontally with shapeIds=[], startX=50, endX=700, y=200. The tool will find all shapes automatically.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to distribute. Use empty array [] to distribute ALL shapes on canvas.',
+            description: 'Array of shape IDs to distribute. IMPORTANT: Use empty array [] to automatically distribute ALL shapes on canvas without needing to query them first.',
           },
           startX: {
             type: 'number',
@@ -758,9 +838,11 @@ export const getAllToolNames = (): string[] => {
 export const TOOL_CATEGORIES = {
   CREATION: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes'],
   SMART_MANIPULATION: ['moveShapeByDescription', 'resizeShapeByDescription', 'rotateShapeByDescription'],
-  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'changeColor', 'updateText', 'deleteShape', 'deleteMultipleShapes'],
+  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'changeColor', 'updateText', 'changeFontSize', 'deleteShape', 'deleteMultipleShapes'],
+  BATCH_MANIPULATION: ['moveMultipleShapes'],
   QUERY: ['getCanvasState', 'findShapesByType', 'findShapesByColor', 'findShapesByText'],
-  LAYOUT: ['arrangeHorizontal', 'arrangeVertical', 'arrangeGrid', 'centerShape', 'distributeHorizontally', 'distributeVertically'],
+  ALIGNMENT: ['alignLeft', 'alignCenter', 'alignRight'], // From toolbar
+  DISTRIBUTION: ['arrangeHorizontal', 'distributeHorizontally', 'distributeVertically'], // From toolbar
+  LEGACY_LAYOUT: ['arrangeVertical', 'arrangeGrid', 'centerShape'], // Legacy - not in toolbar
   UTILITY: ['getCanvasBounds', 'clearCanvas'],
 } as const;
-

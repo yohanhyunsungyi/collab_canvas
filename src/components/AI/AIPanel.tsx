@@ -10,6 +10,7 @@ import './AIPanel.css';
 interface AIPanelProps {
   userId: string;
   shapes: CanvasShape[];
+  selectedShapeIds: string[];
   canvasWidth?: number;
   canvasHeight?: number;
   defaultCollapsed?: boolean;
@@ -23,6 +24,7 @@ export interface AIPanelHandle {
 export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({ 
   userId,
   shapes,
+  selectedShapeIds,
   canvasWidth,
   canvasHeight,
   defaultCollapsed = true,
@@ -31,6 +33,7 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   const { loading, error, commandHistory, sendCommand, clearError, rerunCommand, deleteCommand, isAvailable, rateLimitStatus } = useAI(
     userId,
     shapes,
+    selectedShapeIds,
     canvasWidth,
     canvasHeight
   );
@@ -116,5 +119,4 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
 });
 
 export default AIPanel;
-
 

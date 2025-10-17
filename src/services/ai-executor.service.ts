@@ -1,6 +1,7 @@
 import type { CanvasShape } from '../types/canvas.types';
 import { createShape, updateShape, deleteShape } from './canvas.service';
 import type { AIToolCall } from '../types/ai.types';
+import { normalizeHexColor, resolveColorQuery } from '../utils/colorMatching';
 
 /**
  * Generate a unique ID for shapes
@@ -27,6 +28,7 @@ export interface ExecutionContext {
   shapes: CanvasShape[];
   canvasWidth?: number;
   canvasHeight?: number;
+  selectedShapeIds?: string[];
 }
 
 /**
@@ -78,6 +80,8 @@ class AIExecutorService {
           return await this.changeColor(args, context);
         case 'updateText':
           return await this.updateText(args, context);
+        case 'changeFontSize':
+          return await this.changeFontSize(args, context);
         case 'deleteShape':
           return await this.deleteShape(args, context);
         case 'deleteMultipleShapes':
@@ -97,19 +101,29 @@ class AIExecutorService {
         case 'findShapesByText':
           return this.findShapesByText(args, context);
 
-        // Layout tools
+        // Alignment tools (from toolbar)
+        case 'alignLeft':
+          return await this.alignLeft(args, context);
+        case 'alignCenter':
+          return await this.alignCenter(args, context);
+        case 'alignRight':
+          return await this.alignRight(args, context);
+
+        // Distribution tools (from toolbar)
         case 'arrangeHorizontal':
           return await this.arrangeHorizontal(args, context);
+        case 'distributeHorizontally':
+          return await this.distributeHorizontally(args, context);
+        case 'distributeVertically':
+          return await this.distributeVertically(args, context);
+
+        // Legacy layout tools (kept for backward compatibility)
         case 'arrangeVertical':
           return await this.arrangeVertical(args, context);
         case 'arrangeGrid':
           return await this.arrangeGrid(args, context);
         case 'centerShape':
           return await this.centerShape(args, context);
-        case 'distributeHorizontally':
-          return await this.distributeHorizontally(args, context);
-        case 'distributeVertically':
-          return await this.distributeVertically(args, context);
 
         // Utility tools
         case 'getCanvasBounds':
@@ -141,14 +155,42 @@ class AIExecutorService {
     toolCalls: AIToolCall[],
     context: ExecutionContext
   ): Promise<ToolExecutionResult[]> {
+    const executionContext: ExecutionContext = {
+      ...context,
+      shapes: context.shapes.map((shape) => ({ ...shape } as CanvasShape)),
+      selectedShapeIds: context.selectedShapeIds ? [...context.selectedShapeIds] : [],
+    };
     const results: ToolExecutionResult[] = [];
 
     for (const toolCall of toolCalls) {
-      const result = await this.executeTool(toolCall, context);
+      const result = await this.executeTool(toolCall, executionContext);
       results.push(result);
     }
 
     return results;
+  }
+
+  /**
+   * Filter shapes by color using natural language resolution
+   */
+  private filterShapesByColorDescription(shapes: CanvasShape[], color: string): CanvasShape[] {
+    const { direct, fallback } = resolveColorQuery(color);
+    const normalizedQuery = normalizeHexColor(color);
+    const candidateColors = direct.size > 0 ? direct : fallback;
+
+    return shapes.filter((shape) => {
+      const normalizedShapeColor = normalizeHexColor(shape.color);
+
+      if (candidateColors.size > 0 && normalizedShapeColor) {
+        return candidateColors.has(normalizedShapeColor);
+      }
+
+      if (normalizedQuery && normalizedShapeColor) {
+        return normalizedShapeColor === normalizedQuery;
+      }
+
+      return shape.color.toLowerCase() === color.toLowerCase();
+    });
   }
 
   // ==========================================
@@ -177,6 +219,7 @@ class AIExecutorService {
     };
 
     await createShape(shape);
+    context.shapes.push(shape);
 
     return {
       success: true,
@@ -206,6 +249,7 @@ class AIExecutorService {
     };
 
     await createShape(shape);
+    context.shapes.push(shape);
 
     return {
       success: true,
@@ -236,6 +280,7 @@ class AIExecutorService {
     };
 
     await createShape(shape);
+    context.shapes.push(shape);
 
     return {
       success: true,
@@ -316,6 +361,7 @@ class AIExecutorService {
       }
 
       await createShape(shape);
+      context.shapes.push(shape);
       createdShapes.push(shape.id);
     }
 
@@ -342,11 +388,7 @@ class AIExecutorService {
     }
 
     if (args.color) {
-      const colorLower = args.color.toLowerCase();
-      matchingShapes = matchingShapes.filter(s => 
-        s.color.toLowerCase().includes(colorLower) ||
-        colorLower.includes(s.color.toLowerCase())
-      );
+      matchingShapes = this.filterShapesByColorDescription(matchingShapes, args.color);
     }
 
     if (matchingShapes.length === 0) {
@@ -369,30 +411,73 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     // Find shapes matching the description
-    let matchingShapes = context.shapes;
+    const applyFilters = (shapes: CanvasShape[]) => {
+      let result = shapes;
 
-    if (args.type) {
-      matchingShapes = matchingShapes.filter(s => s.type === args.type);
-    }
+      if (args.type) {
+        result = result.filter((s) => s.type === args.type);
+      }
 
-    if (args.color) {
-      const colorLower = args.color.toLowerCase();
-      matchingShapes = matchingShapes.filter(s => 
-        s.color.toLowerCase().includes(colorLower) ||
-        colorLower.includes(s.color.toLowerCase())
-      );
-    }
+      if (args.color) {
+        result = this.filterShapesByColorDescription(result, args.color);
+      }
 
-    if (matchingShapes.length === 0) {
+      return result;
+    };
+
+    const matchingShapes = applyFilters(context.shapes);
+    const selectedShapes =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? applyFilters(
+            context.shapes.filter((shape) =>
+              context.selectedShapeIds!.includes(shape.id)
+            )
+          )
+        : [];
+    const candidateShapes = selectedShapes.length > 0 ? selectedShapes : matchingShapes;
+
+    if (candidateShapes.length === 0) {
+      if (args.type) {
+        const friendlyType =
+          args.type === 'circle'
+            ? 'circle'
+            : args.type === 'rectangle'
+              ? 'rectangle'
+              : args.type === 'text'
+                ? 'text'
+                : 'shape';
+
+        return {
+          success: false,
+          message: `Select a ${friendlyType} object.`,
+          error: 'SHAPE_NOT_FOUND',
+        };
+      }
+
       return {
         success: false,
         message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
         error: 'SHAPE_NOT_FOUND',
       };
+    } else if (args.type && selectedShapes.length === 0) {
+      const friendlyType =
+        args.type === 'circle'
+          ? 'circle'
+          : args.type === 'rectangle'
+            ? 'rectangle'
+            : args.type === 'text'
+              ? 'text'
+              : 'shape';
+
+      return {
+        success: false,
+        message: `Select a ${friendlyType} object.`,
+        error: 'SHAPE_NOT_FOUND',
+      };
     }
 
     // Use the first matching shape (or most recently created if multiple)
-    const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
+    const targetShape = candidateShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
 
     // Calculate new dimensions
     const resizeArgs: { shapeId: string; width?: number; height?: number; radius?: number } = {
@@ -430,11 +515,7 @@ class AIExecutorService {
     }
 
     if (args.color) {
-      const colorLower = args.color.toLowerCase();
-      matchingShapes = matchingShapes.filter(s => 
-        s.color.toLowerCase().includes(colorLower) ||
-        colorLower.includes(s.color.toLowerCase())
-      );
+      matchingShapes = this.filterShapesByColorDescription(matchingShapes, args.color);
     }
 
     if (matchingShapes.length === 0) {
@@ -617,6 +698,60 @@ class AIExecutorService {
     };
   }
 
+  private async changeFontSize(
+    args: { shapeIds: string[]; fontSize: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Use the SAME LOGIC as toolbar's handleFontSizeChange
+    // Priority: 1) explicit shapeIds, 2) selected shapes, 3) all text shapes on canvas
+    let shapeIds = args.shapeIds;
+    
+    if (shapeIds.length === 0) {
+      // If no shapeIds provided, check if shapes are selected
+      if (context.selectedShapeIds && context.selectedShapeIds.length > 0) {
+        shapeIds = context.selectedShapeIds;
+      } else {
+        // If nothing selected, find all text shapes on canvas
+        const allTextShapes = context.shapes.filter(s => s.type === 'text');
+        shapeIds = allTextShapes.map(s => s.id);
+      }
+    }
+
+    if (shapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found on canvas',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    // Update only text shapes (matching toolbar behavior)
+    let updatedCount = 0;
+    for (const shapeId of shapeIds) {
+      const shape = context.shapes.find(s => s.id === shapeId);
+      if (shape && shape.type === 'text') {
+        await updateShape(shapeId, {
+          fontSize: args.fontSize,
+          lastModifiedBy: context.userId,
+        });
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found to update',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    return {
+      success: true,
+      message: `Changed font size to ${args.fontSize}px for ${updatedCount} text shape(s)`,
+    };
+  }
+
   private async deleteShape(
     args: { shapeId: string },
     context: ExecutionContext
@@ -631,6 +766,13 @@ class AIExecutorService {
     }
 
     await deleteShape(args.shapeId);
+    const index = context.shapes.findIndex((s) => s.id === args.shapeId);
+    if (index >= 0) {
+      context.shapes.splice(index, 1);
+    }
+    if (context.selectedShapeIds) {
+      context.selectedShapeIds = context.selectedShapeIds.filter((id) => id !== args.shapeId);
+    }
 
     return {
       success: true,
@@ -649,7 +791,14 @@ class AIExecutorService {
       if (shape) {
         await deleteShape(shapeId);
         deleted++;
+        const index = context.shapes.findIndex((s) => s.id === shapeId);
+        if (index >= 0) {
+          context.shapes.splice(index, 1);
+        }
       }
+    }
+    if (context.selectedShapeIds) {
+      context.selectedShapeIds = context.selectedShapeIds.filter((id) => !args.shapeIds.includes(id));
     }
 
     return {
@@ -756,13 +905,37 @@ class AIExecutorService {
     args: { color: string },
     context: ExecutionContext
   ): ToolExecutionResult {
-    const normalizedColor = args.color.toLowerCase();
-    const shapes = context.shapes.filter((s) => s.color.toLowerCase() === normalizedColor);
+    const { direct, fallback } = resolveColorQuery(args.color);
+
+    const normalizedShapes = context.shapes
+      .map((shape) => ({
+        shape,
+        hex: normalizeHexColor(shape.color),
+      }))
+      .filter((entry): entry is { shape: CanvasShape; hex: string } => !!entry.hex);
+
+    const candidateColors =
+      direct.size > 0 ? direct : fallback.size > 0 ? fallback : new Set<string>();
+
+    const matchingShapes =
+      candidateColors.size === 0
+        ? normalizedShapes.filter((entry) => {
+            const shapeColor = entry.hex;
+            const requestedColor = normalizeHexColor(args.color);
+            return requestedColor ? shapeColor === requestedColor : false;
+          })
+        : normalizedShapes.filter((entry) => candidateColors.has(entry.hex));
 
     return {
       success: true,
-      message: `Found ${shapes.length} shapes with color ${args.color}`,
-      data: { shapes, shapeIds: shapes.map((s) => s.id) },
+      message:
+        matchingShapes.length > 0
+          ? `Found ${matchingShapes.length} shapes matching color "${args.color}"`
+          : `No shapes matched color "${args.color}"`,
+      data: {
+        shapes: matchingShapes.map((entry) => entry.shape),
+        shapeIds: matchingShapes.map((entry) => entry.shape.id),
+      },
     };
   }
 
@@ -784,38 +957,249 @@ class AIExecutorService {
 
   // ==========================================
   // LAYOUT TOOLS IMPLEMENTATION
+  // Using the EXACT SAME logic as Canvas.tsx toolbar buttons
+  // ==========================================
+
+  // Helper functions - copied directly from Canvas.tsx
+  private getShapeLeft(shape: CanvasShape): number {
+    if (shape.type === 'circle') return shape.x - shape.radius;
+    if (shape.type === 'rectangle') return shape.x;
+    if (shape.type === 'text') return shape.x;
+    return shape.x;
+  }
+
+  private getShapeRight(shape: CanvasShape): number {
+    if (shape.type === 'circle') return shape.x + shape.radius;
+    if (shape.type === 'rectangle') return shape.x + shape.width;
+    if (shape.type === 'text') return shape.x + (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+    return shape.x;
+  }
+
+  private getShapeTop(shape: CanvasShape): number {
+    if (shape.type === 'circle') return shape.y - shape.radius;
+    if (shape.type === 'rectangle') return shape.y;
+    if (shape.type === 'text') return shape.y;
+    return shape.y;
+  }
+
+  private getShapeBottom(shape: CanvasShape): number {
+    if (shape.type === 'circle') return shape.y + shape.radius;
+    if (shape.type === 'rectangle') return shape.y + shape.height;
+    if (shape.type === 'text') return shape.y + (shape.fontSize || 24);
+    return shape.y;
+  }
+
+  private getShapeWidth(shape: CanvasShape): number {
+    if (shape.type === 'circle') return shape.radius * 2;
+    if (shape.type === 'rectangle') return shape.width;
+    if (shape.type === 'text') return (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+    return 0;
+  }
+
+  private getShapeHeight(shape: CanvasShape): number {
+    if (shape.type === 'circle') return shape.radius * 2;
+    if (shape.type === 'rectangle') return shape.height;
+    if (shape.type === 'text') return shape.fontSize || 24;
+    return 0;
+  }
+
+  private setShapeLeft(shape: CanvasShape, left: number): number {
+    if (shape.type === 'circle') return left + shape.radius;
+    return left;
+  }
+
+  private setShapeCenterX(shape: CanvasShape, centerX: number): number {
+    if (shape.type === 'circle') return centerX;
+    if (shape.type === 'rectangle') return centerX - shape.width / 2;
+    if (shape.type === 'text') return centerX - ((shape.text?.length || 0) * (shape.fontSize || 24) * 0.6) / 2;
+    return centerX;
+  }
+
+  private setShapeRight(shape: CanvasShape, rightX: number): number {
+    if (shape.type === 'circle') return rightX - shape.radius;
+    if (shape.type === 'rectangle') return rightX - shape.width;
+    if (shape.type === 'text') return rightX - (shape.text?.length || 0) * (shape.fontSize || 24) * 0.6;
+    return rightX;
+  }
+
+  private setShapeTop(shape: CanvasShape, topY: number): number {
+    if (shape.type === 'circle') return topY + shape.radius;
+    return topY;
+  }
+
+  // ==========================================
+  // ALIGNMENT TOOLS - Using toolbar's handleAlignLeft/Center/Right logic
+  // ==========================================
+
+  private async alignLeft(
+    args: { shapeIds: string[] },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const defaultIds =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? context.selectedShapeIds
+        : context.shapes.map((s) => s.id);
+    const shapeIds = args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
+    
+    if (shapeIds.length < 2) {
+      return {
+        success: false,
+        message: 'Need at least 2 shapes to align',
+        error: 'INSUFFICIENT_SHAPES',
+      };
+    }
+
+    const selectedShapes = context.shapes.filter(s => shapeIds.includes(s.id));
+    const leftmostX = Math.min(...selectedShapes.map(s => this.getShapeLeft(s)));
+    
+    for (const shape of selectedShapes) {
+      await updateShape(shape.id, {
+        x: this.setShapeLeft(shape, leftmostX),
+        lastModifiedBy: context.userId,
+      });
+    }
+
+    return {
+      success: true,
+      message: `Aligned ${selectedShapes.length} shapes to the left`,
+    };
+  }
+
+  private async alignCenter(
+    args: { shapeIds: string[] },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const defaultIds =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? context.selectedShapeIds
+        : context.shapes.map((s) => s.id);
+    const shapeIds = args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
+    
+    if (shapeIds.length < 2) {
+      return {
+        success: false,
+        message: 'Need at least 2 shapes to align',
+        error: 'INSUFFICIENT_SHAPES',
+      };
+    }
+
+    const selectedShapes = context.shapes.filter(s => shapeIds.includes(s.id));
+    
+    // Find the bounding box center
+    const leftmostX = Math.min(...selectedShapes.map(s => this.getShapeLeft(s)));
+    const rightmostX = Math.max(...selectedShapes.map(s => this.getShapeRight(s)));
+    const centerX = (leftmostX + rightmostX) / 2;
+    
+    for (const shape of selectedShapes) {
+      await updateShape(shape.id, {
+        x: this.setShapeCenterX(shape, centerX),
+        lastModifiedBy: context.userId,
+      });
+    }
+
+    return {
+      success: true,
+      message: `Aligned ${selectedShapes.length} shapes to the center`,
+    };
+  }
+
+  private async alignRight(
+    args: { shapeIds: string[] },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const defaultIds =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? context.selectedShapeIds
+        : context.shapes.map((s) => s.id);
+    const shapeIds = args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
+    
+    if (shapeIds.length < 2) {
+      return {
+        success: false,
+        message: 'Need at least 2 shapes to align',
+        error: 'INSUFFICIENT_SHAPES',
+      };
+    }
+
+    const selectedShapes = context.shapes.filter(s => shapeIds.includes(s.id));
+    const rightmostX = Math.max(...selectedShapes.map(s => this.getShapeRight(s)));
+    
+    for (const shape of selectedShapes) {
+      await updateShape(shape.id, {
+        x: this.setShapeRight(shape, rightmostX),
+        lastModifiedBy: context.userId,
+      });
+    }
+
+    return {
+      success: true,
+      message: `Aligned ${selectedShapes.length} shapes to the right`,
+    };
+  }
+
+  // ==========================================
+  // DISTRIBUTE TOOLS - Using toolbar's handleDistribute logic
   // ==========================================
 
   private async arrangeHorizontal(
     args: { shapeIds: string[]; startX?: number; y?: number; spacing?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const spacing = args.spacing ?? 20;
-    const startX = args.startX ?? 50;
-    const y = args.y ?? 200;
+    // Get shapes to arrange
+    const defaultIds =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? context.selectedShapeIds
+        : context.shapes.map((s) => s.id);
+    const shapeIds =
+      args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
+    const uniqueShapeIds = Array.from(new Set(shapeIds));
+
+    if (uniqueShapeIds.length < 2) {
+      return {
+        success: false,
+        message: 'Need at least 2 shapes to arrange horizontally',
+        error: 'INSUFFICIENT_SHAPES',
+      };
+    }
+
+    const selectedShapes = context.shapes.filter(s => uniqueShapeIds.includes(s.id));
     
-    // If shapeIds is empty, use all shapes
-    const shapeIds = args.shapeIds.length === 0 ? context.shapes.map(s => s.id) : args.shapeIds;
-    let currentX = startX;
+    if (selectedShapes.length < 2) {
+      return {
+        success: false,
+        message: 'Could not find enough shapes to arrange',
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
 
-    for (const shapeId of shapeIds) {
-      const shape = context.shapes.find((s) => s.id === shapeId);
-      if (shape) {
-        await updateShape(shapeId, {
-          x: currentX,
-          y: y,
-          lastModifiedBy: context.userId,
-        });
-
-        // Calculate width for spacing
-        const width = shape.type === 'rectangle' ? shape.width : shape.type === 'circle' ? shape.radius * 2 : 100;
-        currentX += width + spacing;
-      }
+    // Use the SAME LOGIC as toolbar's handleDistributeHorizontally
+    // Sort shapes by their left edge
+    const sortedShapes = [...selectedShapes].sort((a, b) => this.getShapeLeft(a) - this.getShapeLeft(b));
+    
+    // Keep the leftmost and rightmost shapes in place
+    const leftmostLeft = this.getShapeLeft(sortedShapes[0]);
+    const rightmostRight = this.getShapeRight(sortedShapes[sortedShapes.length - 1]);
+    const totalSpace = rightmostRight - leftmostLeft;
+    
+    // Calculate total width of all shapes
+    const totalShapeWidth = sortedShapes.reduce((sum, shape) => sum + this.getShapeWidth(shape), 0);
+    
+    // Calculate spacing between shapes
+    const spacing = (totalSpace - totalShapeWidth) / (sortedShapes.length - 1);
+    
+    // Position each shape
+    let currentLeft = leftmostLeft;
+    for (const shape of sortedShapes) {
+      await updateShape(shape.id, {
+        x: this.setShapeLeft(shape, currentLeft),
+        lastModifiedBy: context.userId,
+      });
+      currentLeft += this.getShapeWidth(shape) + spacing;
     }
 
     return {
       success: true,
-      message: `Arranged ${shapeIds.length} shapes horizontally`,
+      message: `Arranged ${sortedShapes.length} shapes horizontally`,
     };
   }
 
@@ -924,66 +1308,112 @@ class AIExecutorService {
     args: { shapeIds: string[]; startX?: number; endX?: number; y?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const startX = args.startX ?? 50;
-    const endX = args.endX ?? 700;
-    const y = args.y ?? 200;
-    
-    // If shapeIds is empty, use all shapes
-    const shapeIds = args.shapeIds.length === 0 ? context.shapes.map(s => s.id) : args.shapeIds;
-    const count = shapeIds.length;
-    
-    if (count < 2) {
+    // Get shapes to distribute
+    const defaultIds =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? context.selectedShapeIds
+        : context.shapes.map((s) => s.id);
+    const shapeIds =
+      args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
+    const uniqueShapeIds = Array.from(new Set(shapeIds));
+
+    if (uniqueShapeIds.length < 2) {
       return {
         success: false,
         message: 'Need at least 2 shapes to distribute',
-        error: 'INVALID_PARAMETERS',
+        error: 'INSUFFICIENT_SHAPES',
       };
     }
 
-    const spacing = (endX - startX) / (count - 1);
+    const selectedShapes = context.shapes.filter(s => uniqueShapeIds.includes(s.id));
+    
+    if (selectedShapes.length < 2) {
+      return {
+        success: false,
+        message: 'Could not find enough shapes to distribute',
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
 
-    for (let i = 0; i < count; i++) {
-      const x = startX + i * spacing;
-      await updateShape(shapeIds[i], {
-        x,
-        y: y,
+    // Use the SAME LOGIC as toolbar's handleDistributeHorizontally
+    // This is identical to arrangeHorizontal - they use the same toolbar function
+    const sortedShapes = [...selectedShapes].sort((a, b) => this.getShapeLeft(a) - this.getShapeLeft(b));
+    
+    const leftmostLeft = this.getShapeLeft(sortedShapes[0]);
+    const rightmostRight = this.getShapeRight(sortedShapes[sortedShapes.length - 1]);
+    const totalSpace = rightmostRight - leftmostLeft;
+    
+    const totalShapeWidth = sortedShapes.reduce((sum, shape) => sum + this.getShapeWidth(shape), 0);
+    const spacing = (totalSpace - totalShapeWidth) / (sortedShapes.length - 1);
+    
+    let currentLeft = leftmostLeft;
+    for (const shape of sortedShapes) {
+      await updateShape(shape.id, {
+        x: this.setShapeLeft(shape, currentLeft),
         lastModifiedBy: context.userId,
       });
+      currentLeft += this.getShapeWidth(shape) + spacing;
     }
 
     return {
       success: true,
-      message: `Distributed ${count} shapes horizontally`,
+      message: `Distributed ${sortedShapes.length} shapes horizontally`,
     };
   }
 
   private async distributeVertically(
-    args: { shapeIds: string[]; x: number; startY: number; endY: number },
+    args: { shapeIds: string[]; x?: number; startY?: number; endY?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const count = args.shapeIds.length;
-    if (count < 2) {
+    // Get shapes to distribute
+    const defaultIds =
+      context.selectedShapeIds && context.selectedShapeIds.length > 0
+        ? context.selectedShapeIds
+        : context.shapes.map((s) => s.id);
+    const shapeIds =
+      args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
+    const uniqueShapeIds = Array.from(new Set(shapeIds));
+
+    if (uniqueShapeIds.length < 2) {
       return {
         success: false,
         message: 'Need at least 2 shapes to distribute',
-        error: 'INVALID_PARAMETERS',
+        error: 'INSUFFICIENT_SHAPES',
       };
     }
 
-    const spacing = (args.endY - args.startY) / (count - 1);
+    const selectedShapes = context.shapes.filter(s => uniqueShapeIds.includes(s.id));
+    
+    if (selectedShapes.length < 2) {
+      return {
+        success: false,
+        message: 'Could not find enough shapes to distribute',
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
 
-    for (let i = 0; i < count; i++) {
-      const y = args.startY + i * spacing;
-      await updateShape(args.shapeIds[i], {
-        x: args.x,
-        y,
+    // Use the SAME LOGIC as toolbar's handleDistributeVertically
+    const sortedShapes = [...selectedShapes].sort((a, b) => this.getShapeTop(a) - this.getShapeTop(b));
+    
+    const topmostTop = this.getShapeTop(sortedShapes[0]);
+    const bottommostBottom = this.getShapeBottom(sortedShapes[sortedShapes.length - 1]);
+    const totalSpace = bottommostBottom - topmostTop;
+    
+    const totalShapeHeight = sortedShapes.reduce((sum, shape) => sum + this.getShapeHeight(shape), 0);
+    const spacing = (totalSpace - totalShapeHeight) / (sortedShapes.length - 1);
+    
+    let currentTop = topmostTop;
+    for (const shape of sortedShapes) {
+      await updateShape(shape.id, {
+        y: this.setShapeTop(shape, currentTop),
         lastModifiedBy: context.userId,
       });
+      currentTop += this.getShapeHeight(shape) + spacing;
     }
 
     return {
       success: true,
-      message: `Distributed ${count} shapes vertically`,
+      message: `Distributed ${sortedShapes.length} shapes vertically`,
     };
   }
 
@@ -1029,4 +1459,3 @@ class AIExecutorService {
 // Export singleton instance
 export const aiExecutorService = new AIExecutorService();
 export default aiExecutorService;
-

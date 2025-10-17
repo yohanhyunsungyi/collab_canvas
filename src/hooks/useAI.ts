@@ -44,6 +44,7 @@ interface UseAIReturn {
 export const useAI = (
   userId: string,
   shapes: CanvasShape[],
+  selectedShapeIds: string[],
   canvasWidth?: number,
   canvasHeight?: number
 ): UseAIReturn => {
@@ -110,6 +111,7 @@ export const useAI = (
           const context: ExecutionContext = {
             userId,
             shapes,
+            selectedShapeIds,
             canvasWidth,
             canvasHeight,
           };
@@ -121,11 +123,14 @@ export const useAI = (
 
           // Check if any executions failed
           const hasFailures = executionResults.some((r) => !r.success);
-          const successCount = executionResults.filter((r) => r.success).length;
           
-          const message = hasFailures
-            ? `Completed ${successCount}/${executionResults.length} operations. Some failed.`
-            : aiResponse.message;
+          let message = aiResponse.message;
+          if (hasFailures) {
+            const firstFailure = executionResults.find((r) => !r.success);
+            const failureMessage = firstFailure?.message || 'Command failed. Try again.';
+            message = failureMessage;
+            setError(failureMessage);
+          }
 
           // Add to history with execution results
           addToHistory(prompt, !hasFailures, message, executionResults);
@@ -167,7 +172,7 @@ export const useAI = (
         setLoading(false);
       }
     },
-    [userId, shapes, canvasWidth, canvasHeight, isAvailable]
+    [userId, shapes, selectedShapeIds, canvasWidth, canvasHeight, isAvailable]
   );
 
   /**
@@ -251,4 +256,3 @@ export const useAI = (
     rerunCommand,
   };
 };
-

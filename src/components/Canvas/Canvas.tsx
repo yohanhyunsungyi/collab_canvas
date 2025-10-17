@@ -915,6 +915,7 @@ export const Canvas = () => {
 
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
+    const rotation = node.rotation(); // Get rotation angle
 
     // Reset scale to 1 and apply scale to dimensions
     node.scaleX(1);
@@ -943,6 +944,7 @@ export const Canvas = () => {
         y: nodeY,
         width,
         height,
+        rotation,
       });
     } else if (shape.type === 'circle') {
       // For circles, always use original shape radius as base to avoid accumulation
@@ -986,12 +988,20 @@ export const Canvas = () => {
         x: nodeX,
         y: nodeY,
         radius,
+        rotation,
       });
     } else if (shape.type === 'text') {
-      // Text: no resizing, auto-fit to content
+      // Text: no resizing, auto-fit to content, but support rotation
       // Reset scale to 1
       node.scaleX(1);
       node.scaleY(1);
+      
+      // Update rotation if changed
+      updateShape(shapeId, {
+        x: nodeX,
+        y: nodeY,
+        rotation,
+      });
     }
   };
 
@@ -1502,7 +1512,7 @@ export const Canvas = () => {
               onTransform={handleTransform}
               onTransformEnd={handleTransformEnd}
               boundBoxFunc={getTransformerBoundBoxFunc}
-              rotateEnabled={false}
+              rotateEnabled={true}
             />
             
             {/* Render preview shape while drawing */}
@@ -1612,6 +1622,7 @@ export const Canvas = () => {
           ref={aiPanelRef}
           userId={user.id}
           shapes={shapes}
+          selectedShapeIds={selectedShapeIds}
           canvasWidth={CANVAS_WIDTH}
           canvasHeight={CANVAS_HEIGHT}
           defaultCollapsed={true}
@@ -1620,4 +1631,3 @@ export const Canvas = () => {
     </div>
   );
 };
-

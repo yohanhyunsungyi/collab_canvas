@@ -42,7 +42,7 @@ describe('AI Executor Service', () => {
         x: 300,
         y: 300,
         radius: 50,
-        color: '#00FF00',
+        color: '#FF8A65',
         createdBy: 'user-1',
         createdAt: Date.now(),
         lastModifiedBy: 'user-1',
@@ -57,7 +57,7 @@ describe('AI Executor Service', () => {
         y: 500,
         text: 'Hello',
         fontSize: 24,
-        color: '#0000FF',
+        color: '#64B5F6',
         createdBy: 'user-1',
         createdAt: Date.now(),
         lastModifiedBy: 'user-1',
@@ -70,9 +70,139 @@ describe('AI Executor Service', () => {
     mockContext = {
       userId: 'test-user',
       shapes: mockShapes,
+      selectedShapeIds: [],
       canvasWidth: 1200,
       canvasHeight: 800,
     };
+  });
+
+  describe('Smart Manipulation Tools', () => {
+    it('should resize circle by description with color keyword', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'resizeShapeByDescription',
+          arguments: JSON.stringify({
+            type: 'circle',
+            color: 'coral',
+            scaleMultiplier: 2,
+          }),
+        },
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, {
+        ...mockContext,
+        selectedShapeIds: ['circle-1'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(canvasService.updateShape).toHaveBeenCalledWith(
+        'circle-1',
+        expect.objectContaining({
+          radius: 100,
+        })
+      );
+    });
+
+    it('should return friendly message when no circle is found', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'resizeShapeByDescription',
+          arguments: JSON.stringify({
+            type: 'circle',
+            scaleMultiplier: 2,
+          }),
+        },
+      };
+
+      const contextWithoutCircles: ExecutionContext = {
+        ...mockContext,
+        shapes: mockShapes.filter((shape) => shape.type !== 'circle'),
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, contextWithoutCircles);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Select a circle object.');
+      expect(result.error).toBe('SHAPE_NOT_FOUND');
+      expect(canvasService.updateShape).not.toHaveBeenCalled();
+    });
+
+    it('should prompt to select circle when none selected', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-2',
+        type: 'function',
+        function: {
+          name: 'resizeShapeByDescription',
+          arguments: JSON.stringify({
+            type: 'circle',
+            scaleMultiplier: 2,
+          }),
+        },
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Select a circle object.');
+      expect(result.error).toBe('SHAPE_NOT_FOUND');
+      expect(canvasService.updateShape).not.toHaveBeenCalled();
+    });
+
+    it('should return friendly message when no rectangle is found', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'resizeShapeByDescription',
+          arguments: JSON.stringify({
+            type: 'rectangle',
+            scaleMultiplier: 1.5,
+          }),
+        },
+      };
+
+      const contextWithoutRectangles: ExecutionContext = {
+        ...mockContext,
+        shapes: mockShapes.filter((shape) => shape.type !== 'rectangle'),
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, contextWithoutRectangles);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Select a rectangle object.');
+      expect(result.error).toBe('SHAPE_NOT_FOUND');
+      expect(canvasService.updateShape).not.toHaveBeenCalled();
+    });
+
+    it('should return friendly message when no text is found', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'resizeShapeByDescription',
+          arguments: JSON.stringify({
+            type: 'text',
+            scaleMultiplier: 1.5,
+          }),
+        },
+      };
+
+      const contextWithoutText: ExecutionContext = {
+        ...mockContext,
+        shapes: mockShapes.filter((shape) => shape.type !== 'text'),
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, contextWithoutText);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Select a text object.');
+      expect(result.error).toBe('SHAPE_NOT_FOUND');
+      expect(canvasService.updateShape).not.toHaveBeenCalled();
+    });
   });
 
   describe('Creation Tools', () => {
@@ -430,6 +560,23 @@ describe('AI Executor Service', () => {
       expect((result.data as any).shapeIds).toContain('rect-1');
     });
 
+    it('should resolve natural language color names via alias matching', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'findShapesByColor',
+          arguments: JSON.stringify({ color: 'blue' }),
+        },
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, mockContext);
+
+      expect(result.success).toBe(true);
+      expect((result.data as any).shapeIds).toContain('text-1');
+      expect(result.message).toContain('Found 1');
+    });
+
     it('should execute findShapesByText', async () => {
       const toolCall: AIToolCall = {
         id: 'call-1',
@@ -468,6 +615,98 @@ describe('AI Executor Service', () => {
       expect(result.success).toBe(true);
       expect(result.message).toContain('Arranged 2 shapes horizontally');
       expect(canvasService.updateShape).toHaveBeenCalled();
+    });
+
+    it('should arrange selected shapes when ids list is empty', async () => {
+      const toolCall: AIToolCall = {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'arrangeHorizontal',
+          arguments: JSON.stringify({
+            shapeIds: [],
+            startX: 10,
+            y: 20,
+            spacing: 15,
+          }),
+        },
+      };
+
+      const result = await aiExecutorService.executeTool(toolCall, {
+        ...mockContext,
+        selectedShapeIds: ['circle-1'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(canvasService.updateShape).toHaveBeenCalledWith(
+        'circle-1',
+        expect.objectContaining({
+          x: expect.any(Number),
+          y: 20,
+        })
+      );
+    });
+
+    it('should arrange shapes created earlier in the same execution sequence', async () => {
+      const toolCalls: AIToolCall[] = [
+        {
+          id: 'create-1',
+          type: 'function',
+          function: {
+            name: 'createRectangle',
+            arguments: JSON.stringify({
+              x: 40,
+              y: 60,
+              width: 120,
+              height: 80,
+              color: '#111111',
+            }),
+          },
+        },
+        {
+          id: 'create-2',
+          type: 'function',
+          function: {
+            name: 'createCircle',
+            arguments: JSON.stringify({
+              x: 200,
+              y: 75,
+              radius: 30,
+              color: '#222222',
+            }),
+          },
+        },
+        {
+          id: 'arrange',
+          type: 'function',
+          function: {
+            name: 'arrangeHorizontal',
+            arguments: JSON.stringify({
+              shapeIds: [],
+              startX: 0,
+              y: 100,
+              spacing: 10,
+            }),
+          },
+        },
+      ];
+
+      const executionResults = await aiExecutorService.executeTools(toolCalls, {
+        ...mockContext,
+        shapes: [],
+        selectedShapeIds: [],
+      });
+
+      const arrangeResult = executionResults[2];
+      expect(arrangeResult.success).toBe(true);
+      expect(arrangeResult.message).toContain('Arranged 2 shapes horizontally');
+      expect(canvasService.updateShape).toHaveBeenCalledTimes(2);
+      expect(canvasService.updateShape).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          y: 100,
+        })
+      );
     });
 
     it('should execute arrangeVertical', async () => {
@@ -712,4 +951,3 @@ describe('AI Executor Service', () => {
     });
   });
 });
-
