@@ -11,7 +11,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { firestore } from './firebase';
-import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../types/canvas.types';
+import type { CanvasShape, RectangleShape, CircleShape, TextShape, ImageShape } from '../types/canvas.types';
 
 // Firestore collection name for canvas objects
 const CANVAS_COLLECTION = 'canvasObjects';
@@ -22,7 +22,7 @@ const CANVAS_COLLECTION = 'canvasObjects';
  */
 interface FirestoreShapeData {
   id: string;
-  type: 'rectangle' | 'circle' | 'text';
+  type: 'rectangle' | 'circle' | 'text' | 'image';
   x: number;
   y: number;
   color: string;
@@ -41,6 +41,8 @@ interface FirestoreShapeData {
   // Text specific
   text?: string;
   fontSize?: number;
+  // Image specific
+  src?: string;
 }
 
 /**
@@ -86,6 +88,14 @@ const firestoreToShape = (data: FirestoreShapeData): CanvasShape => {
       type: 'circle',
       radius: data.radius || 0,
     } as CircleShape;
+  } else if (data.type === 'image') {
+    return {
+      ...baseShape,
+      type: 'image',
+      src: data.src || '',
+      width: data.width || 0,
+      height: data.height || 0,
+    } as ImageShape;
   } else {
     return {
       ...baseShape,
@@ -132,6 +142,13 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
     return {
       ...baseData,
       radius: shape.radius,
+    };
+  } else if (shape.type === 'image') {
+    return {
+      ...baseData,
+      src: shape.src,
+      width: shape.width,
+      height: shape.height,
     };
   } else {
     // For text shapes, only include width/height if they exist

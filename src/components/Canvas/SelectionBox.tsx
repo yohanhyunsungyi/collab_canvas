@@ -42,6 +42,12 @@ export const SelectionBox = ({ shapes, selectedShapeIds }: SelectionBoxProps) =>
       shapeMinY = shape.y - shape.radius;
       shapeMaxX = shape.x + shape.radius;
       shapeMaxY = shape.y + shape.radius;
+    } else if (shape.type === 'image') {
+      // For images, use width and height
+      shapeMinX = shape.x;
+      shapeMinY = shape.y;
+      shapeMaxX = shape.x + shape.width;
+      shapeMaxY = shape.y + shape.height;
     } else if (shape.type === 'text') {
       // For text, use approximate bounding box based on font size
       // Text position is at the top-left

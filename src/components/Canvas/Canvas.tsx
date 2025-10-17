@@ -149,35 +149,38 @@ export const Canvas = () => {
 
   // Effect for loading shapes from Firestore and subscribing to real-time updates
   useEffect(() => {
-    let isInitialLoad = true;
+    let unsubscribe: (() => void) | null = null;
+    let initialSnapshotReceived = false;
     
-    // Initial load: fetch all shapes
+    // Initial load: fetch all shapes, then subscribe to real-time changes
     fetchAllShapes()
       .then((allShapes) => {
         console.log(`[Canvas] Initial load: ${allShapes.length} shapes`);
         setShapes(allShapes);
+        
+        // Subscribe to real-time changes AFTER initial load completes
+        // This ensures we don't skip any changes made immediately after page load
+        unsubscribe = subscribeToShapes((changes) => {
+          // Skip only the very first onSnapshot callback (all existing documents)
+          if (!initialSnapshotReceived) {
+            initialSnapshotReceived = true;
+            console.log('[Canvas] Skipping initial snapshot (already loaded)');
+            return;
+          }
+          
+          console.log(`[Canvas] Applying ${changes.length} real-time changes`);
+          applyShapeChanges(changes);
+        });
       })
       .catch((error) => {
         console.error('[Canvas] Failed to load initial shapes:', error);
       });
-    
-    // Subscribe to real-time changes
-    const unsubscribe = subscribeToShapes((changes) => {
-      // Skip the first onSnapshot callback which contains all existing documents
-      // (we already loaded them via fetchAllShapes)
-      if (isInitialLoad) {
-        isInitialLoad = false;
-        console.log('[Canvas] Skipping initial snapshot (already loaded)');
-        return;
-      }
-      
-      console.log(`[Canvas] Applying ${changes.length} real-time changes`);
-      applyShapeChanges(changes);
-    });
 
     // Unsubscribe on component unmount
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [setShapes, applyShapeChanges]);
 

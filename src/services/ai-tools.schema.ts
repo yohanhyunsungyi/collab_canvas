@@ -794,6 +794,90 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
   },
 
   // ==========================================
+  // COMPLEX LAYOUT TOOLS
+  // ==========================================
+  {
+    type: 'function',
+    function: {
+      name: 'createLoginForm',
+      description: 'Create a complete professional login form with modern UI design. Includes: Container background, title, subtitle, email/password labels and input fields, submit button, social login buttons (Google, Apple, Facebook) with logos, and divider text. Use this for "Create a login form" commands.',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: {
+            type: 'number',
+            description: 'X coordinate for form center (default: 0)',
+          },
+          y: {
+            type: 'number',
+            description: 'Y coordinate for form center (default: 0)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'createNavigationBar',
+      description: 'Create a professional navigation bar with logo, menu items, dropdown arrows, and CTA button. Includes: Background bar, logo circle, brand text, 5 menu items (some with dropdown arrows), and a prominent CTA button. Use this for "Build a navigation bar" commands.',
+      parameters: {
+        type: 'object',
+        properties: {
+          y: {
+            type: 'number',
+            description: 'Y coordinate for navbar (default: -280, near top of canvas)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'createCardLayout',
+      description: 'Create a professional pricing/feature card layout. Includes: Card container, title, large price text, image placeholder, description text (2 lines), and action button. Use this for "Make a card layout" or "Create a pricing card" commands.',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: {
+            type: 'number',
+            description: 'X coordinate for card center (default: 0)',
+          },
+          y: {
+            type: 'number',
+            description: 'Y coordinate for card center (default: 0)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'createDashboard',
+      description: 'Create a complete dashboard with 4 pricing/feature cards in a 2x2 grid layout. Includes: 4 cards (Free, Starter, Pro, Enterprise) with different prices and features. Use this for "Create a dashboard" or "Make a dashboard with cards" commands.',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: {
+            type: 'number',
+            description: 'X coordinate for dashboard center (default: 0)',
+          },
+          y: {
+            type: 'number',
+            description: 'Y coordinate for dashboard center (default: 0)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+
+  // ==========================================
   // UTILITY TOOLS
   // ==========================================
   {
@@ -866,5 +950,6 @@ export const TOOL_CATEGORIES = {
   ALIGNMENT: ['alignLeft', 'alignCenter', 'alignRight'], // From toolbar
   DISTRIBUTION: ['arrangeHorizontal', 'distributeHorizontally', 'distributeVertically'], // From toolbar
   LEGACY_LAYOUT: ['arrangeVertical', 'arrangeGrid', 'centerShape'], // Legacy - not in toolbar
+  COMPLEX_LAYOUTS: ['createLoginForm', 'createNavigationBar', 'createCardLayout', 'createDashboard'], // Professional pre-built layouts
   UTILITY: ['getCanvasBounds', 'clearCanvas'],
 } as const;

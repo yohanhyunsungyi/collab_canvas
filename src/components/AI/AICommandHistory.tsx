@@ -24,7 +24,8 @@ const PRESET_COMMANDS = [
   "Space these elements evenly",
   "Create a login form with username and password fields",
   "Build a navigation bar with 4 menu items",
-  "Make a card layout with title, image, and description"
+  "Make a card layout with title, image, and description",
+  "Create a dashboard with 4 cards"
 ];
 
 export const AICommandHistory = ({ entries, loading, error, onDismissError, onRerun, onDelete, onClearHistory, onSelectPreset }: AICommandHistoryProps) => {
@@ -43,6 +44,19 @@ export const AICommandHistory = ({ entries, loading, error, onDismissError, onRe
         <div className="ai-history-loading">
           <div className="ai-spinner" aria-hidden />
           <span>Thinking…</span>
+        </div>
+      )}
+
+      {/* Clear history button (only show when there are entries) */}
+      {entries.length > 0 && (
+        <div className="ai-history-header">
+          <button 
+            className="ai-clear-history-button" 
+            onClick={onClearHistory}
+            title="Clear all history"
+          >
+            🗑️ Clear History
+          </button>
         </div>
       )}
 

@@ -4,6 +4,14 @@ import type { AIToolCall } from '../types/ai.types';
 import { normalizeHexColor, resolveColorQuery } from '../utils/colorMatching';
 import { SHAPE_COLORS } from '../utils/colors';
 
+// Social login logos
+import googleLogo from '../assets/social-logos/google-logo.svg';
+import appleLogo from '../assets/social-logos/apple-logo.svg';
+import facebookLogo from '../assets/social-logos/facebook-logo.svg';
+
+// Icons
+import chevronDown from '../assets/icons/chevron-down.svg';
+
 /**
  * Generate a unique ID for shapes
  */
@@ -136,6 +144,16 @@ class AIExecutorService {
           return await this.centerShape(args, context);
         case 'distributeEvenly':
           return await this.distributeEvenly(args, context);
+
+        // Complex layout tools
+        case 'createLoginForm':
+          return await this.createLoginForm(args, context);
+        case 'createNavigationBar':
+          return await this.createNavigationBar(args, context);
+        case 'createCardLayout':
+          return await this.createCardLayout(args, context);
+        case 'createDashboard':
+          return await this.createDashboard(args, context);
 
         // Utility tools
         case 'getCanvasBounds':
@@ -604,10 +622,10 @@ class AIExecutorService {
     const updates: Partial<CanvasShape> = { lastModifiedBy: context.userId };
 
     if (shape.type === 'rectangle' && args.width !== undefined && args.height !== undefined) {
-      updates.width = args.width;
-      updates.height = args.height;
+      (updates as Partial<import('../types/canvas.types').RectangleShape>).width = args.width;
+      (updates as Partial<import('../types/canvas.types').RectangleShape>).height = args.height;
     } else if (shape.type === 'circle' && args.radius !== undefined) {
-      updates.radius = args.radius;
+      (updates as Partial<import('../types/canvas.types').CircleShape>).radius = args.radius;
     } else {
       return {
         success: false,
@@ -704,8 +722,8 @@ class AIExecutorService {
     }
 
     const updates: Partial<CanvasShape> = { lastModifiedBy: context.userId };
-    if (args.text !== undefined) updates.text = args.text;
-    if (args.fontSize !== undefined) updates.fontSize = args.fontSize;
+    if (args.text !== undefined) (updates as Partial<import('../types/canvas.types').TextShape>).text = args.text;
+    if (args.fontSize !== undefined) (updates as Partial<import('../types/canvas.types').TextShape>).fontSize = args.fontSize;
 
     await updateShape(args.shapeId, updates);
 
@@ -1550,6 +1568,998 @@ class AIExecutorService {
         success: false,
         message: 'Invalid direction. Must be "horizontal" or "vertical"',
         error: 'INVALID_DIRECTION',
+      };
+    }
+  }
+
+  // ==========================================
+  // COMPLEX LAYOUT TOOLS IMPLEMENTATION
+  // ==========================================
+
+  /**
+   * Create a complete login form with professional layout (Copy UI style)
+   * Elements: Container, Title, Subtitle, Email/Password Labels/Inputs, Submit Button, Divider, Social Login (Google, Apple, Facebook)
+   */
+  private async createLoginForm(
+    args: { x?: number; y?: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const centerX = args.x ?? 0;
+    const centerY = args.y ?? 0;
+
+    // Form dimensions - modern clean layout
+    const formWidth = 400;
+    const formHeight = 640;
+    const inputWidth = 360;
+    const inputHeight = 48;
+    const buttonHeight = 52;
+    const socialButtonWidth = 112; // Social buttons (3 × 112 + 2 × 12 spacing = 360)
+    const socialButtonHeight = 48;
+    const titleFontSize = 28; // Reduced title size
+    const subtitleFontSize = 14;
+    const labelFontSize = 14;
+    const buttonFontSize = 16;
+
+    // Calculate positions relative to form center
+    const containerX = centerX - formWidth / 2;
+    const containerY = centerY - formHeight / 2;
+
+    // Colors
+    const containerColor = '#FAFAFA'; // Very light gray background
+    const inputColor = '#FFFFFF'; // White inputs
+    const buttonColor = '#5B7FEE'; // Modern blue button
+    const textColor = '#1A1A1A'; // Very dark text
+    const labelColor = '#6B7280'; // Gray labels
+    const buttonTextColor = '#FFFFFF'; // White button text
+    const subtitleColor = '#6B7280'; // Gray subtitle
+    const socialBgColor = '#FFFFFF'; // White social buttons
+    const dividerLineColor = '#D1D5DB'; // Gray divider lines
+
+    // Create all shapes
+    const now = Date.now();
+    const shapesToCreate: CanvasShape[] = [];
+
+    // 1. Container background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: containerX,
+      y: containerY,
+      width: formWidth,
+      height: formHeight,
+      color: containerColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 2. Title "Sign in to CollabCanvas"
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: containerX + 20,
+      y: containerY + 30,
+      text: 'Sign in to CollabCanvas',
+      fontSize: titleFontSize,
+      color: textColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 3. Subtitle "Don't have an account? Create one"
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: containerX + 20,
+      y: containerY + 70,
+      text: "Don't have an account? Create one",
+      fontSize: subtitleFontSize,
+      color: subtitleColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 4. Email label
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: containerX + 20,
+      y: containerY + 120,
+      text: 'Email address',
+      fontSize: labelFontSize,
+      color: labelColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 5. Email input field
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: containerX + 20,
+      y: containerY + 145,
+      width: inputWidth,
+      height: inputHeight,
+      color: inputColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 6. Password label
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: containerX + 20,
+      y: containerY + 220,
+      text: 'Password',
+      fontSize: labelFontSize,
+      color: labelColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 7. Password input field
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: containerX + 20,
+      y: containerY + 245,
+      width: inputWidth,
+      height: inputHeight,
+      color: inputColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 8. Sign in button
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: containerX + 20,
+      y: containerY + 325,
+      width: inputWidth,
+      height: buttonHeight,
+      color: buttonColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 9. Button text "Sign in"
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: centerX - 35,
+      y: containerY + 342,
+      text: 'Sign in',
+      fontSize: buttonFontSize,
+      color: buttonTextColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 10. Left divider line
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: containerX + 20,
+      y: containerY + 415,
+      width: 120,
+      height: 1,
+      color: dividerLineColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 11. Divider text "Or continue with"
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: containerX + 150,
+      y: containerY + 405,
+      text: 'Or continue with',
+      fontSize: subtitleFontSize,
+      color: subtitleColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 12. Right divider line
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: containerX + 260,
+      y: containerY + 415,
+      width: 120,
+      height: 1,
+      color: dividerLineColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // Social login buttons - positioned in a row with backgrounds + logos
+    const socialButtonsStartX = containerX + 20;
+    const socialButtonsY = containerY + 470;
+    const socialButtonSpacing = 12;
+
+    // 13. Google button background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: socialButtonsStartX,
+      y: socialButtonsY,
+      width: socialButtonWidth,
+      height: socialButtonHeight,
+      color: socialBgColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 14. Google logo
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'image',
+      x: socialButtonsStartX + 40,
+      y: socialButtonsY + 8,
+      width: 32,
+      height: 32,
+      src: googleLogo,
+      color: '#FFFFFF',
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 15. Apple button background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: socialButtonsStartX + socialButtonWidth + socialButtonSpacing,
+      y: socialButtonsY,
+      width: socialButtonWidth,
+      height: socialButtonHeight,
+      color: socialBgColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 16. Apple logo
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'image',
+      x: socialButtonsStartX + socialButtonWidth + socialButtonSpacing + 40,
+      y: socialButtonsY + 8,
+      width: 32,
+      height: 32,
+      src: appleLogo,
+      color: '#FFFFFF',
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 17. Facebook button background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: socialButtonsStartX + (socialButtonWidth + socialButtonSpacing) * 2,
+      y: socialButtonsY,
+      width: socialButtonWidth,
+      height: socialButtonHeight,
+      color: socialBgColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 18. Facebook logo
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'image',
+      x: socialButtonsStartX + (socialButtonWidth + socialButtonSpacing) * 2 + 40,
+      y: socialButtonsY + 8,
+      width: 32,
+      height: 32,
+      src: facebookLogo,
+      color: '#FFFFFF',
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // Create all shapes in Firestore
+    const createdShapeIds: string[] = [];
+    try {
+      for (const shape of shapesToCreate) {
+        await createShape(shape);
+        context.shapes.push(shape);
+        createdShapeIds.push(shape.id);
+      }
+
+      return {
+        success: true,
+        message: `Created modern login form with ${createdShapeIds.length} elements (including Google, Apple, Facebook social login) at (${centerX}, ${centerY})`,
+        data: { shapeIds: createdShapeIds, elementCount: createdShapeIds.length },
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error creating login form:', error);
+      return {
+        success: false,
+        message: `Failed to create login form: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'CREATE_FAILED',
+      };
+    }
+  }
+
+  /**
+   * Create a professional navigation bar
+   * Elements: Background bar, Logo, Menu items, Dropdown arrows, CTA button
+   */
+  private async createNavigationBar(
+    args: { y?: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const navY = args.y ?? -280; // Near top of canvas
+
+    // Navbar dimensions
+    const navWidth = 1200;
+    const navHeight = 70;
+    const logoSize = 40;
+    const menuFontSize = 15;
+    const ctaButtonWidth = 200;
+    const ctaButtonHeight = 44;
+    const dropdownSize = 16;
+
+    // Calculate positions (navbar spans horizontally across canvas)
+    const navX = -navWidth / 2; // Center horizontally
+
+    // Colors
+    const navBgColor = '#FFFFFF'; // White navbar
+    const logoColor = '#5B7FEE'; // Purple/blue logo
+    const menuTextColor = '#1A1A1A'; // Dark menu text
+    const ctaButtonColor = '#D946EF'; // Magenta CTA button
+    const ctaTextColor = '#FFFFFF'; // White CTA text
+
+    // Create all shapes
+    const now = Date.now();
+    const shapesToCreate: CanvasShape[] = [];
+
+    // 1. Navbar background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: navX,
+      y: navY,
+      width: navWidth,
+      height: navHeight,
+      color: navBgColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 2. Logo circle (left side)
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'circle',
+      x: navX + 60,
+      y: navY + navHeight / 2,
+      radius: logoSize / 2,
+      color: logoColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 3. CollabCanvas text (next to logo)
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: navX + 90,
+      y: navY + 25,
+      text: 'CollabCanvas',
+      fontSize: 18,
+      color: menuTextColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // Menu items with positions (centered in navbar)
+    const menuStartX = navX + 300;
+    const menuY = navY + 27;
+    const menuSpacing = 120;
+
+    const menuItems = [
+      { text: 'Features', hasDropdown: true },
+      { text: 'How it works', hasDropdown: false },
+      { text: 'Use cases', hasDropdown: true },
+      { text: 'Pricing', hasDropdown: false },
+      { text: 'FAQ', hasDropdown: false },
+    ];
+
+    // Create menu items
+    menuItems.forEach((item, index) => {
+      const xPos = menuStartX + index * menuSpacing;
+
+      // Menu text
+      shapesToCreate.push({
+        id: generateShapeId(),
+        type: 'text',
+        x: xPos,
+        y: menuY,
+        text: item.text,
+        fontSize: menuFontSize,
+        color: menuTextColor,
+        createdBy: context.userId,
+        createdAt: now,
+        lastModifiedBy: context.userId,
+        lastModifiedAt: now,
+        lockedBy: null,
+        lockedAt: null,
+      });
+
+      // Dropdown arrow (if needed)
+      if (item.hasDropdown) {
+        shapesToCreate.push({
+          id: generateShapeId(),
+          type: 'image',
+          x: xPos + item.text.length * 9 + 5,
+          y: menuY + 2,
+          width: dropdownSize,
+          height: dropdownSize,
+          src: chevronDown,
+          color: '#FFFFFF',
+          createdBy: context.userId,
+          createdAt: now,
+          lastModifiedBy: context.userId,
+          lastModifiedAt: now,
+          lockedBy: null,
+          lockedAt: null,
+        });
+      }
+    });
+
+    // CTA Button (right side)
+    const ctaX = navX + navWidth - ctaButtonWidth - 40;
+    const ctaY = navY + (navHeight - ctaButtonHeight) / 2;
+
+    // CTA button background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: ctaX,
+      y: ctaY,
+      width: ctaButtonWidth,
+      height: ctaButtonHeight,
+      color: ctaButtonColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // CTA button text
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: ctaX + 25,
+      y: ctaY + 13,
+      text: 'Get CollabCanvas Plus',
+      fontSize: menuFontSize,
+      color: ctaTextColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // Create all shapes in Firestore
+    const createdShapeIds: string[] = [];
+    try {
+      for (const shape of shapesToCreate) {
+        await createShape(shape);
+        context.shapes.push(shape);
+        createdShapeIds.push(shape.id);
+      }
+
+      return {
+        success: true,
+        message: `Created navigation bar with ${createdShapeIds.length} elements at y=${navY}`,
+        data: { shapeIds: createdShapeIds, elementCount: createdShapeIds.length },
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error creating navigation bar:', error);
+      return {
+        success: false,
+        message: `Failed to create navigation bar: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'CREATE_FAILED',
+      };
+    }
+  }
+
+  /**
+   * Create a professional card layout (pricing/feature card)
+   * Elements: Border rectangle, Title, Price, Image placeholder, Description, Button
+   */
+  private async createCardLayout(
+    args: { x?: number; y?: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return await this.createSingleCard(
+      args.x ?? 0,
+      args.y ?? 0,
+      'Free plan',
+      '$0',
+      context
+    );
+  }
+
+  /**
+   * Helper method to create a single card
+   */
+  private async createSingleCard(
+    centerX: number,
+    centerY: number,
+    title: string,
+    price: string,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Card dimensions
+    const cardWidth = 320;
+    const cardHeight = 380;
+    const imagePlaceholderWidth = 280;
+    const imagePlaceholderHeight = 120;
+    const buttonWidth = 280;
+    const buttonHeight = 48;
+
+    // Calculate positions relative to card center
+    const cardX = centerX - cardWidth / 2;
+    const cardY = centerY - cardHeight / 2;
+
+    // Colors
+    const cardBgColor = '#FFFFFF'; // White card background
+    const titleColor = '#6B7280'; // Gray title
+    const priceColor = '#1A1A1A'; // Dark price text
+    const descriptionColor = '#6B7280'; // Gray description
+    const imagePlaceholderColor = '#E5E7EB'; // Light gray placeholder
+    const buttonColor = '#1E293B'; // Dark navy button
+    const buttonTextColor = '#FFFFFF'; // White button text
+
+    // Create all shapes
+    const now = Date.now();
+    const shapesToCreate: CanvasShape[] = [];
+
+    // 1. Card container/border
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: cardX,
+      y: cardY,
+      width: cardWidth,
+      height: cardHeight,
+      color: cardBgColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 2. Title text
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: cardX + 20,
+      y: cardY + 25,
+      text: title,
+      fontSize: 16,
+      color: titleColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 3. Price text (large)
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: cardX + 20,
+      y: cardY + 55,
+      text: price,
+      fontSize: 48,
+      color: priceColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 4. Image placeholder rectangle
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: cardX + 20,
+      y: cardY + 130,
+      width: imagePlaceholderWidth,
+      height: imagePlaceholderHeight,
+      color: imagePlaceholderColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 5. Description text
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: cardX + 20,
+      y: cardY + 270,
+      text: 'For early-stage startups looking to',
+      fontSize: 14,
+      color: descriptionColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 6. Description text line 2
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: cardX + 20,
+      y: cardY + 290,
+      text: 'get started with data.',
+      fontSize: 14,
+      color: descriptionColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 7. Action button
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: cardX + 20,
+      y: cardY + 320,
+      width: buttonWidth,
+      height: buttonHeight,
+      color: buttonColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // 8. Button text (centered in button)
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'text',
+      x: cardX + 95,
+      y: cardY + 336,
+      text: 'Get started for free',
+      fontSize: 15,
+      color: buttonTextColor,
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // Create all shapes in Firestore
+    const createdShapeIds: string[] = [];
+    try {
+      for (const shape of shapesToCreate) {
+        await createShape(shape);
+        context.shapes.push(shape);
+        createdShapeIds.push(shape.id);
+      }
+
+      return {
+        success: true,
+        message: `Created card layout with ${createdShapeIds.length} elements at (${centerX}, ${centerY})`,
+        data: { shapeIds: createdShapeIds, elementCount: createdShapeIds.length },
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error creating card layout:', error);
+      return {
+        success: false,
+        message: `Failed to create card layout: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'CREATE_FAILED',
+      };
+    }
+  }
+
+  /**
+   * Create a web dashboard with 4 stats cards in 2x2 grid
+   * Cards: Total Users, Revenue, Active Sessions, Growth Rate
+   */
+  private async createDashboard(
+    args: { x?: number; y?: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const centerX = args.x ?? 0;
+    const centerY = args.y ?? 0;
+
+    // Dashboard configuration
+    const dashboardWidth = 800;
+    const dashboardHeight = 600;
+    const cardWidth = 340;
+    const cardHeight = 240;
+    const gap = 40;
+    const padding = 40;
+
+    const now = Date.now();
+    const shapesToCreate: CanvasShape[] = [];
+
+    // 1. Dashboard background
+    shapesToCreate.push({
+      id: generateShapeId(),
+      type: 'rectangle',
+      x: centerX - dashboardWidth / 2,
+      y: centerY - dashboardHeight / 2,
+      width: dashboardWidth,
+      height: dashboardHeight,
+      color: '#F9FAFB', // Light gray background
+      createdBy: context.userId,
+      createdAt: now,
+      lastModifiedBy: context.userId,
+      lastModifiedAt: now,
+      lockedBy: null,
+      lockedAt: null,
+    });
+
+    // Calculate card positions (2x2 grid)
+    const startX = centerX - dashboardWidth / 2 + padding;
+    const startY = centerY - dashboardHeight / 2 + padding;
+
+    // Define 4 stats cards
+    const cards = [
+      { 
+        title: 'Total Users', 
+        value: '24.5K', 
+        subtitle: '+12.5% from last month',
+        color: '#3B82F6', // Blue
+        x: startX, 
+        y: startY 
+      },
+      { 
+        title: 'Revenue', 
+        value: '$128.4K', 
+        subtitle: '+8.2% from last month',
+        color: '#10B981', // Green
+        x: startX + cardWidth + gap, 
+        y: startY 
+      },
+      { 
+        title: 'Active Sessions', 
+        value: '1,842', 
+        subtitle: '342 users online now',
+        color: '#F59E0B', // Orange
+        x: startX, 
+        y: startY + cardHeight + gap 
+      },
+      { 
+        title: 'Growth Rate', 
+        value: '+23.8%', 
+        subtitle: 'Trending upward',
+        color: '#8B5CF6', // Purple
+        x: startX + cardWidth + gap, 
+        y: startY + cardHeight + gap 
+      },
+    ];
+
+    // Create each stats card
+    for (const card of cards) {
+      // Card background
+      shapesToCreate.push({
+        id: generateShapeId(),
+        type: 'rectangle',
+        x: card.x,
+        y: card.y,
+        width: cardWidth,
+        height: cardHeight,
+        color: '#FFFFFF',
+        createdBy: context.userId,
+        createdAt: now,
+        lastModifiedBy: context.userId,
+        lastModifiedAt: now,
+        lockedBy: null,
+        lockedAt: null,
+      });
+
+      // Color accent bar (left side)
+      shapesToCreate.push({
+        id: generateShapeId(),
+        type: 'rectangle',
+        x: card.x,
+        y: card.y,
+        width: 6,
+        height: cardHeight,
+        color: card.color,
+        createdBy: context.userId,
+        createdAt: now,
+        lastModifiedBy: context.userId,
+        lastModifiedAt: now,
+        lockedBy: null,
+        lockedAt: null,
+      });
+
+      // Title
+      shapesToCreate.push({
+        id: generateShapeId(),
+        type: 'text',
+        x: card.x + 24,
+        y: card.y + 24,
+        text: card.title,
+        fontSize: 16,
+        color: '#6B7280',
+        createdBy: context.userId,
+        createdAt: now,
+        lastModifiedBy: context.userId,
+        lastModifiedAt: now,
+        lockedBy: null,
+        lockedAt: null,
+      });
+
+      // Main value (large)
+      shapesToCreate.push({
+        id: generateShapeId(),
+        type: 'text',
+        x: card.x + 24,
+        y: card.y + 80,
+        text: card.value,
+        fontSize: 48,
+        color: '#1F2937',
+        createdBy: context.userId,
+        createdAt: now,
+        lastModifiedBy: context.userId,
+        lastModifiedAt: now,
+        lockedBy: null,
+        lockedAt: null,
+      });
+
+      // Subtitle/trend
+      shapesToCreate.push({
+        id: generateShapeId(),
+        type: 'text',
+        x: card.x + 24,
+        y: card.y + 180,
+        text: card.subtitle,
+        fontSize: 14,
+        color: '#9CA3AF',
+        createdBy: context.userId,
+        createdAt: now,
+        lastModifiedBy: context.userId,
+        lastModifiedAt: now,
+        lockedBy: null,
+        lockedAt: null,
+      });
+    }
+
+    // Create all shapes in Firestore
+    const createdShapeIds: string[] = [];
+    try {
+      for (const shape of shapesToCreate) {
+        await createShape(shape);
+        context.shapes.push(shape);
+        createdShapeIds.push(shape.id);
+      }
+
+      return {
+        success: true,
+        message: `Created web dashboard with ${cards.length} stats cards (${createdShapeIds.length} total elements) at (${centerX}, ${centerY})`,
+        data: { 
+          shapeIds: createdShapeIds, 
+          cardCount: cards.length,
+          elementCount: createdShapeIds.length 
+        },
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error creating dashboard:', error);
+      return {
+        success: false,
+        message: `Failed to create dashboard: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'CREATE_FAILED',
       };
     }
   }

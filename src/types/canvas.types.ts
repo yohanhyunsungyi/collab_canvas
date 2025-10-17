@@ -1,4 +1,4 @@
-export type ShapeType = 'rectangle' | 'circle' | 'text';
+export type ShapeType = 'rectangle' | 'circle' | 'text' | 'image';
 
 export type ToolType = 'select' | 'rectangle' | 'circle' | 'text' | 'pan';
 
@@ -36,7 +36,14 @@ export interface TextShape extends BaseShape {
   height?: number;
 }
 
-export type CanvasShape = RectangleShape | CircleShape | TextShape;
+export interface ImageShape extends BaseShape {
+  type: 'image';
+  src: string; // URL or data URL of the image
+  width: number;
+  height: number;
+}
+
+export type CanvasShape = RectangleShape | CircleShape | TextShape | ImageShape;
 
 export interface CanvasState {
   shapes: CanvasShape[];

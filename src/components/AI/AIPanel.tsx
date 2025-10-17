@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { CanvasShape } from '../../types/canvas.types';
 import { useAI } from '../../hooks/useAI';
 import { Button } from '../UI/Button';
@@ -45,6 +45,13 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const disabled = useMemo(() => !isAvailable || loading || rateLimitStatus.remaining <= 0, [isAvailable, loading, rateLimitStatus.remaining]);
+
+  // Auto-expand history when AI starts thinking
+  useEffect(() => {
+    if (loading) {
+      setCollapsed(false);
+    }
+  }, [loading]);
 
   const handleSend = useCallback(async () => {
     const trimmed = prompt.trim();

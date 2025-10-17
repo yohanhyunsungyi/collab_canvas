@@ -1,9 +1,10 @@
-import { memo, useMemo, type ReactElement } from 'react';
-import { Rect, Circle, Text } from 'react-konva';
+import { memo, useMemo, useState, useEffect, type ReactElement } from 'react';
+import { Rect, Circle, Text, Image } from 'react-konva';
 import type Konva from 'konva';
-import type { CanvasShape, RectangleShape, CircleShape, TextShape } from '../../types/canvas.types';
+import type { CanvasShape, RectangleShape, CircleShape, TextShape, ImageShape } from '../../types/canvas.types';
 import { CANVAS_MIN_X, CANVAS_MAX_X, CANVAS_MIN_Y, CANVAS_MAX_Y } from '../../utils/boundaries';
 import { isLockExpired } from '../../services/canvas.service';
+import useImage from 'use-image';
 
 interface ShapeProps {
   shape: CanvasShape;
@@ -97,6 +98,10 @@ const ShapeComponent = ({
       const rectShape = shape as RectangleShape;
       x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - rectShape.width));
       y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - rectShape.height));
+    } else if (shape.type === 'image') {
+      const imgShape = shape as ImageShape;
+      x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - imgShape.width));
+      y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - imgShape.height));
     } else if (shape.type === 'circle') {
       const circleShape = shape as CircleShape;
       x = Math.max(CANVAS_MIN_X + circleShape.radius, Math.min(x, CANVAS_MAX_X - circleShape.radius));
@@ -130,6 +135,10 @@ const ShapeComponent = ({
       const rectShape = shape as RectangleShape;
       x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - rectShape.width));
       y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - rectShape.height));
+    } else if (shape.type === 'image') {
+      const imgShape = shape as ImageShape;
+      x = Math.max(CANVAS_MIN_X, Math.min(x, CANVAS_MAX_X - imgShape.width));
+      y = Math.max(CANVAS_MIN_Y, Math.min(y, CANVAS_MAX_Y - imgShape.height));
     } else if (shape.type === 'circle') {
       const circleShape = shape as CircleShape;
       x = Math.max(CANVAS_MIN_X + circleShape.radius, Math.min(x, CANVAS_MAX_X - circleShape.radius));
@@ -220,6 +229,24 @@ const ShapeComponent = ({
         />
       );
 
+    case 'image': {
+      const imageShape = shape as ImageShape;
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [image] = useImage(imageShape.src, 'anonymous');
+      return (
+        <Image
+          id={shape.id}
+          x={shape.x}
+          y={shape.y}
+          image={image}
+          width={imageShape.width}
+          height={imageShape.height}
+          ref={(node) => shapeRef(shape.id, node)}
+          {...commonProps}
+        />
+      );
+    }
+
     default:
       return null;
   }
@@ -248,7 +275,11 @@ export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
       (prevProps.shape as CircleShape).radius === (nextProps.shape as CircleShape).radius) &&
     (prevProps.shape.type !== 'text' || 
       ((prevProps.shape as TextShape).text === (nextProps.shape as TextShape).text &&
-       (prevProps.shape as TextShape).fontSize === (nextProps.shape as TextShape).fontSize))
+       (prevProps.shape as TextShape).fontSize === (nextProps.shape as TextShape).fontSize)) &&
+    (prevProps.shape.type !== 'image' || 
+      ((prevProps.shape as ImageShape).src === (nextProps.shape as ImageShape).src &&
+       (prevProps.shape as ImageShape).width === (nextProps.shape as ImageShape).width &&
+       (prevProps.shape as ImageShape).height === (nextProps.shape as ImageShape).height))
   );
 });
 
