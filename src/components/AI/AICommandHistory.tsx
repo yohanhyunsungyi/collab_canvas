@@ -83,14 +83,19 @@ export const AICommandHistory = ({ entries, loading, error, onDismissError, onRe
 
         {entries.map((entry) => (
           <div key={entry.id} className={`ai-history-item ${entry.success ? 'success' : 'failure'}`}>
-            <div className="ai-history-item-top">
-              <div className="ai-history-prompt">{entry.prompt}</div>
-              <div className="ai-history-actions">
-                <button className="ai-history-rerun" onClick={() => onRerun(entry.id)} title="Rerun this command">↻</button>
-                <button className="ai-history-delete" onClick={() => onDelete(entry.id)} title="Delete this command">✕</button>
-              </div>
+            <div className="ai-history-status-icon">
+              {entry.success ? '✓' : '✗'}
             </div>
-            <div className="ai-history-message">{entry.message}</div>
+            <div className="ai-history-content">
+              <div className="ai-history-item-top">
+                <div className="ai-history-prompt">{entry.prompt}</div>
+                <div className="ai-history-actions">
+                  <button className="ai-history-rerun" onClick={() => onRerun(entry.id)} title="Rerun this command">↻</button>
+                  <button className="ai-history-delete" onClick={() => onDelete(entry.id)} title="Delete this command">✕</button>
+                </div>
+              </div>
+              <div className="ai-history-message">{entry.message}</div>
+            </div>
           </div>
         ))}
       </div>

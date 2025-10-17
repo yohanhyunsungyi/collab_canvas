@@ -28,6 +28,7 @@ interface FirestoreShapeData {
   x: number;
   y: number;
   color: string;
+  zIndex: number;
   rotation?: number;
   createdBy: string;
   createdAt: number | Timestamp;
@@ -67,6 +68,7 @@ const firestoreToShape = (data: FirestoreShapeData): CanvasShape => {
     x: data.x,
     y: data.y,
     color: data.color,
+    zIndex: data.zIndex ?? 0, // Default to 0 for backward compatibility
     rotation: data.rotation,
     createdBy: data.createdBy,
     createdAt: timestampToNumber(data.createdAt),
@@ -120,6 +122,7 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
     x: shape.x,
     y: shape.y,
     color: shape.color,
+    zIndex: shape.zIndex,
     createdBy: shape.createdBy,
     createdAt: shape.createdAt,
     lastModifiedBy: shape.lastModifiedBy,
@@ -175,6 +178,7 @@ const partialShapeToFirestore = (updates: Partial<CanvasShape>): Partial<Firesto
   if (updates.x !== undefined) firestoreUpdates.x = updates.x;
   if (updates.y !== undefined) firestoreUpdates.y = updates.y;
   if (updates.color !== undefined) firestoreUpdates.color = updates.color;
+  if (updates.zIndex !== undefined) firestoreUpdates.zIndex = updates.zIndex;
   if (updates.lockedBy !== undefined) firestoreUpdates.lockedBy = updates.lockedBy;
   if (updates.lockedAt !== undefined) firestoreUpdates.lockedAt = updates.lockedAt;
   if (updates.lastModifiedBy !== undefined) firestoreUpdates.lastModifiedBy = updates.lastModifiedBy;
@@ -233,6 +237,7 @@ export const updateShape = async (
     if (updates.x !== undefined) firestoreUpdates.x = updates.x;
     if (updates.y !== undefined) firestoreUpdates.y = updates.y;
     if (updates.color !== undefined) firestoreUpdates.color = updates.color;
+    if (updates.zIndex !== undefined) firestoreUpdates.zIndex = updates.zIndex;
     if (updates.lockedBy !== undefined) firestoreUpdates.lockedBy = updates.lockedBy;
     if (updates.lockedAt !== undefined) firestoreUpdates.lockedAt = updates.lockedAt;
     if (updates.lastModifiedBy !== undefined) firestoreUpdates.lastModifiedBy = updates.lastModifiedBy;

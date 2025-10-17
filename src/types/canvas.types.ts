@@ -8,6 +8,7 @@ export interface BaseShape {
   x: number;
   y: number;
   color: string;
+  zIndex: number; // Layer order (higher = on top)
   rotation?: number; // Rotation in degrees
   createdBy: string;
   createdAt: number;

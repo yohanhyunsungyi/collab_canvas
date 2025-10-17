@@ -11,6 +11,10 @@ interface KeyboardShortcutsHandlers {
   onSelectAll?: () => void;
   onEscape?: () => void;
   onArrowMove?: (dx: number, dy: number) => void;
+  onBringToFront?: () => void;
+  onSendToBack?: () => void;
+  onBringForward?: () => void;
+  onSendBackward?: () => void;
 }
 
 interface UseKeyboardShortcutsProps {
@@ -41,10 +45,11 @@ export const useKeyboardShortcuts = ({
   const pressedKeys = useRef<Set<string>>(new Set());
 
   /**
-   * Check if the modifier key (Cmd or Ctrl) is pressed
+   * Check if the modifier key (Ctrl) is pressed
+   * Changed to use Ctrl on all platforms (Mac and Windows)
    */
   const isModifierKey = useCallback((event: KeyboardEvent) => {
-    return isMac() ? event.metaKey : event.ctrlKey;
+    return event.ctrlKey; // Use Ctrl on both Mac and Windows
   }, []);
 
   /**
@@ -66,6 +71,18 @@ export const useKeyboardShortcuts = ({
 
       const key = event.key.toLowerCase();
       const keyCode = `${event.ctrlKey ? 'ctrl+' : ''}${event.metaKey ? 'meta+' : ''}${event.shiftKey ? 'shift+' : ''}${event.altKey ? 'alt+' : ''}${key}`;
+
+      // Debug: Log bracket keys
+      if (key.includes('[') || key.includes(']') || key.includes('{') || key.includes('}')) {
+        console.log('[useKeyboardShortcuts] Key pressed:', {
+          key: event.key,
+          keyLower: key,
+          code: event.code,
+          shiftKey: event.shiftKey,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey
+        });
+      }
 
       // Prevent repeated firing of the same key
       if (pressedKeys.current.has(keyCode)) {
@@ -112,6 +129,42 @@ export const useKeyboardShortcuts = ({
       if (isModifierKey(event) && key === 'd' && selectedShapeIds.length > 0) {
         event.preventDefault();
         handlers.onDuplicate?.();
+        return;
+      }
+
+      // Bring Forward: Cmd/Ctrl+] (without Shift)
+      // Use event.code for reliable detection across Mac/Windows
+      if (isModifierKey(event) && event.code === 'BracketRight' && !event.shiftKey && selectedShapeIds.length > 0) {
+        event.preventDefault();
+        console.log('[useKeyboardShortcuts] Bring forward triggered');
+        handlers.onBringForward?.();
+        return;
+      }
+
+      // Bring to Front: Cmd/Ctrl+Shift+] (with Shift)
+      // Use event.code for reliable detection (BracketRight = ] key, regardless of Shift)
+      if (isModifierKey(event) && event.code === 'BracketRight' && event.shiftKey && selectedShapeIds.length > 0) {
+        event.preventDefault();
+        console.log('[useKeyboardShortcuts] Bring to front triggered');
+        handlers.onBringToFront?.();
+        return;
+      }
+
+      // Send Backward: Cmd/Ctrl+[ (without Shift)
+      // Use event.code for reliable detection across Mac/Windows
+      if (isModifierKey(event) && event.code === 'BracketLeft' && !event.shiftKey && selectedShapeIds.length > 0) {
+        event.preventDefault();
+        console.log('[useKeyboardShortcuts] Send backward triggered');
+        handlers.onSendBackward?.();
+        return;
+      }
+
+      // Send to Back: Cmd/Ctrl+Shift+[ (with Shift)
+      // Use event.code for reliable detection (BracketLeft = [ key, regardless of Shift)
+      if (isModifierKey(event) && event.code === 'BracketLeft' && event.shiftKey && selectedShapeIds.length > 0) {
+        event.preventDefault();
+        console.log('[useKeyboardShortcuts] Send to back triggered');
+        handlers.onSendToBack?.();
         return;
       }
 
@@ -211,19 +264,23 @@ export const KEYBOARD_SHORTCUTS = [
   {
     category: 'Editing',
     shortcuts: [
-      { key: isMac() ? '⌘Z' : 'Ctrl+Z', description: 'Undo' },
-      { key: isMac() ? '⇧⌘Z' : 'Ctrl+Shift+Z', description: 'Redo' },
-      { key: isMac() ? '⌘Y' : 'Ctrl+Y', description: 'Redo (alternate)' },
-      { key: isMac() ? '⌘C' : 'Ctrl+C', description: 'Copy' },
-      { key: isMac() ? '⌘V' : 'Ctrl+V', description: 'Paste' },
-      { key: isMac() ? '⌘D' : 'Ctrl+D', description: 'Duplicate' },
+      { key: 'Ctrl+Z', description: 'Undo' },
+      { key: 'Ctrl+Shift+Z', description: 'Redo' },
+      { key: 'Ctrl+Y', description: 'Redo (alternate)' },
+      { key: 'Ctrl+C', description: 'Copy' },
+      { key: 'Ctrl+V', description: 'Paste' },
+      { key: 'Ctrl+D', description: 'Duplicate' },
       { key: 'Delete / Backspace', description: 'Delete selected' },
+      { key: 'Ctrl+]', description: 'Bring forward' },
+      { key: 'Ctrl+Shift+]', description: 'Bring to front' },
+      { key: 'Ctrl+[', description: 'Send backward' },
+      { key: 'Ctrl+Shift+[', description: 'Send to back' },
     ],
   },
   {
     category: 'Selection',
     shortcuts: [
-      { key: isMac() ? '⌘A' : 'Ctrl+A', description: 'Select all' },
+      { key: 'Ctrl+A', description: 'Select all' },
       { key: 'Escape', description: 'Clear selection' },
     ],
   },
@@ -244,7 +301,7 @@ export const KEYBOARD_SHORTCUTS = [
   {
     category: 'AI',
     shortcuts: [
-      { key: isMac() ? '⌘K' : 'Ctrl+K', description: 'Focus AI input' },
+      { key: 'Ctrl+K', description: 'Focus AI input' },
     ],
   },
   {

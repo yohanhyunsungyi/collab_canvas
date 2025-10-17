@@ -5,6 +5,8 @@ import * as canvasService from '../services/canvas.service';
 import type { ShapeChangeEvent } from '../services/canvas.service';
 import type { ActionType } from '../types/history.types';
 import { HistoryManager, type ChangeSet } from '../history/historyManager';
+import * as zIndexUtils from '../utils/zindex.utils';
+import * as alignmentUtils from '../utils/alignment.utils';
 
 interface UseCanvasProps {
   userId?: string; // User ID for tracking history
@@ -60,6 +62,22 @@ interface UseCanvasReturn {
   clipboard: CanvasShape[];
   copySelectedShapes: () => void;
   pasteShapes: (userId: string) => Promise<void>;
+  
+  // Z-Index operations
+  bringToFront: () => Promise<void>;
+  sendToBack: () => Promise<void>;
+  bringForward: () => Promise<void>;
+  sendBackward: () => Promise<void>;
+  
+  // Alignment operations
+  alignLeft: () => Promise<void>;
+  alignRight: () => Promise<void>;
+  alignTop: () => Promise<void>;
+  alignBottom: () => Promise<void>;
+  alignCenterHorizontal: () => Promise<void>;
+  alignMiddleVertical: () => Promise<void>;
+  distributeHorizontally: () => Promise<void>;
+  distributeVertically: () => Promise<void>;
 }
 
 /**
@@ -128,15 +146,23 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
 
   // Add a new shape to the canvas and persist it to Firestore
   const addShape = useCallback(async (
-    shapeData: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>,
+    shapeData: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt' | 'zIndex'>,
     userId: string,
     overrideId?: string
   ) => {
     const effectiveUserId = userId ?? (initialUserId as string);
+    
+    // Calculate next zIndex (highest current zIndex + 1, or 0 if no shapes)
+    const maxZIndex = shapes.length > 0 
+      ? Math.max(...shapes.map(s => s.zIndex ?? 0)) 
+      : -1;
+    const nextZIndex = maxZIndex + 1;
+    
     // Create the full shape object with metadata
     const newShape: CanvasShape = {
       ...shapeData,
       id: overrideId ?? `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      zIndex: nextZIndex,
       createdBy: effectiveUserId,
       createdAt: Date.now(),
       lastModifiedBy: effectiveUserId,
@@ -572,6 +598,298 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     }
   }, [clipboard, commitChangeSet]);
 
+  // Z-Index operations: Bring to front
+  const bringToFront = useCallback(async () => {
+    if (selectedShapeIds.length === 0) return;
+    
+    const changes: ChangeSet = {};
+    for (const shapeId of selectedShapeIds) {
+      const updates = zIndexUtils.bringToFront(shapeId, shapes);
+      // Process all updates (includes renormalization of other shapes)
+      updates.forEach((newZIndex, updateShapeId) => {
+        const shape = shapes.find(s => s.id === updateShapeId);
+        if (shape) {
+          changes[updateShapeId] = {
+            shapeId: updateShapeId,
+            before: { zIndex: shape.zIndex },
+            after: { zIndex: newZIndex },
+          };
+        }
+      });
+    }
+    
+    if (Object.keys(changes).length > 0) {
+      await commitChangeSet('update', changes, { action: 'zIndex' });
+    }
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Z-Index operations: Send to back
+  const sendToBack = useCallback(async () => {
+    if (selectedShapeIds.length === 0) return;
+    
+    const changes: ChangeSet = {};
+    for (const shapeId of selectedShapeIds) {
+      const updates = zIndexUtils.sendToBack(shapeId, shapes);
+      // Process all updates (includes renormalization of other shapes)
+      updates.forEach((newZIndex, updateShapeId) => {
+        const shape = shapes.find(s => s.id === updateShapeId);
+        if (shape) {
+          changes[updateShapeId] = {
+            shapeId: updateShapeId,
+            before: { zIndex: shape.zIndex },
+            after: { zIndex: newZIndex },
+          };
+        }
+      });
+    }
+    
+    if (Object.keys(changes).length > 0) {
+      await commitChangeSet('update', changes, { action: 'zIndex' });
+    }
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Z-Index operations: Bring forward
+  const bringForward = useCallback(async () => {
+    if (selectedShapeIds.length === 0) return;
+    
+    const changes: ChangeSet = {};
+    for (const shapeId of selectedShapeIds) {
+      const updates = zIndexUtils.bringForward(shapeId, shapes);
+      // Process all updates (includes renormalization of other shapes)
+      updates.forEach((newZIndex, updateShapeId) => {
+        const shape = shapes.find(s => s.id === updateShapeId);
+        if (shape) {
+          changes[updateShapeId] = {
+            shapeId: updateShapeId,
+            before: { zIndex: shape.zIndex },
+            after: { zIndex: newZIndex },
+          };
+        }
+      });
+    }
+    
+    if (Object.keys(changes).length > 0) {
+      await commitChangeSet('update', changes, { action: 'zIndex' });
+    }
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Z-Index operations: Send backward
+  const sendBackward = useCallback(async () => {
+    if (selectedShapeIds.length === 0) return;
+    
+    const changes: ChangeSet = {};
+    for (const shapeId of selectedShapeIds) {
+      const updates = zIndexUtils.sendBackward(shapeId, shapes);
+      // Process all updates (includes renormalization of other shapes)
+      updates.forEach((newZIndex, updateShapeId) => {
+        const shape = shapes.find(s => s.id === updateShapeId);
+        if (shape) {
+          changes[updateShapeId] = {
+            shapeId: updateShapeId,
+            before: { zIndex: shape.zIndex },
+            after: { zIndex: newZIndex },
+          };
+        }
+      });
+    }
+    
+    if (Object.keys(changes).length > 0) {
+      await commitChangeSet('update', changes, { action: 'zIndex' });
+    }
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Align left
+  const alignLeftFn = useCallback(async () => {
+    if (selectedShapeIds.length < 2) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.alignShapesLeft(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { x: shape.x },
+          after: { x: newPos.x },
+        };
+      }
+    });
+    
+    await commitChangeSet('align', changes, { action: 'alignLeft' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Align right
+  const alignRightFn = useCallback(async () => {
+    if (selectedShapeIds.length < 2) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.alignShapesRight(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { x: shape.x },
+          after: { x: newPos.x },
+        };
+      }
+    });
+    
+    await commitChangeSet('align', changes, { action: 'alignRight' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Align top
+  const alignTopFn = useCallback(async () => {
+    if (selectedShapeIds.length < 2) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.alignShapesTop(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { y: shape.y },
+          after: { y: newPos.y },
+        };
+      }
+    });
+    
+    await commitChangeSet('align', changes, { action: 'alignTop' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Align bottom
+  const alignBottomFn = useCallback(async () => {
+    if (selectedShapeIds.length < 2) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.alignShapesBottom(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { y: shape.y },
+          after: { y: newPos.y },
+        };
+      }
+    });
+    
+    await commitChangeSet('align', changes, { action: 'alignBottom' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Align center horizontal
+  const alignCenterHorizontalFn = useCallback(async () => {
+    if (selectedShapeIds.length < 2) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.alignShapesCenterHorizontal(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { x: shape.x },
+          after: { x: newPos.x },
+        };
+      }
+    });
+    
+    await commitChangeSet('align', changes, { action: 'alignCenterHorizontal' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Align middle vertical
+  const alignMiddleVerticalFn = useCallback(async () => {
+    if (selectedShapeIds.length < 2) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.alignShapesMiddleVertical(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { y: shape.y },
+          after: { y: newPos.y },
+        };
+      }
+    });
+    
+    await commitChangeSet('align', changes, { action: 'alignMiddleVertical' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Distribute horizontally
+  const distributeHorizontallyFn = useCallback(async () => {
+    if (selectedShapeIds.length < 3) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.distributeHorizontally(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { x: shape.x },
+          after: { x: newPos.x },
+        };
+      }
+    });
+    
+    await commitChangeSet('distribute', changes, { action: 'distributeHorizontally' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
+  // Alignment operations: Distribute vertically
+  const distributeVerticallyFn = useCallback(async () => {
+    if (selectedShapeIds.length < 3) return;
+    
+    const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const updates = alignmentUtils.distributeVertically(selectedShapes);
+    
+    if (updates.size === 0) return;
+    
+    const changes: ChangeSet = {};
+    updates.forEach((newPos, shapeId) => {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (shape) {
+        changes[shapeId] = {
+          shapeId,
+          before: { x: shape.x, y: shape.y },
+          after: { x: newPos.x, y: newPos.y },
+        };
+      }
+    });
+    
+    await commitChangeSet('distribute', changes, { action: 'distributeVertically' });
+  }, [selectedShapeIds, shapes, commitChangeSet]);
+
   return {
     // State
     shapes,
@@ -616,6 +934,22 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     clipboard,
     copySelectedShapes,
     pasteShapes,
+    
+    // Z-Index operations
+    bringToFront,
+    sendToBack,
+    bringForward,
+    sendBackward,
+    
+    // Alignment operations
+    alignLeft: alignLeftFn,
+    alignRight: alignRightFn,
+    alignTop: alignTopFn,
+    alignBottom: alignBottomFn,
+    alignCenterHorizontal: alignCenterHorizontalFn,
+    alignMiddleVertical: alignMiddleVerticalFn,
+    distributeHorizontally: distributeHorizontallyFn,
+    distributeVertically: distributeVerticallyFn,
   };
 };
 

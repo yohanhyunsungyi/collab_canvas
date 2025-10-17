@@ -128,6 +128,20 @@ export const Canvas = () => {
     canRedo,
     undo,
     redo,
+    // Z-Index operations
+    bringToFront,
+    sendToBack,
+    bringForward,
+    sendBackward,
+    // Alignment operations
+    alignLeft,
+    alignRight,
+    alignTop,
+    alignBottom,
+    alignCenterHorizontal,
+    alignMiddleVertical,
+    distributeHorizontally,
+    distributeVertically,
     // Clipboard
     copySelectedShapes,
     pasteShapes,
@@ -250,6 +264,10 @@ export const Canvas = () => {
       onSelectAll: handleSelectAll,
       onEscape: clearSelection,
       onArrowMove: handleArrowMove,
+      onBringToFront: bringToFront,
+      onSendToBack: sendToBack,
+      onBringForward: bringForward,
+      onSendBackward: sendBackward,
     },
     selectedShapeIds,
     shapes,
@@ -1611,11 +1629,18 @@ export const Canvas = () => {
           onFontSizeChange={handleFontSizeChange}
           onDuplicate={() => user && duplicateSelectedShapes(user.id)}
           onDelete={handleDeleteSelected}
-          onAlignLeft={handleAlignLeft}
-          onAlignCenter={handleAlignCenter}
-          onAlignRight={handleAlignRight}
-          onDistributeHorizontally={handleDistributeHorizontally}
-          onDistributeVertically={handleDistributeVertically}
+          onAlignLeft={alignLeft}
+          onAlignCenter={alignCenterHorizontal}
+          onAlignRight={alignRight}
+          onAlignTop={alignTop}
+          onAlignBottom={alignBottom}
+          onAlignMiddleVertical={alignMiddleVertical}
+          onDistributeHorizontally={distributeHorizontally}
+          onDistributeVertically={distributeVertically}
+          onBringToFront={bringToFront}
+          onSendToBack={sendToBack}
+          onBringForward={bringForward}
+          onSendBackward={sendBackward}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={undo}
@@ -1691,8 +1716,8 @@ export const Canvas = () => {
               listening={false}
             />
             
-            {/* Render all shapes */}
-            {shapes.map((shape) => {
+            {/* Render all shapes sorted by zIndex (lower zIndex = rendered first = behind) */}
+            {[...shapes].sort((a, b) => a.zIndex - b.zIndex).map((shape) => {
               const handleShapeSelect = async (e: Konva.KonvaEventObject<MouseEvent>) => {
                 console.log('[Canvas] onSelect called for shape:', shape.id, 'currentTool:', currentTool);
                 
