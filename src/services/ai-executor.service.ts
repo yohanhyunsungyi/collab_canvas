@@ -1,5 +1,5 @@
 import type { CanvasShape } from '../types/canvas.types';
-import { createShape, updateShape, deleteShape } from './canvas.service';
+import { createShape, updateShape, deleteShape, deleteMultipleShapes as batchDeleteShapes } from './canvas.service';
 import type { AIToolCall } from '../types/ai.types';
 import { normalizeHexColor, resolveColorQuery } from '../utils/colorMatching';
 import { SHAPE_COLORS } from '../utils/colors';
@@ -54,6 +54,7 @@ export interface ExecutionContext {
   canvasWidth?: number;
   canvasHeight?: number;
   selectedShapeIds?: string[];
+  viewportCenter?: { x: number; y: number };
 }
 
 /**
@@ -241,9 +242,9 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
-    // Default to center-ish position (-100, -100) in centered coordinate system
-    const defaultX = args.x ?? -100;
-    const defaultY = args.y ?? -100;
+    // Use viewport center if available, otherwise default to canvas center (0, 0)
+    const defaultX = args.x ?? context.viewportCenter?.x ?? 0;
+    const defaultY = args.y ?? context.viewportCenter?.y ?? 0;
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'rectangle',
@@ -276,12 +277,12 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
-    // Default to center-ish position (0, 0) in centered coordinate system
+    // Use viewport center if available, otherwise default to canvas center (0, 0)
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'circle',
-      x: args.x ?? 0,
-      y: args.y ?? 0,
+      x: args.x ?? context.viewportCenter?.x ?? 0,
+      y: args.y ?? context.viewportCenter?.y ?? 0,
       radius: args.radius ?? 50,
       color: args.color ?? getRandomColor(),
       zIndex: getNextZIndex(context.shapes),
@@ -308,12 +309,12 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
-    // Default to center-ish position (-50, -50) in centered coordinate system
+    // Use viewport center if available, otherwise default to canvas center (0, 0)
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'text',
-      x: args.x ?? -50,
-      y: args.y ?? -50,
+      x: args.x ?? context.viewportCenter?.x ?? 0,
+      y: args.y ?? context.viewportCenter?.y ?? 0,
       text: args.text,
       fontSize: args.fontSize ?? 24,
       color: args.color ?? getRandomColor(),
@@ -349,12 +350,19 @@ class AIExecutorService {
         fontSize?: number;
         color: string;
       }>;
+      count?: number;
     },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const createdShapes: string[] = [];
+    
+    // If count is provided and > shapes.length, duplicate the first shape
+    const totalShapes = args.count && args.count > args.shapes.length ? args.count : args.shapes.length;
+    const templateShape = args.shapes[0];
 
-    for (const shapeData of args.shapes) {
+    for (let i = 0; i < totalShapes; i++) {
+      // Use the template shape if count is specified, otherwise use the indexed shape
+      const shapeData = args.count ? templateShape : args.shapes[i];
       const now = Date.now();
       let shape: CanvasShape;
 
@@ -410,9 +418,19 @@ class AIExecutorService {
         };
       }
 
-      await createShape(shape);
-      context.shapes.push(shape);
-      createdShapes.push(shape.id);
+      try {
+        await createShape(shape);
+        context.shapes.push(shape);
+        createdShapes.push(shape.id);
+        
+        // Add small delay every 10 shapes to avoid Firebase rate limiting
+        if ((i + 1) % 10 === 0 && i < args.shapes.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      } catch (error) {
+        console.error(`[AI Executor] Error creating shape ${i}:`, error);
+        // Continue with other shapes even if one fails
+      }
     }
 
     return {
@@ -476,17 +494,9 @@ class AIExecutorService {
     };
 
     const matchingShapes = applyFilters(context.shapes);
-    const selectedShapes =
-      context.selectedShapeIds && context.selectedShapeIds.length > 0
-        ? applyFilters(
-            context.shapes.filter((shape) =>
-              context.selectedShapeIds!.includes(shape.id)
-            )
-          )
-        : [];
-    const candidateShapes = selectedShapes.length > 0 ? selectedShapes : matchingShapes;
-
-    if (candidateShapes.length === 0) {
+    
+    // If no matching shapes found at all, return error
+    if (matchingShapes.length === 0) {
       if (args.type) {
         const friendlyType =
           args.type === 'circle'
@@ -499,7 +509,7 @@ class AIExecutorService {
 
         return {
           success: false,
-          message: `Select a ${friendlyType} object.`,
+          message: `No ${friendlyType} found on canvas`,
           error: 'SHAPE_NOT_FOUND',
         };
       }
@@ -509,25 +519,10 @@ class AIExecutorService {
         message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
         error: 'SHAPE_NOT_FOUND',
       };
-    } else if (args.type && selectedShapes.length === 0) {
-      const friendlyType =
-        args.type === 'circle'
-          ? 'circle'
-          : args.type === 'rectangle'
-            ? 'rectangle'
-            : args.type === 'text'
-              ? 'text'
-              : 'shape';
-
-      return {
-        success: false,
-        message: `Select a ${friendlyType} object.`,
-        error: 'SHAPE_NOT_FOUND',
-      };
     }
 
     // Use the first matching shape (or most recently created if multiple)
-    const targetShape = candidateShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
+    const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
 
     // Calculate new dimensions
     const resizeArgs: { shapeId: string; width?: number; height?: number; radius?: number } = {
@@ -887,26 +882,37 @@ class AIExecutorService {
     args: { shapeIds: string[] },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    let deleted = 0;
+    // Find valid shape IDs that exist in context
+    const validShapeIds = args.shapeIds.filter(id => 
+      context.shapes.find(s => s.id === id)
+    );
 
-    for (const shapeId of args.shapeIds) {
-      const shape = context.shapes.find((s) => s.id === shapeId);
-      if (shape) {
-        await deleteShape(shapeId);
-        deleted++;
-        const index = context.shapes.findIndex((s) => s.id === shapeId);
-        if (index >= 0) {
-          context.shapes.splice(index, 1);
-        }
+    if (validShapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No shapes found to delete',
+        error: 'NO_SHAPES_FOUND',
+      };
+    }
+
+    // Batch delete all shapes in a single Firestore operation
+    await batchDeleteShapes(validShapeIds);
+
+    // Remove from context
+    for (const shapeId of validShapeIds) {
+      const index = context.shapes.findIndex((s) => s.id === shapeId);
+      if (index >= 0) {
+        context.shapes.splice(index, 1);
       }
     }
+    
     if (context.selectedShapeIds) {
-      context.selectedShapeIds = context.selectedShapeIds.filter((id) => !args.shapeIds.includes(id));
+      context.selectedShapeIds = context.selectedShapeIds.filter((id) => !validShapeIds.includes(id));
     }
 
     return {
       success: true,
-      message: `Deleted ${deleted} shapes`,
+      message: `Deleted ${validShapeIds.length} shapes`,
     };
   }
 
@@ -1290,14 +1296,24 @@ class AIExecutorService {
     // Calculate spacing between shapes
     const spacing = (totalSpace - totalShapeWidth) / (sortedShapes.length - 1);
     
-    // Position each shape
+    // Position each shape with small delay to avoid rate limiting
     let currentLeft = leftmostLeft;
     for (const shape of sortedShapes) {
-      await updateShape(shape.id, {
-        x: this.setShapeLeft(shape, currentLeft),
-        lastModifiedBy: context.userId,
-      });
-      currentLeft += this.getShapeWidth(shape) + spacing;
+      try {
+        await updateShape(shape.id, {
+          x: this.setShapeLeft(shape, currentLeft),
+          lastModifiedBy: context.userId,
+        });
+        currentLeft += this.getShapeWidth(shape) + spacing;
+        
+        // Add small delay every 10 shapes to avoid Firebase rate limiting
+        if (sortedShapes.indexOf(shape) % 10 === 9) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      } catch (error) {
+        console.error(`[AI Executor] Error arranging shape ${shape.id}:`, error);
+        // Continue with other shapes even if one fails
+      }
     }
 
     return {
@@ -1311,8 +1327,9 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const spacing = args.spacing ?? 120;
-    const x = args.x ?? 100;
-    const startY = args.startY ?? 100;
+    // Use viewport center if available, otherwise default to (0, 0)
+    const x = args.x ?? context.viewportCenter?.x ?? 0;
+    const startY = args.startY ?? context.viewportCenter?.y ?? 0;
     
     // If shapeIds is empty, use all shapes from canvas
     const targetShapeIds = args.shapeIds.length === 0 
@@ -1501,11 +1518,21 @@ class AIExecutorService {
     
     let currentLeft = leftmostLeft;
     for (const shape of sortedShapes) {
-      await updateShape(shape.id, {
-        x: this.setShapeLeft(shape, currentLeft),
-        lastModifiedBy: context.userId,
-      });
-      currentLeft += this.getShapeWidth(shape) + spacing;
+      try {
+        await updateShape(shape.id, {
+          x: this.setShapeLeft(shape, currentLeft),
+          lastModifiedBy: context.userId,
+        });
+        currentLeft += this.getShapeWidth(shape) + spacing;
+        
+        // Add small delay every 10 shapes to avoid Firebase rate limiting
+        if (sortedShapes.indexOf(shape) % 10 === 9) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      } catch (error) {
+        console.error(`[AI Executor] Error distributing shape ${shape.id}:`, error);
+        // Continue with other shapes even if one fails
+      }
     }
 
     return {
@@ -1599,8 +1626,13 @@ class AIExecutorService {
     args: { x?: number; y?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const centerX = args.x ?? 0;
-    const centerY = args.y ?? 0;
+    // Use viewport center if no position specified OR if AI passes default (0,0)
+    // Check if args are undefined or both are exactly 0 (AI's default)
+    const useViewportCenter = (args.x === undefined && args.y === undefined) || 
+                              (args.x === 0 && args.y === 0 && context.viewportCenter);
+    
+    const centerX = useViewportCenter ? (context.viewportCenter?.x ?? 0) : (args.x ?? 0);
+    const centerY = useViewportCenter ? (context.viewportCenter?.y ?? 0) : (args.y ?? 0);
 
     // Form dimensions - modern clean layout
     const formWidth = 400;
@@ -1633,6 +1665,7 @@ class AIExecutorService {
     // Create all shapes
     const now = Date.now();
     const shapesToCreate: CanvasShape[] = [];
+    let currentZIndex = getNextZIndex(context.shapes);
 
     // 1. Container background
     shapesToCreate.push({
@@ -1643,7 +1676,7 @@ class AIExecutorService {
       width: formWidth,
       height: formHeight,
       color: containerColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1661,7 +1694,7 @@ class AIExecutorService {
       text: 'Sign in to CollabCanvas',
       fontSize: titleFontSize,
       color: textColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1679,7 +1712,7 @@ class AIExecutorService {
       text: "Don't have an account? Create one",
       fontSize: subtitleFontSize,
       color: subtitleColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1697,7 +1730,7 @@ class AIExecutorService {
       text: 'Email address',
       fontSize: labelFontSize,
       color: labelColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1715,7 +1748,7 @@ class AIExecutorService {
       width: inputWidth,
       height: inputHeight,
       color: inputColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1733,7 +1766,7 @@ class AIExecutorService {
       text: 'Password',
       fontSize: labelFontSize,
       color: labelColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1751,7 +1784,7 @@ class AIExecutorService {
       width: inputWidth,
       height: inputHeight,
       color: inputColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1769,7 +1802,7 @@ class AIExecutorService {
       width: inputWidth,
       height: buttonHeight,
       color: buttonColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1787,7 +1820,7 @@ class AIExecutorService {
       text: 'Sign in',
       fontSize: buttonFontSize,
       color: buttonTextColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1805,7 +1838,7 @@ class AIExecutorService {
       width: 120,
       height: 1,
       color: dividerLineColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1823,7 +1856,7 @@ class AIExecutorService {
       text: 'Or continue with',
       fontSize: subtitleFontSize,
       color: subtitleColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1841,7 +1874,7 @@ class AIExecutorService {
       width: 120,
       height: 1,
       color: dividerLineColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1864,7 +1897,7 @@ class AIExecutorService {
       width: socialButtonWidth,
       height: socialButtonHeight,
       color: socialBgColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1883,7 +1916,7 @@ class AIExecutorService {
       height: 32,
       src: googleLogo,
       color: '#FFFFFF',
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1901,7 +1934,7 @@ class AIExecutorService {
       width: socialButtonWidth,
       height: socialButtonHeight,
       color: socialBgColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1920,7 +1953,7 @@ class AIExecutorService {
       height: 32,
       src: appleLogo,
       color: '#FFFFFF',
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1938,7 +1971,7 @@ class AIExecutorService {
       width: socialButtonWidth,
       height: socialButtonHeight,
       color: socialBgColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1957,7 +1990,7 @@ class AIExecutorService {
       height: 32,
       src: facebookLogo,
       color: '#FFFFFF',
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -1998,7 +2031,16 @@ class AIExecutorService {
     args: { y?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const navY = args.y ?? -280; // Near top of canvas
+    // Use viewport center if no position specified OR if AI passes common defaults (-280, 0)
+    const useViewportCenter = context.viewportCenter && 
+                              (args.y === undefined || 
+                               args.y === 0 || 
+                               args.y === -280);
+    
+    // Position navbar at top of viewport (center Y minus 300px offset)
+    const navY = useViewportCenter && context.viewportCenter ? 
+                 context.viewportCenter.y - 300 : 
+                 (args.y ?? -280);
 
     // Navbar dimensions
     const navWidth = 1200;
@@ -2010,7 +2052,8 @@ class AIExecutorService {
     const dropdownSize = 16;
 
     // Calculate positions (navbar spans horizontally across canvas)
-    const navX = -navWidth / 2; // Center horizontally
+    // X position: Center horizontally relative to viewport center
+    const navX = context.viewportCenter ? context.viewportCenter.x - navWidth / 2 : -navWidth / 2;
 
     // Colors
     const navBgColor = '#FFFFFF'; // White navbar
@@ -2022,6 +2065,7 @@ class AIExecutorService {
     // Create all shapes
     const now = Date.now();
     const shapesToCreate: CanvasShape[] = [];
+    let currentZIndex = getNextZIndex(context.shapes);
 
     // 1. Navbar background
     shapesToCreate.push({
@@ -2032,7 +2076,7 @@ class AIExecutorService {
       width: navWidth,
       height: navHeight,
       color: navBgColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2049,7 +2093,7 @@ class AIExecutorService {
       y: navY + navHeight / 2,
       radius: logoSize / 2,
       color: logoColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2067,7 +2111,7 @@ class AIExecutorService {
       text: 'CollabCanvas',
       fontSize: 18,
       color: menuTextColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2102,6 +2146,7 @@ class AIExecutorService {
         text: item.text,
         fontSize: menuFontSize,
         color: menuTextColor,
+        zIndex: currentZIndex++,
         createdBy: context.userId,
         createdAt: now,
         lastModifiedBy: context.userId,
@@ -2121,6 +2166,7 @@ class AIExecutorService {
           height: dropdownSize,
           src: chevronDown,
           color: '#FFFFFF',
+          zIndex: currentZIndex++,
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -2144,7 +2190,7 @@ class AIExecutorService {
       width: ctaButtonWidth,
       height: ctaButtonHeight,
       color: ctaButtonColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2162,7 +2208,7 @@ class AIExecutorService {
       text: 'Get CollabCanvas Plus',
       fontSize: menuFontSize,
       color: ctaTextColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2203,9 +2249,16 @@ class AIExecutorService {
     args: { x?: number; y?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
+    // Use viewport center if no position specified OR if AI passes default (0,0)
+    const useViewportCenter = (args.x === undefined && args.y === undefined) || 
+                              (args.x === 0 && args.y === 0 && context.viewportCenter);
+    
+    const centerX = useViewportCenter ? (context.viewportCenter?.x ?? 0) : (args.x ?? 0);
+    const centerY = useViewportCenter ? (context.viewportCenter?.y ?? 0) : (args.y ?? 0);
+    
     return await this.createSingleCard(
-      args.x ?? 0,
-      args.y ?? 0,
+      centerX,
+      centerY,
       'Free plan',
       '$0',
       context
@@ -2246,6 +2299,7 @@ class AIExecutorService {
     // Create all shapes
     const now = Date.now();
     const shapesToCreate: CanvasShape[] = [];
+    let currentZIndex = getNextZIndex(context.shapes);
 
     // 1. Card container/border
     shapesToCreate.push({
@@ -2256,7 +2310,7 @@ class AIExecutorService {
       width: cardWidth,
       height: cardHeight,
       color: cardBgColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2274,7 +2328,7 @@ class AIExecutorService {
       text: title,
       fontSize: 16,
       color: titleColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2292,7 +2346,7 @@ class AIExecutorService {
       text: price,
       fontSize: 48,
       color: priceColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2310,7 +2364,7 @@ class AIExecutorService {
       width: imagePlaceholderWidth,
       height: imagePlaceholderHeight,
       color: imagePlaceholderColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2328,7 +2382,7 @@ class AIExecutorService {
       text: 'For early-stage startups looking to',
       fontSize: 14,
       color: descriptionColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2346,7 +2400,7 @@ class AIExecutorService {
       text: 'get started with data.',
       fontSize: 14,
       color: descriptionColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2364,7 +2418,7 @@ class AIExecutorService {
       width: buttonWidth,
       height: buttonHeight,
       color: buttonColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2382,7 +2436,7 @@ class AIExecutorService {
       text: 'Get started for free',
       fontSize: 15,
       color: buttonTextColor,
-      zIndex: getNextZIndex(context.shapes),
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2423,8 +2477,12 @@ class AIExecutorService {
     args: { x?: number; y?: number },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const centerX = args.x ?? 0;
-    const centerY = args.y ?? 0;
+    // Use viewport center if no position specified OR if AI passes default (0,0)
+    const useViewportCenter = (args.x === undefined && args.y === undefined) || 
+                              (args.x === 0 && args.y === 0 && context.viewportCenter);
+    
+    const centerX = useViewportCenter ? (context.viewportCenter?.x ?? 0) : (args.x ?? 0);
+    const centerY = useViewportCenter ? (context.viewportCenter?.y ?? 0) : (args.y ?? 0);
 
     // Dashboard configuration
     const dashboardWidth = 800;
@@ -2436,6 +2494,7 @@ class AIExecutorService {
 
     const now = Date.now();
     const shapesToCreate: CanvasShape[] = [];
+    let currentZIndex = getNextZIndex(context.shapes);
 
     // 1. Dashboard background
     shapesToCreate.push({
@@ -2446,6 +2505,7 @@ class AIExecutorService {
       width: dashboardWidth,
       height: dashboardHeight,
       color: '#F9FAFB', // Light gray background
+      zIndex: currentZIndex++,
       createdBy: context.userId,
       createdAt: now,
       lastModifiedBy: context.userId,
@@ -2505,6 +2565,7 @@ class AIExecutorService {
         width: cardWidth,
         height: cardHeight,
         color: '#FFFFFF',
+        zIndex: currentZIndex++,
         createdBy: context.userId,
         createdAt: now,
         lastModifiedBy: context.userId,
@@ -2522,6 +2583,7 @@ class AIExecutorService {
         width: 6,
         height: cardHeight,
         color: card.color,
+        zIndex: currentZIndex++,
         createdBy: context.userId,
         createdAt: now,
         lastModifiedBy: context.userId,
@@ -2539,6 +2601,7 @@ class AIExecutorService {
         text: card.title,
         fontSize: 16,
         color: '#6B7280',
+        zIndex: currentZIndex++,
         createdBy: context.userId,
         createdAt: now,
         lastModifiedBy: context.userId,
@@ -2556,6 +2619,7 @@ class AIExecutorService {
         text: card.value,
         fontSize: 48,
         color: '#1F2937',
+        zIndex: currentZIndex++,
         createdBy: context.userId,
         createdAt: now,
         lastModifiedBy: context.userId,
@@ -2573,6 +2637,7 @@ class AIExecutorService {
         text: card.subtitle,
         fontSize: 14,
         color: '#9CA3AF',
+        zIndex: currentZIndex++,
         createdBy: context.userId,
         createdAt: now,
         lastModifiedBy: context.userId,
@@ -2642,9 +2707,17 @@ class AIExecutorService {
     }
 
     const count = context.shapes.length;
-    for (const shape of context.shapes) {
-      await deleteShape(shape.id);
+    
+    if (count === 0) {
+      return {
+        success: true,
+        message: 'Canvas is already empty',
+      };
     }
+
+    // Batch delete all shapes in a single Firestore operation
+    const shapeIds = context.shapes.map(s => s.id);
+    await batchDeleteShapes(shapeIds);
 
     // Clear the context.shapes array to reflect the cleared canvas
     context.shapes.splice(0, context.shapes.length);

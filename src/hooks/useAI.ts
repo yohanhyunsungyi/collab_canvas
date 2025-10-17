@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { CanvasShape } from '../types/canvas.types';
+import type { CanvasShape, Viewport } from '../types/canvas.types';
 import type { AICommandRequest, AICommandResponse } from '../types/ai.types';
 import { aiService } from '../services/ai.service';
 // Local parsing removed per requirement; rely solely on provider tool calls
@@ -47,7 +47,9 @@ export const useAI = (
   shapes: CanvasShape[],
   selectedShapeIds: string[],
   canvasWidth?: number,
-  canvasHeight?: number
+  canvasHeight?: number,
+  viewport?: Viewport,
+  containerSize?: { width: number; height: number }
 ): UseAIReturn => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,12 +137,26 @@ export const useAI = (
 
         // Execute tool calls if present
         if (aiResponse.toolCalls && aiResponse.toolCalls.length > 0) {
+          // Calculate viewport center for dynamic positioning
+          let viewportCenter: { x: number; y: number } | undefined;
+          
+          if (viewport && containerSize && containerSize.width > 0 && containerSize.height > 0) {
+            // Convert center of screen to canvas coordinates
+            const screenCenterX = containerSize.width / 2;
+            const screenCenterY = containerSize.height / 2;
+            const viewportCenterX = (screenCenterX - viewport.x) / viewport.scale;
+            const viewportCenterY = (screenCenterY - viewport.y) / viewport.scale;
+            
+            viewportCenter = { x: viewportCenterX, y: viewportCenterY };
+          }
+          
           const context: ExecutionContext = {
             userId,
             shapes,
             selectedShapeIds,
             canvasWidth,
             canvasHeight,
+            viewportCenter,
           };
 
           const executionResults = await aiExecutorService.executeTools(
@@ -200,7 +216,7 @@ export const useAI = (
         setStreamingStatus(null);
       }
     },
-    [userId, shapes, selectedShapeIds, canvasWidth, canvasHeight, isAvailable]
+    [userId, shapes, selectedShapeIds, canvasWidth, canvasHeight, viewport, containerSize, isAvailable]
   );
 
   /**

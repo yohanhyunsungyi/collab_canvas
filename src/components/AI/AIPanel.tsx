@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle, useEffect } from 'react';
-import type { CanvasShape } from '../../types/canvas.types';
+import type { CanvasShape, Viewport } from '../../types/canvas.types';
 import { useAI } from '../../hooks/useAI';
 import { Button } from '../UI/Button';
 import { Toast } from '../UI/Toast';
@@ -13,6 +13,8 @@ interface AIPanelProps {
   selectedShapeIds: string[];
   canvasWidth?: number;
   canvasHeight?: number;
+  viewport: Viewport;
+  containerSize: { width: number; height: number };
   defaultCollapsed?: boolean;
   className?: string;
   onShapesHighlight?: (shapeIds: string[]) => void;
@@ -28,6 +30,8 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   selectedShapeIds,
   canvasWidth,
   canvasHeight,
+  viewport,
+  containerSize,
   defaultCollapsed = true,
   className = '',
   onShapesHighlight,
@@ -37,7 +41,9 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
     shapes,
     selectedShapeIds,
     canvasWidth,
-    canvasHeight
+    canvasHeight,
+    viewport,
+    containerSize
   );
 
   const [prompt, setPrompt] = useState('');

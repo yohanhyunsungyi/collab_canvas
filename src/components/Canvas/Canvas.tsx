@@ -1591,11 +1591,15 @@ export const Canvas = () => {
                   'crosshair' 
         }}
       >
-        {/* Canvas Info Overlay: top-left, simple three-line readout */}
+        {/* Canvas Info Overlay: bottom-left, simple three-line readout */}
         <div className="canvas-info-overlay" aria-live="polite">
           <div>Canvas: {CANVAS_WIDTH}x{CANVAS_HEIGHT}px</div>
           <div>Zoom: {Math.round(viewport.scale * 100)}%</div>
-          <div>Position: ({Math.round(viewport.x)}, {Math.round(viewport.y)})</div>
+          <div>
+            Center: (
+            {Math.round((containerSize.width / 2 - viewport.x) / viewport.scale)}, {Math.round((containerSize.height / 2 - viewport.y) / viewport.scale)}
+            )
+          </div>
         </div>
 
         <CanvasToolbar
@@ -1914,6 +1918,8 @@ export const Canvas = () => {
           selectedShapeIds={selectedShapeIds}
           canvasWidth={CANVAS_WIDTH}
           canvasHeight={CANVAS_HEIGHT}
+          viewport={viewport}
+          containerSize={containerSize}
           defaultCollapsed={true}
           onShapesHighlight={highlightShapes}
         />

@@ -108,13 +108,13 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createMultipleShapes',
-      description: 'Create multiple shapes at once. For grid layouts: Create all N*N shapes with the SAME x,y coordinates (like x:0, y:0), then call arrangeGrid to position them. Example: "Create a 3x3 grid" → createMultipleShapes with 9 shapes ALL at x:0, y:0, THEN arrangeGrid(shapeIds=[], columns=3). Do NOT pre-calculate grid positions - let arrangeGrid handle positioning!',
+      description: 'Create multiple identical shapes at once. For large grids (100+ shapes), use the "count" parameter to duplicate the first shape. For grid layouts: Create shapes with the SAME x,y coordinates (like x:0, y:0), then call arrangeGrid to position them. Example: "Create a grid of 500 squares" → createMultipleShapes(shapes=[{type:rectangle, x:0, y:0, width:20, height:20, color:#FF0000}], count:500) THEN arrangeGrid(shapeIds=[], columns:Math.ceil(Math.sqrt(500))). Do NOT pre-calculate grid positions - let arrangeGrid handle positioning!',
       parameters: {
         type: 'object',
         properties: {
           shapes: {
             type: 'array',
-            description: 'Array of shape definitions to create. For grid layouts, use the SAME x,y for ALL shapes (e.g., x:0, y:0).',
+            description: 'Array with ONE shape definition that will be duplicated "count" times. For creating many identical shapes, only provide ONE shape object.',
             items: {
               type: 'object',
               properties: {
@@ -134,6 +134,10 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
               },
               required: ['type', 'x', 'y'],
             },
+          },
+          count: {
+            type: 'number',
+            description: 'Number of times to duplicate the first shape in the shapes array. Use this for creating many identical shapes (e.g., count:500 for 500 squares). If omitted, creates exactly the number of shapes in the array.',
           },
         },
         required: ['shapes'],
@@ -216,25 +220,25 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'rotateShapeByDescription',
-      description: 'Rotate a shape by describing it. Use THIS for commands like "Rotate the text 45 degrees". Example: "Rotate the text 45 degrees" → rotateShapeByDescription(type="text", rotation=45). This tool finds the shape automatically.',
+      description: 'PREFERRED TOOL: Rotate a shape by describing it. Use THIS for commands like "Rotate the text 45 degrees" or "Rotate the circle 90 degrees". Example: "Rotate the text 45 degrees" → rotateShapeByDescription(type="text", rotation=45). "Rotate the red circle" → rotateShapeByDescription(type="circle", color="red", rotation=90). This tool automatically finds the matching shape.',
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
             enum: ['rectangle', 'circle', 'text'],
-            description: 'Type of shape to find and rotate',
+            description: 'Type of shape to rotate. REQUIRED. Extract from command: "the text" → type="text", "the circle" → type="circle", "the rectangle" → type="rectangle"',
           },
           color: {
             type: 'string',
-            description: 'Color of the shape (optional)',
+            description: 'Color of the shape (optional). Only use if color is mentioned in command.',
           },
           rotation: {
             type: 'number',
             description: 'Rotation angle in degrees (0-360)',
           },
         },
-        required: ['rotation'],
+        required: ['type', 'rotation'],
       },
     },
   },
@@ -389,7 +393,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'rotateShapes',
-      description: 'Rotate shapes by a specified angle. Use empty array [] for shapeIds to rotate ALL shapes on canvas. Example: "Rotate the text 45 degrees" → rotateShapes(shapeIds=[], rotation=45). Works for all shape types (circles, rectangles, text).',
+      description: 'LOW-LEVEL TOOL: Rotate shapes when you already have their exact shapeIds. DO NOT use this for commands like "Rotate the text" - use rotateShapeByDescription instead. Only use this when you have specific shapeIds from previous operations or when rotating ALL shapes with empty array [].',
       parameters: {
         type: 'object',
         properties: {

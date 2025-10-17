@@ -292,6 +292,30 @@ export const deleteShape = async (id: string): Promise<void> => {
 };
 
 /**
+ * Delete multiple shapes from Firestore in a single batch operation
+ * @param ids - Array of shape IDs to delete
+ * @returns Promise that resolves when all deletions are complete
+ */
+export const deleteMultipleShapes = async (ids: string[]): Promise<void> => {
+  if (ids.length === 0) return;
+  
+  try {
+    const batch = writeBatch(firestore);
+    
+    for (const id of ids) {
+      const shapeRef = doc(firestore, CANVAS_COLLECTION, id);
+      batch.delete(shapeRef);
+    }
+    
+    await batch.commit();
+    console.log(`[Canvas Service] Batch deleted ${ids.length} shapes`);
+  } catch (error) {
+    console.error('[Canvas Service] Error batch deleting shapes:', error);
+    throw new Error(`Failed to delete shapes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+/**
  * Apply a set of creates/updates/deletes as a single Firestore batch commit (forward direction)
  * - before === null && after !== null  => create
  * - before !== null && after === null  => delete

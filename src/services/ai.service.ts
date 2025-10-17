@@ -15,10 +15,13 @@ import { AI_CONFIG, OPENAI_MODELS } from '../types/ai.types';
 
 /**
  * Tool categories for smart selection
+ * Split creation into basic (simple shapes) and complex (pre-built UI components)
+ * for better optimization of simple commands like "create a square"
  */
 const TOOL_CATEGORIES = {
-  creation: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes', 'createLoginForm', 'createNavigationBar', 'createCardLayout', 'createDashboard'],
-  manipulation: ['moveShape', 'moveShapeByDescription', 'resizeShape', 'resizeShapeByDescription', 'changeColor', 'updateText', 'rotateShapes'],
+  basic_creation: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes'],
+  complex_creation: ['createLoginForm', 'createNavigationBar', 'createCardLayout', 'createDashboard'],
+  manipulation: ['moveShapeByDescription', 'resizeShapeByDescription', 'rotateShapeByDescription', 'changeColor', 'updateText', 'moveShape', 'resizeShape'],
   deletion: ['deleteShape', 'deleteMultipleShapes', 'clearCanvas'],
   layout: ['arrangeHorizontal', 'arrangeVertical', 'arrangeGrid', 'centerShape', 'distributeHorizontally', 'distributeVertically', 'distributeEvenly'],
   query: ['getCanvasState', 'findShapesByType', 'findShapesByColor', 'findShapesByText', 'getCanvasBounds'],
@@ -26,18 +29,32 @@ const TOOL_CATEGORIES = {
 
 /**
  * Detect which tool categories are needed based on prompt keywords
+ * Optimized to differentiate between basic shapes and complex UI components
  */
 function detectToolCategories(prompt: string): string[] {
   const lower = prompt.toLowerCase();
   const categories: Set<string> = new Set();
 
-  // Creation keywords
-  if (/(create|add|make|build|draw|new|login form|nav|navigation|card|dashboard)/i.test(lower)) {
-    categories.add('creation');
+  // Basic creation keywords (simple shapes: circle, rectangle, square, text)
+  if (/(create|add|make|draw|new)\s+(a\s+)?(circle|rectangle|square|text|shape|oval|box)/i.test(lower)) {
+    categories.add('basic_creation');
+  }
+
+  // Complex creation keywords (pre-built UI components)
+  if (/(login\s*form|sign\s*in\s*form|nav|navigation\s*bar|header|card|pricing\s*card|dashboard|form|menu|sidebar|footer)/i.test(lower)) {
+    categories.add('complex_creation');
+  }
+
+  // Catch-all creation (if "create/add/make" mentioned but not specific)
+  if (/(create|add|make|build|draw|new)/i.test(lower) && 
+      !categories.has('basic_creation') && 
+      !categories.has('complex_creation')) {
+    // Default to basic creation for generic create commands
+    categories.add('basic_creation');
   }
 
   // Manipulation keywords
-  if (/(move|shift|position|resize|scale|bigger|smaller|change color|rotate|turn)/i.test(lower)) {
+  if (/(move|shift|position|resize|scale|bigger|smaller|change\s*color|rotate|turn)/i.test(lower)) {
     categories.add('manipulation');
   }
 
@@ -52,13 +69,13 @@ function detectToolCategories(prompt: string): string[] {
   }
 
   // Query keywords
-  if (/(find|get|show|list|what|which|how many)/i.test(lower)) {
+  if (/(find|get|show|list|what|which|how\s*many)/i.test(lower)) {
     categories.add('query');
   }
 
-  // If no specific category detected, include creation and manipulation as defaults
+  // If no specific category detected, include basic_creation and manipulation as defaults
   if (categories.size === 0) {
-    categories.add('creation');
+    categories.add('basic_creation');
     categories.add('manipulation');
   }
 
@@ -250,7 +267,8 @@ class AIService {
       tool.function && relevantToolNames.has(tool.function.name)
     );
 
-    console.log(`[Tool Filter] Categories: ${categories.join(', ')} | Tools: ${filtered.length}/${allTools.length}`);
+    const reduction = Math.round((1 - filtered.length / allTools.length) * 100);
+    console.log(`[Tool Filter] Categories: ${categories.join(', ')} | Tools: ${filtered.length}/${allTools.length} (${reduction}% reduction)`);
     
     return filtered;
   }
