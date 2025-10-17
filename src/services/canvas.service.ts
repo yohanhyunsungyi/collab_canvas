@@ -26,6 +26,7 @@ interface FirestoreShapeData {
   x: number;
   y: number;
   color: string;
+  rotation?: number;
   createdBy: string;
   createdAt: number | Timestamp;
   lastModifiedBy: string;
@@ -62,6 +63,7 @@ const firestoreToShape = (data: FirestoreShapeData): CanvasShape => {
     x: data.x,
     y: data.y,
     color: data.color,
+    rotation: data.rotation,
     createdBy: data.createdBy,
     createdAt: timestampToNumber(data.createdAt),
     lastModifiedBy: data.lastModifiedBy,
@@ -106,6 +108,7 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
     x: shape.x,
     y: shape.y,
     color: shape.color,
+    rotation: shape.rotation,
     createdBy: shape.createdBy,
     createdAt: shape.createdAt,
     lastModifiedBy: shape.lastModifiedBy,
