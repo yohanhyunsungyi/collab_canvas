@@ -8,6 +8,7 @@ interface AICommandHistoryProps {
   onDismissError: () => void;
   onRerun: (commandId: string) => void;
   onDelete: (commandId: string) => void;
+  onClearHistory?: () => void;
   onSelectPreset?: (command: string) => void;
 }
 
@@ -26,7 +27,7 @@ const PRESET_COMMANDS = [
   "Make a card layout with title, image, and description"
 ];
 
-export const AICommandHistory = ({ entries, loading, error, onDismissError, onRerun, onDelete, onSelectPreset }: AICommandHistoryProps) => {
+export const AICommandHistory = ({ entries, loading, error, onDismissError, onRerun, onDelete, onClearHistory, onSelectPreset }: AICommandHistoryProps) => {
   return (
     <div className="ai-history">
       {/* Error banner */}

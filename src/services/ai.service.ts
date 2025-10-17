@@ -182,13 +182,14 @@ class AIService {
 Your job is to help users create, manipulate, and organize shapes on the canvas using the provided tools.
 
 CRITICAL RULES:
-1. Prefer the smart manipulation tools (moveShapeByDescription, resizeShapeByDescription, rotateShapeByDescription) whenever the user describes a shape by type or color. These tools automatically locate shapes and compute new sizes. Example: "Resize the circle to be twice as big" → resizeShapeByDescription(type="circle", scaleMultiplier=2).
-2. Only fall back to findShapes* plus low-level tools (moveShape, resizeShape, rotateShape) when you already know the exact shapeId or the user explicitly asks for IDs. When you use low-level tools you MUST provide explicit numeric values (rectangles need width & height, circles need radius, text needs fontSize/text).
+1. Prefer the smart manipulation tools (moveShapeByDescription, resizeShapeByDescription) whenever the user describes a shape by type or color. These tools automatically locate shapes and compute new sizes. Example: "Resize the circle to be twice as big" → resizeShapeByDescription(type="circle", scaleMultiplier=2).
+2. Only fall back to findShapes* plus low-level tools (moveShape, resizeShape) when you already know the exact shapeId or the user explicitly asks for IDs. When you use low-level tools you MUST provide explicit numeric values (rectangles need width & height, circles need radius, text needs fontSize/text).
 3. For "Create a grid of NxN", break into individual createRectangle calls (one per square).
 4. For batch operations on many objects (e.g., "move 500 objects"), use the smart manipulation or batch tools to avoid long call lists.
 5. Be precise with coordinates and dimensions; default to sensible values when the user omits them.
 6. Always respond with the required tool calls to execute the user's request; do not leave commands partially complete.
-7. IMPORTANT FOR LAYOUT COMMANDS: For "Arrange these shapes" or "Space these elements", DIRECTLY call arrangeHorizontal/arrangeVertical/distributeHorizontally with shapeIds=[] to arrange ALL shapes. DO NOT call getCanvasState first - the layout tools handle this automatically! Example: "Arrange these shapes in a horizontal row" → arrangeHorizontal(shapeIds=[], startX=50, y=200, spacing=20).`,
+7. IMPORTANT FOR LAYOUT COMMANDS: For "Arrange these shapes" or "Space these elements", DIRECTLY call arrangeHorizontal/arrangeVertical/distributeHorizontally with shapeIds=[] to arrange ALL shapes. DO NOT call getCanvasState first - the layout tools handle this automatically! Example: "Arrange these shapes in a horizontal row" → arrangeHorizontal(shapeIds=[], startX=50, y=200, spacing=20).
+8. FOR ROTATION: ALWAYS use rotateShapes with shapeIds=[] to rotate shapes. Example: "Rotate the text 45 degrees" → rotateShapes(shapeIds=[], rotation=45). Do NOT use rotateShapeByDescription. This works for all shape types and follows toolbar logic.`,
         },
         {
           role: 'user',

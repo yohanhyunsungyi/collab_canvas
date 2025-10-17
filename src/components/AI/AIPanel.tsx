@@ -15,6 +15,7 @@ interface AIPanelProps {
   canvasHeight?: number;
   defaultCollapsed?: boolean;
   className?: string;
+  onShapesHighlight?: (shapeIds: string[]) => void;
 }
 
 export interface AIPanelHandle {
@@ -29,8 +30,9 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   canvasHeight,
   defaultCollapsed = true,
   className = '',
+  onShapesHighlight,
 }: AIPanelProps, ref) => {
-  const { loading, error, commandHistory, sendCommand, clearError, rerunCommand, deleteCommand, isAvailable, rateLimitStatus } = useAI(
+  const { loading, error, commandHistory, sendCommand, clearError, clearHistory, rerunCommand, deleteCommand, isAvailable, rateLimitStatus } = useAI(
     userId,
     shapes,
     selectedShapeIds,
@@ -47,9 +49,31 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   const handleSend = useCallback(async () => {
     const trimmed = prompt.trim();
     if (!trimmed) return;
-    await sendCommand(trimmed);
+    
+    // Capture current time before sending command
+    const commandStartTime = Date.now();
+    
+    const response = await sendCommand(trimmed);
     setPrompt('');
-  }, [prompt, sendCommand]);
+    
+    // Highlight shapes if command was successful
+    if (response.success && onShapesHighlight) {
+      // Wait a brief moment for Firestore real-time updates to propagate
+      setTimeout(() => {
+        // Find all shapes that were created or modified within the last 2 seconds
+        // (AI commands complete quickly, so this captures AI-modified shapes)
+        const recentlyModifiedShapes = shapes.filter(shape => 
+          shape.lastModifiedAt >= commandStartTime - 500
+        );
+        
+        const affectedShapeIds = recentlyModifiedShapes.map(shape => shape.id);
+        
+        if (affectedShapeIds.length > 0) {
+          onShapesHighlight(affectedShapeIds);
+        }
+      }, 200); // Small delay to ensure real-time updates have propagated
+    }
+  }, [prompt, sendCommand, shapes, onShapesHighlight]);
 
   const handleSelectPreset = useCallback((command: string) => {
     setPrompt(command);
@@ -80,6 +104,7 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
             onDismissError={() => {}}
             onRerun={rerunCommand}
             onDelete={deleteCommand}
+            onClearHistory={clearHistory}
             onSelectPreset={handleSelectPreset}
           />
         </div>

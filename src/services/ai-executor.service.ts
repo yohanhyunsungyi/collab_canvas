@@ -76,6 +76,8 @@ class AIExecutorService {
           return await this.resizeShape(args, context);
         case 'rotateShape':
           return await this.rotateShape(args, context);
+        case 'rotateShapes':
+          return await this.rotateShapes(args, context);
         case 'changeColor':
           return await this.changeColor(args, context);
         case 'updateText':
@@ -749,6 +751,59 @@ class AIExecutorService {
     return {
       success: true,
       message: `Changed font size to ${args.fontSize}px for ${updatedCount} text shape(s)`,
+    };
+  }
+
+  private async rotateShapes(
+    args: { shapeIds: string[]; rotation: number },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Toolbar-style logic: rotate selected shapes or all shapes if none selected
+    // Priority: 1) explicit shapeIds, 2) selected shapes, 3) all shapes on canvas
+    let shapeIds = args.shapeIds;
+    
+    if (shapeIds.length === 0) {
+      // If no shapeIds provided, check if shapes are selected
+      if (context.selectedShapeIds && context.selectedShapeIds.length > 0) {
+        shapeIds = context.selectedShapeIds;
+      } else {
+        // If nothing selected, rotate all shapes on canvas
+        shapeIds = context.shapes.map(s => s.id);
+      }
+    }
+
+    if (shapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No shapes found to rotate',
+        error: 'NO_SHAPES',
+      };
+    }
+
+    // Rotate all specified shapes
+    let rotatedCount = 0;
+    for (const shapeId of shapeIds) {
+      const shape = context.shapes.find(s => s.id === shapeId);
+      if (shape) {
+        await updateShape(shapeId, {
+          rotation: args.rotation,
+          lastModifiedBy: context.userId,
+        });
+        rotatedCount++;
+      }
+    }
+
+    if (rotatedCount === 0) {
+      return {
+        success: false,
+        message: 'No shapes found to rotate',
+        error: 'NO_SHAPES',
+      };
+    }
+
+    return {
+      success: true,
+      message: `Rotated ${rotatedCount} shape(s) to ${args.rotation} degrees`,
     };
   }
 

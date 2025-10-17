@@ -40,6 +40,50 @@ export const Canvas = () => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const aiPanelRef = useRef<AIPanelHandle | null>(null);
   
+  // AI highlight state - tracks shapes recently modified by AI
+  const [highlightedShapeIds, setHighlightedShapeIds] = useState<Set<string>>(new Set());
+  const highlightTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  
+  // Function to highlight shapes briefly (3 seconds)
+  const highlightShapes = useCallback((shapeIds: string[]) => {
+    // Clear any existing timeouts for these shapes
+    shapeIds.forEach(id => {
+      const existingTimeout = highlightTimeouts.current.get(id);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+    });
+
+    // Add shapes to highlighted set
+    setHighlightedShapeIds(prev => {
+      const newSet = new Set(prev);
+      shapeIds.forEach(id => newSet.add(id));
+      return newSet;
+    });
+
+    // Set timeout to remove highlight after 3 seconds
+    shapeIds.forEach(id => {
+      const timeout = setTimeout(() => {
+        setHighlightedShapeIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+        highlightTimeouts.current.delete(id);
+      }, 3000);
+      
+      highlightTimeouts.current.set(id, timeout);
+    });
+  }, []);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      highlightTimeouts.current.forEach(timeout => clearTimeout(timeout));
+      highlightTimeouts.current.clear();
+    };
+  }, []);
+  
     // Get current user for shape creation
     const { user, logout } = useAuth();
   
@@ -1489,6 +1533,7 @@ export const Canvas = () => {
                   shape={shape}
                   isSelected={selectedShapeIds.includes(shape.id)}
                   isEditing={isEditingText && editingTextId === shape.id}
+                  isHighlighted={highlightedShapeIds.has(shape.id)}
                   onSelect={handleShapeSelect}
                   onDoubleClick={handleTextDoubleClick}
                   onDragStart={handleShapeDragStart}
@@ -1626,6 +1671,7 @@ export const Canvas = () => {
           canvasWidth={CANVAS_WIDTH}
           canvasHeight={CANVAS_HEIGHT}
           defaultCollapsed={true}
+          onShapesHighlight={highlightShapes}
         />
       )}
     </div>

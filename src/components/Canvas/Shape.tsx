@@ -9,6 +9,7 @@ interface ShapeProps {
   shape: CanvasShape;
   isSelected: boolean;
   isEditing?: boolean;
+  isHighlighted?: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onDoubleClick?: (shapeId: string) => void;
   onDragStart?: (id: string) => void;
@@ -29,6 +30,7 @@ const ShapeComponent = ({
   shape, 
   isSelected,
   isEditing = false,
+  isHighlighted = false,
   onSelect,
   onDoubleClick,
   onDragStart,
@@ -162,12 +164,12 @@ const ShapeComponent = ({
     onDragEnd: handleDragEnd,
     // Rotation support
     rotation: shape.rotation || 0,
-    // Selection and lock styling
-    stroke: isLockedByOther ? '#ff5722' : (isSelected ? '#00bcd4' : undefined),
-    strokeWidth: (isSelected || isLockedByOther) ? 3 : 0,
-    shadowColor: isLockedByOther ? '#ff5722' : (isSelected ? '#00bcd4' : undefined),
-    shadowBlur: (isSelected || isLockedByOther) ? 10 : 0,
-    shadowOpacity: (isSelected || isLockedByOther) ? 0.5 : 0,
+    // Selection, lock, and AI highlight styling (priority: locked > highlighted > selected)
+    stroke: isLockedByOther ? '#ff5722' : (isHighlighted ? '#10b981' : (isSelected ? '#00bcd4' : undefined)),
+    strokeWidth: (isSelected || isLockedByOther || isHighlighted) ? 3 : 0,
+    shadowColor: isLockedByOther ? '#ff5722' : (isHighlighted ? '#10b981' : (isSelected ? '#00bcd4' : undefined)),
+    shadowBlur: (isSelected || isLockedByOther) ? 10 : (isHighlighted ? 15 : 0),
+    shadowOpacity: (isSelected || isLockedByOther) ? 0.5 : (isHighlighted ? 0.7 : 0),
     // Change cursor style for locked shapes
     opacity: isLockedByOther ? 0.7 : 1,
     // Hide text when editing (Konva best practice)
@@ -224,7 +226,7 @@ const ShapeComponent = ({
 };
 
 // Memoize the component to prevent unnecessary re-renders
-// Only re-render when shape data, selection state, editing state, or lock state changes
+// Only re-render when shape data, selection state, editing state, highlight state, or lock state changes
 export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
   return (
     prevProps.shape.id === nextProps.shape.id &&
@@ -236,6 +238,7 @@ export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
     prevProps.shape.lockedAt === nextProps.shape.lockedAt &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.isEditing === nextProps.isEditing &&
+    prevProps.isHighlighted === nextProps.isHighlighted &&
     prevProps.currentUserId === nextProps.currentUserId &&
     // Check type-specific properties
     (prevProps.shape.type !== 'rectangle' || 

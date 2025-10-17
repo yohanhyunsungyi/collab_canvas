@@ -388,6 +388,28 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'rotateShapes',
+      description: 'Rotate shapes by a specified angle. Use empty array [] for shapeIds to rotate ALL shapes on canvas. Example: "Rotate the text 45 degrees" → rotateShapes(shapeIds=[], rotation=45). Works for all shape types (circles, rectangles, text).',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of shape IDs to rotate. Use empty array [] to rotate all shapes on canvas.',
+          },
+          rotation: {
+            type: 'number',
+            description: 'Rotation angle in degrees (0-360)',
+          },
+        },
+        required: ['shapeIds', 'rotation'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'deleteShape',
       description: 'Delete a shape from the canvas',
       parameters: {
@@ -838,7 +860,7 @@ export const getAllToolNames = (): string[] => {
 export const TOOL_CATEGORIES = {
   CREATION: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes'],
   SMART_MANIPULATION: ['moveShapeByDescription', 'resizeShapeByDescription', 'rotateShapeByDescription'],
-  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'changeColor', 'updateText', 'changeFontSize', 'deleteShape', 'deleteMultipleShapes'],
+  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'rotateShapes', 'changeColor', 'updateText', 'changeFontSize', 'deleteShape', 'deleteMultipleShapes'],
   BATCH_MANIPULATION: ['moveMultipleShapes'],
   QUERY: ['getCanvasState', 'findShapesByType', 'findShapesByColor', 'findShapesByText'],
   ALIGNMENT: ['alignLeft', 'alignCenter', 'alignRight'], // From toolbar

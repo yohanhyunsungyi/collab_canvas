@@ -108,7 +108,6 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
     x: shape.x,
     y: shape.y,
     color: shape.color,
-    rotation: shape.rotation,
     createdBy: shape.createdBy,
     createdAt: shape.createdAt,
     lastModifiedBy: shape.lastModifiedBy,
@@ -116,6 +115,11 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
     lockedBy: shape.lockedBy,
     lockedAt: shape.lockedAt,
   };
+  
+  // Only include rotation if it exists (Firestore doesn't allow undefined)
+  if (shape.rotation !== undefined) {
+    baseData.rotation = shape.rotation;
+  }
 
   // Add type-specific fields
   if (shape.type === 'rectangle') {
