@@ -46,8 +46,17 @@
 .ai-input { flex: 1; }
 .ai-input-field { width: 100%; height: 36px; border: 1px solid var(--color-border, #e0e0e0); outline: none; border-radius: 10px; padding: 0 14px; background: #ffffff; }
 
+.ai-aux { display: flex; align-items: center; gap: 12px; }
 .ai-aux .btn { height: 36px; padding: 0 14px; }
 
+/* Streaming status indicator */
+.ai-streaming-status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #666; padding: 0 8px; }
+.ai-streaming-text { font-weight: 500; }
+.ai-streaming-spinner { color: #00bcd4; animation: ai-pulse 1.2s ease-in-out infinite; }
+@keyframes ai-pulse { 
+  0%, 100% { opacity: 0.4; transform: scale(0.8); } 
+  50% { opacity: 1; transform: scale(1.2); } 
+}
 
 /* Toast alignment above main panel, trailing to history width */
 .ai-toast-above-dock { position: absolute; bottom: calc(100% + 12px); right: 24px; z-index: 25; }

@@ -8,11 +8,149 @@ import type {
   OpenAIModelName,
 } from '../types/ai.types';
 import { AI_CONFIG, OPENAI_MODELS } from '../types/ai.types';
-// Local fallback removed per requirement; rely solely on provider
+
+// ==========================================
+// PHASE 3: Smart Tool Selection
+// ==========================================
+
+/**
+ * Tool categories for smart selection
+ */
+const TOOL_CATEGORIES = {
+  creation: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes', 'createLoginForm', 'createNavigationBar', 'createCardLayout', 'createDashboard'],
+  manipulation: ['moveShape', 'moveShapeByDescription', 'resizeShape', 'resizeShapeByDescription', 'changeColor', 'updateText', 'rotateShapes'],
+  deletion: ['deleteShape', 'deleteMultipleShapes', 'clearCanvas'],
+  layout: ['arrangeHorizontal', 'arrangeVertical', 'arrangeGrid', 'centerShape', 'distributeHorizontally', 'distributeVertically', 'distributeEvenly'],
+  query: ['getCanvasState', 'findShapesByType', 'findShapesByColor', 'findShapesByText', 'getCanvasBounds'],
+};
+
+/**
+ * Detect which tool categories are needed based on prompt keywords
+ */
+function detectToolCategories(prompt: string): string[] {
+  const lower = prompt.toLowerCase();
+  const categories: Set<string> = new Set();
+
+  // Creation keywords
+  if (/(create|add|make|build|draw|new|login form|nav|navigation|card|dashboard)/i.test(lower)) {
+    categories.add('creation');
+  }
+
+  // Manipulation keywords
+  if (/(move|shift|position|resize|scale|bigger|smaller|change color|rotate|turn)/i.test(lower)) {
+    categories.add('manipulation');
+  }
+
+  // Deletion keywords
+  if (/(delete|remove|clear|erase)/i.test(lower)) {
+    categories.add('deletion');
+  }
+
+  // Layout keywords
+  if (/(arrange|align|distribute|center|grid|row|column|horizontal|vertical|space|evenly)/i.test(lower)) {
+    categories.add('layout');
+  }
+
+  // Query keywords
+  if (/(find|get|show|list|what|which|how many)/i.test(lower)) {
+    categories.add('query');
+  }
+
+  // If no specific category detected, include creation and manipulation as defaults
+  if (categories.size === 0) {
+    categories.add('creation');
+    categories.add('manipulation');
+  }
+
+  return Array.from(categories);
+}
+
+// ==========================================
+// PHASE 2B: Response Caching
+// ==========================================
+
+interface CacheEntry {
+  response: AICommandResponse;
+  timestamp: number;
+}
+
+class ResponseCache {
+  private cache: Map<string, CacheEntry> = new Map();
+
+  private getCacheKey(prompt: string, userId: string): string {
+    return `${userId}:${prompt.trim().toLowerCase()}`;
+  }
+
+  get(prompt: string, userId: string): AICommandResponse | null {
+    const key = this.getCacheKey(prompt, userId);
+    const entry = this.cache.get(key);
+
+    if (!entry) return null;
+
+    const age = Date.now() - entry.timestamp;
+    if (age > AI_CONFIG.RESPONSE_CACHE_TTL_MS) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    console.log(`[Cache HIT] "${prompt}" (age: ${Math.round(age / 1000)}s)`);
+    return entry.response;
+  }
+
+  set(prompt: string, userId: string, response: AICommandResponse): void {
+    const key = this.getCacheKey(prompt, userId);
+    
+    this.cache.set(key, {
+      response,
+      timestamp: Date.now(),
+    });
+
+    // Evict oldest entries if cache is too large
+    if (this.cache.size > AI_CONFIG.RESPONSE_CACHE_MAX_SIZE) {
+      const oldestKey = Array.from(this.cache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)[0][0];
+      this.cache.delete(oldestKey);
+    }
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+// ==========================================
+// PHASE 3B: Optimized System Prompt
+// ==========================================
+
+const OPTIMIZED_SYSTEM_PROMPT = `You are an AI assistant for a 5000x5000px canvas with centered coordinates (0,0 at center).
+
+COORDINATES: X: -2500 to 2500, Y: -2500 to 2500
+
+COMPLEX LAYOUTS (use these tools directly):
+• "login form" → createLoginForm (18 elements: title, fields, social buttons)
+• "nav bar"/"header" → createNavigationBar (10+ elements: logo, menu, CTA)
+• "card"/"pricing card" → createCardLayout (8 elements: border, title, image, description)
+• "dashboard" → createDashboard (21 elements: 4 stat cards with metrics)
+
+GRID LAYOUTS (2-step process):
+1. createMultipleShapes with ALL shapes at SAME x,y (e.g., x:0, y:0)
+2. arrangeGrid(shapeIds=[], columns=N) - handles positioning
+
+KEY RULES:
+1. Use smart tools (moveShapeByDescription, resizeShapeByDescription) when describing shapes by type/color
+2. For grids: createMultipleShapes at x:0,y:0, then arrangeGrid
+3. For rotation: rotateShapes(shapeIds=[], rotation=degrees)
+4. Be precise with coordinates; default to sensible values
+5. Always complete commands with tool calls`;
+
+// ==========================================
+// Main AI Service Class
+// ==========================================
 
 class AIService {
   private client: OpenAI | null = null;
   private rateLimits: Map<string, RateLimitInfo> = new Map();
+  private responseCache = new ResponseCache();
 
   constructor() {
     this.initializeClient();
@@ -50,7 +188,7 @@ class AIService {
    * Select model for command
    * Always use gpt-4o-mini for reliability and consistency
    */
-  private selectModelForCommand(prompt: string, shapeCount: number = 0): OpenAIModelName {
+  private selectModelForCommand(prompt: string): OpenAIModelName {
     console.log(`[AI Service] Using gpt-4o-mini for prompt: "${prompt.substring(0, 50)}..."`);
     return 'gpt-4o-mini';
   }
@@ -91,11 +229,43 @@ class AIService {
   }
 
   /**
-   * Send a command to the AI with function calling support
+   * PHASE 3: Filter tools based on prompt
+   */
+  private filterRelevantTools(
+    allTools: OpenAI.Chat.ChatCompletionTool[],
+    prompt: string
+  ): OpenAI.Chat.ChatCompletionTool[] {
+    const categories = detectToolCategories(prompt);
+    
+    // Get relevant tool names
+    const relevantToolNames = new Set<string>();
+    categories.forEach(cat => {
+      TOOL_CATEGORIES[cat as keyof typeof TOOL_CATEGORIES]?.forEach(tool => {
+        relevantToolNames.add(tool);
+      });
+    });
+
+    // Filter tools
+    const filtered = allTools.filter(tool => 
+      tool.function && relevantToolNames.has(tool.function.name)
+    );
+
+    console.log(`[Tool Filter] Categories: ${categories.join(', ')} | Tools: ${filtered.length}/${allTools.length}`);
+    
+    return filtered;
+  }
+
+  /**
+   * PHASE 2A: Send command with streaming support
    */
   async sendCommand(
     request: AICommandRequest & { shapeCount?: number },
-    tools: OpenAI.Chat.ChatCompletionTool[]
+    tools: OpenAI.Chat.ChatCompletionTool[],
+    options?: {
+      onStreamStart?: () => void;
+      onStreamProgress?: (toolName: string) => void;
+      onStreamEnd?: () => void;
+    }
   ): Promise<AICommandResponse> {
     if (!this.client) {
       return {
@@ -103,6 +273,12 @@ class AIService {
         message: 'AI service is not available',
         error: 'OpenAI client not initialized',
       };
+    }
+
+    // PHASE 2B: Check cache first
+    const cachedResponse = this.responseCache.get(request.prompt, request.userId);
+    if (cachedResponse) {
+      return cachedResponse;
     }
 
     // Check rate limit
@@ -116,58 +292,17 @@ class AIService {
 
     try {
       // Intelligently select model based on command complexity
-      const selectedModel = this.selectModelForCommand(request.prompt, request.shapeCount || 0);
-      const modelConfig = OPENAI_MODELS[selectedModel];
+      const selectedModel = this.selectModelForCommand(request.prompt);
       
-      console.log(`[AI Service] Using model: ${selectedModel} (max tokens: ${modelConfig.maxOutputTokens})`);
+      console.log(`[AI Service] Using model: ${selectedModel}`);
+
+      // PHASE 3: Filter tools based on prompt
+      const relevantTools = this.filterRelevantTools(tools, request.prompt);
 
       const messages: AIMessage[] = [
         {
           role: 'system',
-          content: `You are a helpful AI assistant for a collaborative canvas application with a 5000x5000px canvas.
-
-COORDINATE SYSTEM:
-- Canvas uses a centered coordinate system where (0, 0) is at the CENTER
-- X coordinates range from -2500 (left edge) to 2500 (right edge)
-- Y coordinates range from -2500 (top edge) to 2500 (bottom edge)
-- Center of canvas: (0, 0)
-- Top-left corner: (-2500, -2500)
-- Bottom-right corner: (2500, 2500)
-
-Your job is to help users create, manipulate, and organize shapes on the canvas using the provided tools.
-
-COMPLEX LAYOUT COMMANDS:
-- For "create a login form", "make a login box", "build a sign in form" → Use createLoginForm() tool directly. This creates a modern Copy UI style login form with 18 elements including title, subtitle, email/password fields, sign in button, and 3 social login buttons with Google, Apple, Facebook logos.
-- For "create a navigation bar", "build a nav bar", "make a navbar", "create a header" → Use createNavigationBar() tool directly. This creates a professional navbar with logo circle, menu items (Features, How it works, Use cases, Pricing, FAQ), dropdown arrows, and CTA button.
-- For "create a card", "make a card layout", "build a pricing card", "create a feature card" → Use createCardLayout() tool directly. This creates a professional pricing/feature card with 8 elements including border, title, price, image placeholder, description, and action button.
-
-CRITICAL RULES:
-1. Prefer the smart manipulation tools (moveShapeByDescription, resizeShapeByDescription) whenever the user describes a shape by type or color. These tools automatically locate shapes and compute new sizes. Example: "Resize the circle to be twice as big" → resizeShapeByDescription(type="circle", scaleMultiplier=2).
-2. Only fall back to findShapes* plus low-level tools (moveShape, resizeShape) when you already know the exact shapeId or the user explicitly asks for IDs. When you use low-level tools you MUST provide explicit numeric values (rectangles need width & height, circles need radius, text needs fontSize/text).
-3. FOR GRID LAYOUTS: For ANY of these commands: "Create a grid of NxN", "Create NxN grid", "Create N blue squares arranged in NxN grid", "Create a clean NxN grid":
-   - Step 1: Use clearCanvas(confirm=true) ONLY if user explicitly says "clear" or "clean"
-   - Step 2: Use createMultipleShapes to create all N*N shapes. IMPORTANT: Use the SAME x,y position (like x=0, y=0) for ALL shapes - do NOT pre-calculate grid positions!
-   - Step 3: Use arrangeGrid(shapeIds=[], columns=N, spacingX=120, spacingY=120) to arrange them
-   - Example 1: "Create a grid of 3x3 squares" → 
-     1) createMultipleShapes(shapes=[{type:"rectangle", x:0, y:0, width:100, height:100, color:"#4A90E2"}, ... repeat 9 times with SAME x:0, y:0])
-     2) arrangeGrid(shapeIds=[], columns=3, spacingX=120, spacingY=120)
-   - Example 2: "Clear the canvas and create a clean 3x3 grid" → 
-     1) clearCanvas(confirm=true)
-     2) createMultipleShapes(shapes=[{type:"rectangle", x:0, y:0, width:100, height:100, color:"#4A90E2"}, ... repeat 9 times with SAME x:0, y:0])
-     3) arrangeGrid(shapeIds=[], columns=3, spacingX=120, spacingY=120)
-   - CRITICAL: In createMultipleShapes, ALL shapes must have the SAME x and y coordinates (e.g., x:0, y:0). The arrangeGrid tool will handle the final positioning!
-4. FOR VERTICAL LINE: "Create N shapes in a vertical line" → TWO SEQUENTIAL CALLS REQUIRED:
-   - Step 1: Use createMultipleShapes to create N shapes ALL at x:0, y:0 (SAME coordinates)
-   - Step 2: Use arrangeVertical(shapeIds=[], x=100, startY=100) to arrange them vertically
-   - Example: "Create 5 circles in a vertical line" →
-     1) createMultipleShapes(shapes=[{type:"circle", x:0, y:0}, ... repeat 5 times with SAME x:0, y:0])
-     2) arrangeVertical(shapeIds=[], x=100, startY=100)
-5. FOR HORIZONTAL ARRANGEMENT: "Arrange these shapes in a horizontal row" → arrangeHorizontal(shapeIds=[], startX=-400, y=0, spacing=150). Use shapeIds=[] to arrange ALL existing shapes.
-6. FOR EVEN SPACING: "Space these elements evenly" → distributeEvenly(shapeIds=[], direction="horizontal" or "vertical" based on context). Use shapeIds=[] to distribute ALL existing shapes.
-7. For batch operations on many objects (e.g., "move 500 objects"), use the smart manipulation or batch tools to avoid long call lists.
-8. Be precise with coordinates and dimensions; default to sensible values when the user omits them. Remember the coordinate system is centered at (0,0).
-9. Always respond with the required tool calls to execute the user's request; do not leave commands partially complete.
-10. FOR ROTATION: ALWAYS use rotateShapes with shapeIds=[] to rotate shapes. Example: "Rotate the text 45 degrees" → rotateShapes(shapeIds=[], rotation=45). Do NOT use rotateShapeByDescription. This works for all shape types and follows toolbar logic.`,
+          content: OPTIMIZED_SYSTEM_PROMPT,
         },
         {
           role: 'user',
@@ -178,38 +313,93 @@ CRITICAL RULES:
       // Create timeout promise
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error('Request timeout')),
+          () => reject(new Error('Request timeout (10s)')),
           AI_CONFIG.REQUEST_TIMEOUT_MS
         )
       );
 
-      // Make API call with timeout and dynamic model selection
-      const completion = await Promise.race([
+      // PHASE 1 & 2A: Make API call with streaming, parallel tool calls, and timeout
+      const startTime = Date.now();
+      
+      const stream = await Promise.race([
         this.client.chat.completions.create({
           model: selectedModel,
           messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
-          tools,
+          tools: relevantTools,
           tool_choice: 'auto',
-          max_completion_tokens: Math.min(modelConfig.maxOutputTokens, 16000),  // Use model's max capacity
+          parallel_tool_calls: true, // PHASE 1: Enable parallel execution
+          stream: true, // PHASE 2A: Enable streaming
         }),
         timeoutPromise,
       ]);
 
-      const response = this.parseResponse(completion);
-
-      if (response.toolCalls.length > 0) {
-        return {
-          success: true,
-          message: response.content || 'Command executed successfully',
-          toolCalls: response.toolCalls,
-        };
+      // PHASE 2A: Process stream with callbacks
+      options?.onStreamStart?.();
+      
+      let fullResponse = '';
+      const toolCalls: Map<number, { id: string; name: string; args: string }> = new Map();
+      
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta;
+        
+        // Collect content
+        if (delta?.content) {
+          fullResponse += delta.content;
+        }
+        
+        // Collect tool calls
+        if (delta?.tool_calls) {
+          delta.tool_calls.forEach(tc => {
+            if (tc.index !== undefined) {
+              const existing = toolCalls.get(tc.index) || { id: '', name: '', args: '' };
+              
+              if (tc.id) existing.id = tc.id;
+              if (tc.function?.name) {
+                existing.name = tc.function.name;
+                options?.onStreamProgress?.(tc.function.name);
+              }
+              if (tc.function?.arguments) existing.args += tc.function.arguments;
+              
+              toolCalls.set(tc.index, existing);
+            }
+          });
+        }
       }
 
-      return {
-        success: false,
-        message: response.content || 'No action taken',
-        error: 'NO_TOOL_CALLS',
+      options?.onStreamEnd?.();
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`[AI Service] Response time: ${elapsed}ms`);
+
+      // Convert tool calls map to array
+      const toolCallsArray = Array.from(toolCalls.values())
+        .filter(tc => tc.id && tc.name)
+        .map(tc => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: {
+            name: tc.name,
+            arguments: tc.args,
+          },
+        }));
+
+      const response: AICommandResponse = {
+        success: toolCallsArray.length > 0,
+        message: fullResponse || 'Command executed successfully',
+        toolCalls: toolCallsArray.length > 0 ? toolCallsArray : undefined,
       };
+
+      if (toolCallsArray.length === 0) {
+        response.error = 'NO_TOOL_CALLS';
+        response.message = fullResponse || 'No action taken';
+      }
+
+      // PHASE 2B: Cache successful responses
+      if (response.success) {
+        this.responseCache.set(request.prompt, request.userId, response);
+      }
+
+      return response;
     } catch (error) {
       console.error('AI service error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -223,6 +413,7 @@ CRITICAL RULES:
 
   /**
    * Parse OpenAI response into structured format
+   * (Kept for backward compatibility, but streaming is now preferred)
    */
   private parseResponse(completion: OpenAI.Chat.ChatCompletion): AIResponse {
     const choice = completion.choices[0];
@@ -282,6 +473,14 @@ CRITICAL RULES:
    */
   clearRateLimit(userId: string): void {
     this.rateLimits.delete(userId);
+  }
+
+  /**
+   * Clear response cache
+   */
+  clearCache(): void {
+    this.responseCache.clear();
+    console.log('[Cache] Cleared all cached responses');
   }
 }
 

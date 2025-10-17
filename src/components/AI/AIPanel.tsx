@@ -32,7 +32,7 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   className = '',
   onShapesHighlight,
 }: AIPanelProps, ref) => {
-  const { loading, error, commandHistory, sendCommand, clearError, clearHistory, rerunCommand, deleteCommand, isAvailable, rateLimitStatus } = useAI(
+  const { loading, error, commandHistory, sendCommand, clearError, clearHistory, rerunCommand, deleteCommand, isAvailable, rateLimitStatus, streamingStatus } = useAI(
     userId,
     shapes,
     selectedShapeIds,
@@ -136,6 +136,12 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
         />
 
         <div className="ai-aux">
+          {streamingStatus && (
+            <div className="ai-streaming-status">
+              <span className="ai-streaming-spinner">●</span>
+              <span className="ai-streaming-text">{streamingStatus}</span>
+            </div>
+          )}
           <Button
             variant="primary"
             onClick={handleSend}

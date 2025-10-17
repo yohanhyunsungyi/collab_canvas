@@ -19,6 +19,11 @@ interface CanvasToolbarProps {
   onAlignRight: () => void;
   onDistributeHorizontally: () => void;
   onDistributeVertically: () => void;
+  // History
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const CanvasToolbar = ({
@@ -37,6 +42,10 @@ export const CanvasToolbar = ({
   onAlignRight,
   onDistributeHorizontally,
   onDistributeVertically,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: CanvasToolbarProps) => {
   const [isSelectMenuOpen, setIsSelectMenuOpen] = useState(false);
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
@@ -214,6 +223,33 @@ export const CanvasToolbar = ({
 
       <div className="toolbar-section">
         <span className="toolbar-label">Actions</span>
+        {/* Undo/Redo buttons */}
+        {onUndo && (
+          <button
+            className="duplicate-button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title={!canUndo ? 'Nothing to undo' : 'Undo (Cmd/Ctrl+Z)'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7v6h6"/>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+            </svg>
+          </button>
+        )}
+        {onRedo && (
+          <button
+            className="duplicate-button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title={!canRedo ? 'Nothing to redo' : 'Redo (Cmd/Ctrl+Shift+Z)'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 7v6h-6"/>
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>
+            </svg>
+          </button>
+        )}
         <button
           className="duplicate-button"
           onClick={onDuplicate}

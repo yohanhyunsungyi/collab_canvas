@@ -69,9 +69,11 @@ export type OpenAIModelName = keyof typeof OPENAI_MODELS;
 
 export const AI_CONFIG = {
   MAX_REQUESTS_PER_MINUTE: 10,
-  REQUEST_TIMEOUT_MS: 30000, // 30 seconds for large operations
+  REQUEST_TIMEOUT_MS: 10000, // 10 seconds - fail fast for better UX
   DEFAULT_MODEL: (import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini') as OpenAIModelName,
   REASONING_EFFORT: 'low' as const, // Fast responses for canvas operations
   TEXT_VERBOSITY: 'low' as const, // Concise responses
+  RESPONSE_CACHE_TTL_MS: 5 * 60 * 1000, // 5 minutes cache TTL
+  RESPONSE_CACHE_MAX_SIZE: 20, // Cache last 20 commands
 } as const;
 

@@ -15,6 +15,8 @@ import { ErrorNotification } from '../UI/ErrorNotification';
 import { ConnectionStatus } from '../UI/ConnectionStatus';
 import { PresenceMenu } from '../Presence/PresenceMenu';
 import { AIPanel, type AIPanelHandle } from '../AI/AIPanel';
+import { KeyboardShortcutsModal } from '../UI/KeyboardShortcutsModal';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
@@ -43,6 +45,8 @@ export const Canvas = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const aiPanelRef = useRef<AIPanelHandle | null>(null);
+  const transformStartShapeRef = useRef<CanvasShape | null>(null); // Store shape state at transform start
+  const dragStartShapeRef = useRef<CanvasShape | null>(null); // Store shape state at drag start
   
   // AI highlight state - tracks shapes recently modified by AI
   const [highlightedShapeIds, setHighlightedShapeIds] = useState<Set<string>>(new Set());
@@ -91,7 +95,7 @@ export const Canvas = () => {
     // Get current user for shape creation
     const { user, logout } = useAuth();
   
-  // Canvas state management hook
+  // Canvas state management hook (with history/undo/redo/clipboard)
   const {
     shapes,
     selectedShapeIds,
@@ -113,7 +117,16 @@ export const Canvas = () => {
     duplicateSelectedShapes,
     setShapes,
     applyShapeChanges,
-  } = useCanvas();
+    // History
+    recordHistoryAction,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    // Clipboard
+    copySelectedShapes,
+    pasteShapes,
+  } = useCanvas({ userId: user?.id });
   
   // Multiplayer cursors hook
   const { cursors, updateOwnCursor, error: cursorsError } = useCursors();
@@ -146,6 +159,90 @@ export const Canvas = () => {
   const [editingTextId, setEditingTextId] = useState<string | null>(null); // For editing existing text
   const textInputRef = useRef<HTMLTextAreaElement>(null);
   const textInputCreatedAt = useRef<number>(0);
+
+  // Keyboard shortcuts modal state
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+
+  // Delete selected shapes
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedShapeIds.length === 0 || !user) return;
+    
+    // Delete all selected shapes
+    for (const shapeId of selectedShapeIds) {
+      await removeShape(shapeId, true);
+    }
+    
+    clearSelection();
+  }, [selectedShapeIds, user, removeShape, clearSelection]);
+
+  // Select all shapes
+  const handleSelectAll = useCallback(() => {
+    const allShapeIds = shapes.map(shape => shape.id);
+    selectShapesInArea(CANVAS_MIN_X, CANVAS_MIN_Y, CANVAS_MAX_X, CANVAS_MAX_Y);
+  }, [shapes, selectShapesInArea]);
+
+  // Handle arrow key movement
+  const handleArrowMove = useCallback(async (dx: number, dy: number) => {
+    if (selectedShapeIds.length === 0 || !user) return;
+
+    // Move all selected shapes
+    for (const shapeId of selectedShapeIds) {
+      const shape = shapes.find(s => s.id === shapeId);
+      if (!shape) continue;
+
+      const newPosition = constrainPoint(shape.x + dx, shape.y + dy);
+      await updateShape(shapeId, { x: newPosition.x, y: newPosition.y }, true);
+    }
+  }, [selectedShapeIds, shapes, user, updateShape]);
+
+  // Toggle keyboard shortcuts modal with '?'
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger in input fields
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setShowKeyboardShortcuts(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
+  // Keyboard shortcuts hook
+  useKeyboardShortcuts({
+    enabled: !isEditingText, // Disable when editing text
+    handlers: {
+      onUndo: undo,
+      onRedo: redo,
+      onCopy: copySelectedShapes,
+      onPaste: () => {
+        if (user) {
+          pasteShapes(user.id);
+        }
+      },
+      onDuplicate: () => {
+        if (user) {
+          duplicateSelectedShapes(user.id);
+        }
+      },
+      onDelete: handleDeleteSelected,
+      onSelectAll: handleSelectAll,
+      onEscape: clearSelection,
+      onArrowMove: handleArrowMove,
+    },
+    selectedShapeIds,
+    shapes,
+  });
 
   // Effect for loading shapes from Firestore and subscribing to real-time updates
   useEffect(() => {
@@ -267,40 +364,20 @@ export const Canvas = () => {
     }
   }, [selectedShapeIds]);
 
-  // Handle keyboard events for pan mode and delete
+  // Handle keyboard events for pan mode and AI focus (other shortcuts handled by useKeyboardShortcuts)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInputTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      
       // Cmd/Ctrl+K focuses AI input
       if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'k')) {
         e.preventDefault();
         aiPanelRef.current?.focusInput();
         return;
       }
-      // Don't trigger keyboard shortcuts while editing text or if target is an input
-      const target = e.target as HTMLElement;
-      const isInputTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
       
-      // Handle Delete/Backspace key to delete selected shape(s)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputTarget && !isEditingText) {
-        e.preventDefault();
-        if (selectedShapeIds.length > 0) {
-          console.log('[Canvas] Deleting shapes:', selectedShapeIds);
-          selectedShapeIds.forEach(id => removeShape(id));
-        }
-        return;
-      }
-      
-      // Handle Cmd/Ctrl+D to duplicate selected shape(s)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'd' && !isInputTarget && !isEditingText) {
-        e.preventDefault();
-        if (selectedShapeIds.length > 0 && user) {
-          console.log('[Canvas] Duplicating shapes:', selectedShapeIds);
-          duplicateSelectedShapes(user.id);
-        }
-        return;
-      }
-      
-      // Handle spacebar for pan mode
+      // Handle spacebar for pan mode (only this - other shortcuts handled by useKeyboardShortcuts)
       if (e.code === 'Space' && !isSpacePressed && !isEditingText && !isInputTarget) {
         e.preventDefault();
         setIsSpacePressed(true);
@@ -326,7 +403,7 @@ export const Canvas = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed, isEditingText, selectedShapeIds, removeShape, duplicateSelectedShapes, user]);
+  }, [isSpacePressed, isEditingText]);
 
   // Handle drag end to update viewport state with constraints
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -888,13 +965,13 @@ export const Canvas = () => {
           if (initialPos) {
             const newX = initialPos.x + deltaX;
             const newY = initialPos.y + deltaY;
-            updateShape(shapeId, { x: newX, y: newY });
+            updateShape(shapeId, { x: newX, y: newY }, false); // Don't record during drag
           }
         });
       }
     } else {
       // Single shape drag
-      updateShape(id, { x, y });
+      updateShape(id, { x, y }, false); // Don't record during drag
     }
   }, [updateShape, selectedShapeIds, isDraggingGroup, groupDragInitialPositions, shapes]);
 
@@ -902,6 +979,8 @@ export const Canvas = () => {
   // Note: Position constraints are handled by dragBoundFunc in Shape component
   const handleShapeDragEnd = useCallback((id: string, x: number, y: number) => {
     if (!user) return;
+    
+    const initialShape = dragStartShapeRef.current;
     
     // Check if this was a group drag
     if (selectedShapeIds.length > 1 && selectedShapeIds.includes(id)) {
@@ -913,7 +992,7 @@ export const Canvas = () => {
         const deltaY = y - draggedShapeInitial.y;
 
         // Update all selected shapes with final positions and metadata
-        selectedShapeIds.forEach(shapeId => {
+        selectedShapeIds.forEach((shapeId) => {
           const initialPos = groupDragInitialPositions.get(shapeId);
           if (initialPos) {
             const finalX = initialPos.x + deltaX;
@@ -923,9 +1002,8 @@ export const Canvas = () => {
               y: finalY,
               lastModifiedBy: user.id,
               lastModifiedAt: Date.now(),
-            });
+            }, true); // Record history for each shape
           }
-          // Lock will be released when shape is deselected (via selection management effect)
         });
       }
 
@@ -934,16 +1012,25 @@ export const Canvas = () => {
       setGroupDragInitialPositions(new Map());
     } else {
       // Single shape drag end
+      // Manually record history using the initial shape state
+      if (initialShape && (initialShape.x !== x || initialShape.y !== y)) {
+        const beforeState = shapes.map(s => s.id === id ? initialShape : s);
+        const afterState = shapes.map(s => s.id === id ? { ...s, x, y } : s);
+        recordHistoryAction('update', [id], beforeState, afterState);
+      }
+      
+      // Update metadata only (position already updated by dragMove)
       updateShape(id, {
-        x,
-        y,
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
-      });
-      
-      // Lock will be released when shape is deselected (via selection management effect)
+      }, false); // Don't record - we already did it manually
     }
-  }, [user, updateShape, selectedShapeIds, groupDragInitialPositions]);
+    
+    // Clear the drag start reference
+    dragStartShapeRef.current = null;
+    
+    // Lock will be released when shape is deselected (via selection management effect)
+  }, [user, updateShape, selectedShapeIds, groupDragInitialPositions, shapes, recordHistoryAction]);
 
   // Handle transform start - acquire lock when starting to resize (if not already locked)
   const handleTransformStart = useCallback(async () => {
@@ -952,6 +1039,9 @@ export const Canvas = () => {
     const shapeId = selectedShapeIds[0];
     const shape = shapes.find(s => s.id === shapeId);
     if (!shape) return;
+    
+    // Store initial shape state for history
+    transformStartShapeRef.current = { ...shape };
     
     // Only acquire lock if not already locked by current user
     if (!shape.lockedBy || shape.lockedBy !== user.id) {
@@ -1000,7 +1090,7 @@ export const Canvas = () => {
         width,
         height,
         rotation,
-      });
+      }, false); // Don't record history during transform (only at end)
     } else if (shape.type === 'circle') {
       // For circles, always use original shape radius as base to avoid accumulation
       const rawRadius = Math.max(5, shape.radius * ((scaleX + scaleY) / 2));
@@ -1044,7 +1134,7 @@ export const Canvas = () => {
         y: nodeY,
         radius,
         rotation,
-      });
+      }, false); // Don't record during transform
     } else if (shape.type === 'text') {
       // Text: no resizing, auto-fit to content, but support rotation
       // Reset scale to 1
@@ -1056,7 +1146,7 @@ export const Canvas = () => {
         x: nodeX,
         y: nodeY,
         rotation,
-      });
+      }, false); // Don't record during transform
     }
   };
 
@@ -1065,10 +1155,40 @@ export const Canvas = () => {
     if (!user || selectedShapeIds.length !== 1) return;
     
     const shapeId = selectedShapeIds[0];
-    updateShape(shapeId, {
-      lastModifiedBy: user.id,
-      lastModifiedAt: Date.now(),
-    });
+    const currentShape = shapes.find(s => s.id === shapeId);
+    const initialShape = transformStartShapeRef.current;
+    
+    // If we have both initial and current shape, record the full transform in history
+    if (initialShape && currentShape) {
+      const updates: Partial<CanvasShape> = {
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      };
+      
+      // Include all changed geometric properties
+      if (currentShape.x !== initialShape.x) updates.x = currentShape.x;
+      if (currentShape.y !== initialShape.y) updates.y = currentShape.y;
+      if (currentShape.rotation !== initialShape.rotation) updates.rotation = currentShape.rotation;
+      
+      if (currentShape.type === 'rectangle' && initialShape.type === 'rectangle') {
+        if (currentShape.width !== initialShape.width) (updates as any).width = currentShape.width;
+        if (currentShape.height !== initialShape.height) (updates as any).height = currentShape.height;
+      } else if (currentShape.type === 'circle' && initialShape.type === 'circle') {
+        if (currentShape.radius !== initialShape.radius) (updates as any).radius = currentShape.radius;
+      }
+      
+      // Update with history recording (will automatically detect meaningful changes)
+      updateShape(shapeId, updates, true);
+      
+      // Clear the transform start reference
+      transformStartShapeRef.current = null;
+    } else {
+      // Fallback: just update metadata
+      updateShape(shapeId, {
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      }, false);
+    }
     
     // Lock will be released when shape is deselected (via selection management effect)
     // Keeping the lock active while shape remains selected prevents other users from selecting it
@@ -1415,6 +1535,10 @@ export const Canvas = () => {
           onAlignRight={handleAlignRight}
           onDistributeHorizontally={handleDistributeHorizontally}
           onDistributeVertically={handleDistributeVertically}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={undo}
+          onRedo={redo}
         />
         <Stage
           ref={stageRef}
@@ -1527,6 +1651,9 @@ export const Canvas = () => {
 
               // Handle drag start for group movement
               const handleShapeDragStart = async () => {
+                // Store initial shape state for history
+                dragStartShapeRef.current = { ...shape };
+                
                 // If this shape is part of a multi-selection, acquire locks on all selected shapes
                 if (selectedShapeIds.length > 1 && selectedShapeIds.includes(shape.id) && user) {
                   for (const shapeId of selectedShapeIds) {
@@ -1685,6 +1812,12 @@ export const Canvas = () => {
           onShapesHighlight={highlightShapes}
         />
       )}
+      
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal 
+        isOpen={showKeyboardShortcuts}
+        onClose={() => setShowKeyboardShortcuts(false)}
+      />
     </div>
   );
 };

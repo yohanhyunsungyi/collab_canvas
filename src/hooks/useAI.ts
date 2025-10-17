@@ -30,6 +30,7 @@ interface UseAIReturn {
     remaining: number;
     resetIn: number;
   };
+  streamingStatus: string | null; // Current tool being executed
   sendCommand: (prompt: string) => Promise<AICommandResponse>;
   clearError: () => void;
   clearHistory: () => void;
@@ -51,6 +52,7 @@ export const useAI = (
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>([]);
+  const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
 
   // Check if AI service is available
   const isAvailable = aiService.isAvailable();
@@ -76,8 +78,33 @@ export const useAI = (
           shapeCount: shapes.length,
         };
 
-        // Send to AI service only
-        const aiResponse = await aiService.sendCommand(request, aiToolsSchema);
+        // Send to AI service with streaming callbacks
+        const aiResponse = await aiService.sendCommand(request, aiToolsSchema, {
+          onStreamStart: () => {
+            setStreamingStatus('Thinking...');
+          },
+          onStreamProgress: (toolName: string) => {
+            // Convert tool names to friendly status messages
+            const friendlyNames: Record<string, string> = {
+              createRectangle: 'Creating rectangle',
+              createCircle: 'Creating circle',
+              createText: 'Creating text',
+              createLoginForm: 'Building login form',
+              createNavigationBar: 'Building navigation bar',
+              createCardLayout: 'Creating card layout',
+              createDashboard: 'Creating dashboard',
+              moveShape: 'Moving shape',
+              resizeShape: 'Resizing shape',
+              arrangeGrid: 'Arranging grid',
+              arrangeHorizontal: 'Arranging horizontally',
+              arrangeVertical: 'Arranging vertically',
+            };
+            setStreamingStatus(friendlyNames[toolName] || `Executing ${toolName}`);
+          },
+          onStreamEnd: () => {
+            setStreamingStatus(null);
+          },
+        });
 
         if (!aiResponse.success) {
           // Create friendly, specific error messages for toast
@@ -170,6 +197,7 @@ export const useAI = (
         };
       } finally {
         setLoading(false);
+        setStreamingStatus(null);
       }
     },
     [userId, shapes, selectedShapeIds, canvasWidth, canvasHeight, isAvailable]
@@ -249,6 +277,7 @@ export const useAI = (
     commandHistory,
     isAvailable,
     rateLimitStatus,
+    streamingStatus,
     sendCommand,
     clearError,
     clearHistory,
