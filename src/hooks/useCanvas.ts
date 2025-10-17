@@ -50,6 +50,7 @@ interface UseCanvasReturn {
   historyRecord: (shapeId: string, before: Partial<CanvasShape> | null, after: Partial<CanvasShape> | null) => void;
   historyCommit: () => void;
   historyCoalesce: (key: string, type: ActionType, builder: () => void, idleMs?: number, meta?: Record<string, unknown>) => void;
+  commitChangeSet: (type: ActionType, changes: ChangeSet, meta?: Record<string, unknown>) => Promise<void>;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => Promise<void>;
@@ -65,7 +66,7 @@ interface UseCanvasReturn {
  * Custom hook for managing canvas state
  * Handles shapes, selection, tools, colors, undo/redo, and clipboard
  */
-export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn => {
+export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): UseCanvasReturn => {
   // Canvas objects state
   const [shapes, setShapes] = useState<CanvasShape[]>([]);
   const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]); // Changed to array for multi-select
@@ -86,33 +87,8 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
   const [canRedoState, setCanRedoState] = useState(false);
 
   const applyChangeSet = useCallback(async (changes: ChangeSet, direction: 'undo' | 'redo') => {
-    // Apply via Firestore service; real-time listener will sync local state
-    for (const change of Object.values(changes)) {
-      const { shapeId, before, after } = change;
-      if (direction === 'undo') {
-        if (before === null && after !== null) {
-          // Undo a creation → delete
-          await canvasService.deleteShape(shapeId);
-        } else if (before !== null && after === null) {
-          // Undo a deletion → recreate (expects full shape in before)
-          await canvasService.createShape(before as CanvasShape);
-        } else if (before !== null && after !== null) {
-          // Undo an update → restore previous fields
-          await canvasService.updateShape(shapeId, before);
-        }
-      } else {
-        if (before === null && after !== null) {
-          // Redo a creation → create
-          await canvasService.createShape(after as CanvasShape);
-        } else if (before !== null && after === null) {
-          // Redo a deletion → delete again
-          await canvasService.deleteShape(shapeId);
-        } else if (before !== null && after !== null) {
-          // Redo an update → apply after fields
-          await canvasService.updateShape(shapeId, after);
-        }
-      }
-    }
+    // Batch-apply changes via service for a single snapshot/render
+    await canvasService.applyDirectionalChangeSet(changes, direction);
   }, []);
 
   const historyRef = useRef<HistoryManager | null>(null);
@@ -140,19 +116,30 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     historyRef.current?.coalesce(key, type, builder, idleMs, meta);
   }, []);
 
+  // Commit a batch of changes as a single history command and single Firestore batch
+  const commitChangeSet = useCallback(async (type: ActionType, changes: ChangeSet, meta?: Record<string, unknown>) => {
+    historyBegin(type, meta);
+    for (const change of Object.values(changes)) {
+      historyRecord(change.shapeId, change.before, change.after);
+    }
+    historyCommit();
+    await canvasService.applyChangeSet(changes);
+  }, [historyBegin, historyRecord, historyCommit]);
+
   // Add a new shape to the canvas and persist it to Firestore
   const addShape = useCallback(async (
     shapeData: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>,
     userId: string,
     overrideId?: string
   ) => {
+    const effectiveUserId = userId ?? (initialUserId as string);
     // Create the full shape object with metadata
     const newShape: CanvasShape = {
       ...shapeData,
       id: overrideId ?? `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      createdBy: userId,
+      createdBy: effectiveUserId,
       createdAt: Date.now(),
-      lastModifiedBy: userId,
+      lastModifiedBy: effectiveUserId,
       lastModifiedAt: Date.now(),
       lockedBy: null,
       lockedAt: null,
@@ -305,75 +292,104 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     const duplicateOffset = 20; // Offset duplicates by 20px
 
     try {
-      // Batch as one history transaction
-      historyBegin('duplicate');
+      const changes: ChangeSet = {};
       for (const shape of selectedShapes) {
-        let shapeData;
-
         if (shape.type === 'rectangle') {
-          shapeData = {
-            type: 'rectangle' as const,
-            x: shape.x + duplicateOffset,
-            y: shape.y + duplicateOffset,
-            width: shape.width,
-            height: shape.height,
-            color: shape.color,
-            rotation: shape.rotation || 0,
+          const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'rectangle',
+              x: shape.x + duplicateOffset,
+              y: shape.y + duplicateOffset,
+              width: shape.width,
+              height: shape.height,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
           };
         } else if (shape.type === 'circle') {
-          shapeData = {
-            type: 'circle' as const,
-            x: shape.x + duplicateOffset,
-            y: shape.y + duplicateOffset,
-            radius: shape.radius,
-            color: shape.color,
-            rotation: shape.rotation || 0,
+          const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'circle',
+              x: shape.x + duplicateOffset,
+              y: shape.y + duplicateOffset,
+              radius: shape.radius,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
           };
         } else if (shape.type === 'text') {
-          shapeData = {
-            type: 'text' as const,
-            x: shape.x + duplicateOffset,
-            y: shape.y + duplicateOffset,
-            text: shape.text,
-            fontSize: shape.fontSize,
-            color: shape.color,
-            rotation: shape.rotation || 0,
+          const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'text',
+              x: shape.x + duplicateOffset,
+              y: shape.y + duplicateOffset,
+              text: shape.text,
+              fontSize: shape.fontSize,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
           };
         } else if (shape.type === 'image') {
-          shapeData = {
-            type: 'image' as const,
-            x: shape.x + duplicateOffset,
-            y: shape.y + duplicateOffset,
-            width: shape.width,
-            height: shape.height,
-            src: shape.src,
-            color: shape.color,
-            rotation: shape.rotation || 0,
+          const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'image',
+              x: shape.x + duplicateOffset,
+              y: shape.y + duplicateOffset,
+              width: shape.width,
+              height: shape.height,
+              src: shape.src,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
           };
-        } else {
-          continue; // Skip unknown types
         }
-
-        const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const afterShape: CanvasShape = {
-          ...(shapeData as any),
-          id: newId,
-          createdBy: userId,
-          createdAt: Date.now(),
-          lastModifiedBy: userId,
-          lastModifiedAt: Date.now(),
-          lockedBy: null,
-          lockedAt: null,
-        } as CanvasShape;
-        historyRecord(newId, null, afterShape);
-        await addShape(shapeData as any, userId, newId);
       }
-      historyCommit();
+      await commitChangeSet('duplicate', changes);
     } catch (error) {
       console.error("Failed to duplicate shapes:", error);
       setError('Failed to duplicate shapes. Please check your connection.');
     }
-  }, [shapes, selectedShapeIds, addShape, historyBegin, historyRecord, historyCommit]);
+  }, [shapes, selectedShapeIds, commitChangeSet]);
   
   // Clear error state
   const clearError = useCallback(() => {
@@ -458,79 +474,103 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     const pasteOffset = 20; // Offset pasted shapes by 20px
 
     console.log(`[useCanvas] Pasting ${clipboard.length} shapes...`);
-    
-    // Create copies for each clipboard shape as one transaction
-    historyBegin('duplicate');
-    for (const shape of clipboard) {
-      let shapeData;
-
-      if (shape.type === 'rectangle') {
-        shapeData = {
-          type: 'rectangle' as const,
-          x: shape.x + pasteOffset,
-          y: shape.y + pasteOffset,
-          width: shape.width,
-          height: shape.height,
-          color: shape.color,
-          rotation: shape.rotation || 0,
-        };
-      } else if (shape.type === 'circle') {
-        shapeData = {
-          type: 'circle' as const,
-          x: shape.x + pasteOffset,
-          y: shape.y + pasteOffset,
-          radius: shape.radius,
-          color: shape.color,
-          rotation: shape.rotation || 0,
-        };
-      } else if (shape.type === 'text') {
-        shapeData = {
-          type: 'text' as const,
-          x: shape.x + pasteOffset,
-          y: shape.y + pasteOffset,
-          text: shape.text,
-          fontSize: shape.fontSize,
-          color: shape.color,
-          rotation: shape.rotation || 0,
-        };
-      } else if (shape.type === 'image') {
-        shapeData = {
-          type: 'image' as const,
-          x: shape.x + pasteOffset,
-          y: shape.y + pasteOffset,
-          width: shape.width,
-          height: shape.height,
-          src: shape.src,
-          color: shape.color,
-          rotation: shape.rotation || 0,
-        };
-      } else {
-        continue; // Skip unknown types
-      }
-
-      try {
+    try {
+      const changes: ChangeSet = {};
+      for (const shape of clipboard) {
         const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const afterShape: CanvasShape = {
-          ...(shapeData as any),
-          id: newId,
-          createdBy: userId,
-          createdAt: Date.now(),
-          lastModifiedBy: userId,
-          lastModifiedAt: Date.now(),
-          lockedBy: null,
-          lockedAt: null,
-        } as CanvasShape;
-        historyRecord(newId, null, afterShape);
-        await addShape(shapeData as any, userId, newId);
-        console.log(`[useCanvas] Pasted shape: ${shape.type}`);
-      } catch (error) {
-        console.error("Failed to paste shape:", error);
-        setError('Failed to paste shapes. Please check your connection.');
+        if (shape.type === 'rectangle') {
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'rectangle',
+              x: shape.x + pasteOffset,
+              y: shape.y + pasteOffset,
+              width: shape.width,
+              height: shape.height,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
+          };
+        } else if (shape.type === 'circle') {
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'circle',
+              x: shape.x + pasteOffset,
+              y: shape.y + pasteOffset,
+              radius: shape.radius,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
+          };
+        } else if (shape.type === 'text') {
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'text',
+              x: shape.x + pasteOffset,
+              y: shape.y + pasteOffset,
+              text: shape.text,
+              fontSize: shape.fontSize,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
+          };
+        } else if (shape.type === 'image') {
+          changes[newId] = {
+            shapeId: newId,
+            before: null,
+            after: {
+              type: 'image',
+              x: shape.x + pasteOffset,
+              y: shape.y + pasteOffset,
+              width: shape.width,
+              height: shape.height,
+              src: shape.src,
+              color: shape.color,
+              rotation: shape.rotation || 0,
+              id: newId,
+              createdBy: userId,
+              createdAt: Date.now(),
+              lastModifiedBy: userId,
+              lastModifiedAt: Date.now(),
+              lockedBy: null,
+              lockedAt: null,
+            } as CanvasShape,
+          };
+        }
       }
+      await commitChangeSet('duplicate', changes);
+      console.log(`[useCanvas] Successfully pasted ${clipboard.length} shapes`);
+    } catch (error) {
+      console.error("Failed to paste shape:", error);
+      setError('Failed to paste shapes. Please check your connection.');
     }
-    historyCommit();
-    console.log(`[useCanvas] Successfully pasted ${clipboard.length} shapes`);
-  }, [clipboard, addShape, historyBegin, historyRecord, historyCommit]);
+  }, [clipboard, commitChangeSet]);
 
   return {
     // State
@@ -566,6 +606,7 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     historyRecord,
     historyCommit,
     historyCoalesce,
+    commitChangeSet,
     canUndo: canUndoState,
     canRedo: canRedoState,
     undo: () => historyRef.current?.undo() ?? Promise.resolve(),

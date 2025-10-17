@@ -21,6 +21,7 @@ const PRESET_COMMANDS = [
   "Rotate the text 45 degrees",
   "Arrange these shapes in a horizontal row",
   "Create a grid of 3x3 squares",
+  "Create a grid of 500 squares with 2-pixel spacing",
   "Space these elements evenly",
   "Create a login form with username and password fields",
   "Build a navigation bar with 4 menu items",

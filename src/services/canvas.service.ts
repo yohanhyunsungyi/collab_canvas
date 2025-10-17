@@ -9,9 +9,11 @@ import {
   query,
   type Unsubscribe,
   Timestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { firestore } from './firebase';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape, ImageShape } from '../types/canvas.types';
+import type { ChangeSet } from '../history/historyManager';
 
 // Firestore collection name for canvas objects
 const CANVAS_COLLECTION = 'canvasObjects';
@@ -164,6 +166,34 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
 };
 
 /**
+ * Convert Partial<CanvasShape> to Partial<FirestoreShapeData>
+ * Mirrors updateShape conversion logic for batch updates
+ */
+const partialShapeToFirestore = (updates: Partial<CanvasShape>): Partial<FirestoreShapeData> => {
+  const firestoreUpdates: Partial<FirestoreShapeData> = {};
+
+  if (updates.x !== undefined) firestoreUpdates.x = updates.x;
+  if (updates.y !== undefined) firestoreUpdates.y = updates.y;
+  if (updates.color !== undefined) firestoreUpdates.color = updates.color;
+  if (updates.lockedBy !== undefined) firestoreUpdates.lockedBy = updates.lockedBy;
+  if (updates.lockedAt !== undefined) firestoreUpdates.lockedAt = updates.lockedAt;
+  if (updates.lastModifiedBy !== undefined) firestoreUpdates.lastModifiedBy = updates.lastModifiedBy;
+  if (updates.rotation !== undefined) firestoreUpdates.rotation = updates.rotation;
+
+  // Always bump lastModifiedAt on update if not explicitly given
+  firestoreUpdates.lastModifiedAt = (updates.lastModifiedAt ?? Date.now());
+
+  if ('width' in updates && updates.width !== undefined) firestoreUpdates.width = updates.width;
+  if ('height' in updates && updates.height !== undefined) firestoreUpdates.height = updates.height;
+  if ('radius' in updates && updates.radius !== undefined) firestoreUpdates.radius = updates.radius;
+  if ('text' in updates && updates.text !== undefined) firestoreUpdates.text = updates.text;
+  if ('fontSize' in updates && updates.fontSize !== undefined) firestoreUpdates.fontSize = updates.fontSize;
+  if ('src' in updates && (updates as any).src !== undefined) firestoreUpdates.src = (updates as any).src;
+
+  return firestoreUpdates;
+};
+
+/**
  * Create a new shape in Firestore
  * @param shape - The shape to create
  * @returns Promise with the shape ID
@@ -254,6 +284,80 @@ export const deleteShape = async (id: string): Promise<void> => {
     console.error('[Canvas Service] Error deleting shape:', error);
     throw new Error(`Failed to delete shape: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+};
+
+/**
+ * Apply a set of creates/updates/deletes as a single Firestore batch commit (forward direction)
+ * - before === null && after !== null  => create
+ * - before !== null && after === null  => delete
+ * - before !== null && after !== null  => update with fields from `after`
+ */
+export const applyChangeSet = async (changes: ChangeSet): Promise<void> => {
+  try {
+    const batch = writeBatch(firestore);
+
+    for (const change of Object.values(changes)) {
+      const { shapeId, before, after } = change;
+      const shapeRef = doc(firestore, CANVAS_COLLECTION, shapeId);
+
+      if (before === null && after !== null) {
+        // Create
+        batch.set(shapeRef, shapeToFirestore(after as CanvasShape));
+      } else if (before !== null && after === null) {
+        // Delete
+        batch.delete(shapeRef);
+      } else if (before !== null && after !== null) {
+        // Update specific fields
+        batch.update(shapeRef, partialShapeToFirestore(after));
+      }
+    }
+
+    await batch.commit();
+    console.log(`[Canvas Service] applyChangeSet committed ${Object.keys(changes).length} ops`);
+  } catch (error) {
+    console.error('[Canvas Service] Error applying change set:', error);
+    throw new Error(`Failed to apply changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+/**
+ * Apply a ChangeSet for undo/redo in a single batch
+ */
+export const applyDirectionalChangeSet = async (
+  changes: ChangeSet,
+  direction: 'undo' | 'redo'
+): Promise<void> => {
+  // Transform to forward changes for batch application
+  const forward: ChangeSet = {};
+  for (const [shapeId, change] of Object.entries(changes)) {
+    const { before, after } = change;
+    if (direction === 'undo') {
+      if (before === null && after !== null) {
+        // Undo create => delete
+        forward[shapeId] = { shapeId, before: after, after: null };
+      } else if (before !== null && after === null) {
+        // Undo delete => create
+        forward[shapeId] = { shapeId, before: null, after: before };
+      } else if (before !== null && after !== null) {
+        // Undo update => set to `before`
+        forward[shapeId] = { shapeId, before: {}, after: before } as any;
+      }
+    } else {
+      // redo
+      if (before === null && after !== null) {
+        // Redo create => create
+        forward[shapeId] = { shapeId, before: null, after };
+      } else if (before !== null && after === null) {
+        // Redo delete => delete
+        forward[shapeId] = { shapeId, before, after: null };
+      } else if (before !== null && after !== null) {
+        // Redo update => set to `after`
+        forward[shapeId] = { shapeId, before: {}, after } as any;
+      }
+    }
+  }
+
+  return applyChangeSet(forward);
 };
 
 /**

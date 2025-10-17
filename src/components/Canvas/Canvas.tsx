@@ -18,6 +18,7 @@ import { AIPanel, type AIPanelHandle } from '../AI/AIPanel';
 import { KeyboardShortcutsModal } from '../UI/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
+import type { ShapeChangeEvent } from '../../services/canvas.service';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -122,6 +123,7 @@ export const Canvas = () => {
     historyRecord,
     historyCommit,
     historyCoalesce,
+    commitChangeSet,
     canUndo,
     canRedo,
     undo,
@@ -146,6 +148,10 @@ export const Canvas = () => {
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [previewShape, setPreviewShape] = useState<CanvasShape | null>(null);
 
+  // Buffer for remote real-time changes to coalesce multiple snapshots into a single render
+  const pendingChangesRef = useRef<ShapeChangeEvent[]>([]);
+  const flushScheduledRef = useRef(false);
+
   // Drag selection state
   const [isDragSelecting, setIsDragSelecting] = useState(false);
   const [dragSelectStart, setDragSelectStart] = useState<{ x: number; y: number } | null>(null);
@@ -169,17 +175,15 @@ export const Canvas = () => {
   // Delete selected shapes
   const handleDeleteSelected = useCallback(async () => {
     if (selectedShapeIds.length === 0 || !user) return;
-    // Begin single transaction for deletions
-    historyBegin('delete');
+    const changes: Record<string, { shapeId: string; before: any; after: any }> = {};
     for (const shapeId of selectedShapeIds) {
       const shape = shapes.find(s => s.id === shapeId);
       if (!shape) continue;
-      historyRecord(shapeId, { ...shape }, null);
-      await removeShape(shapeId);
+      changes[shapeId] = { shapeId, before: { ...shape }, after: null };
     }
-    historyCommit();
+    await commitChangeSet('delete', changes);
     clearSelection();
-  }, [selectedShapeIds, user, removeShape, clearSelection, shapes, historyBegin, historyRecord, historyCommit]);
+  }, [selectedShapeIds, user, shapes, commitChangeSet, clearSelection]);
 
   // Select all shapes
   const handleSelectAll = useCallback(() => {
@@ -271,9 +275,27 @@ export const Canvas = () => {
             console.log('[Canvas] Skipping initial snapshot (already loaded)');
             return;
           }
-          
-          console.log(`[Canvas] Applying ${changes.length} real-time changes`);
-          applyShapeChanges(changes);
+
+          // Buffer changes and flush once per animation frame to avoid N renders
+          pendingChangesRef.current.push(...changes);
+          if (!flushScheduledRef.current) {
+            flushScheduledRef.current = true;
+            requestAnimationFrame(() => {
+              flushScheduledRef.current = false;
+              if (pendingChangesRef.current.length === 0) return;
+
+              // Coalesce by shape id: last event wins
+              const byId = new Map<string, ShapeChangeEvent>();
+              for (const ev of pendingChangesRef.current) {
+                byId.set(ev.shape.id, ev);
+              }
+              const aggregated = Array.from(byId.values());
+              pendingChangesRef.current = [];
+
+              console.log(`[Canvas] Applying aggregated ${aggregated.length} real-time changes`);
+              applyShapeChanges(aggregated);
+            });
+          }
         });
       })
       .catch((error) => {
