@@ -25,6 +25,7 @@ interface UseHistoryReturn {
  * Hook for managing undo/redo history
  * Only tracks actions by the current user
  */
+// Deprecated legacy hook retained temporarily for backward-compatibility. Not used.
 export const useHistory = ({
   userId,
   shapes,

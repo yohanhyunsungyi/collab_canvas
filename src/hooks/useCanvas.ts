@@ -3,8 +3,8 @@ import type { CanvasShape, ToolType } from '../types/canvas.types';
 import { USER_COLORS } from '../utils/colors';
 import * as canvasService from '../services/canvas.service';
 import type { ShapeChangeEvent } from '../services/canvas.service';
-import { useHistory } from './useHistory';
-import type { ActionType, HistoryAction } from '../types/history.types';
+import type { ActionType } from '../types/history.types';
+import { HistoryManager, type ChangeSet } from '../history/historyManager';
 
 interface UseCanvasProps {
   userId?: string; // User ID for tracking history
@@ -26,9 +26,13 @@ interface UseCanvasReturn {
   clearError: () => void;
   
   // Shape management functions
-  addShape: (shape: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>, userId: string, recordHistory?: boolean) => Promise<void>;
-  updateShape: (id: string, updates: Partial<CanvasShape>, recordHistory?: boolean) => void;
-  removeShape: (id: string, recordHistory?: boolean) => void;
+  addShape: (
+    shape: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>,
+    userId: string,
+    overrideId?: string
+  ) => Promise<void>;
+  updateShape: (id: string, updates: Partial<CanvasShape>) => Promise<void>;
+  removeShape: (id: string) => Promise<void>;
   selectShape: (id: string | null) => void; // Select single shape (clears others)
   toggleShapeSelection: (id: string) => void; // Add/remove from selection (for shift-click)
   clearSelection: () => void; // Clear all selections
@@ -42,7 +46,10 @@ interface UseCanvasReturn {
   setCurrentFontSize: (fontSize: number) => void;
   
   // History (undo/redo)
-  recordHistoryAction: (type: ActionType, affectedShapeIds: string[], beforeState: CanvasShape[], afterState: CanvasShape[]) => void;
+  historyBegin: (type: ActionType, meta?: Record<string, unknown>) => void;
+  historyRecord: (shapeId: string, before: Partial<CanvasShape> | null, after: Partial<CanvasShape> | null) => void;
+  historyCommit: () => void;
+  historyCoalesce: (key: string, type: ActionType, builder: () => void, idleMs?: number, meta?: Record<string, unknown>) => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => Promise<void>;
@@ -74,136 +81,75 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
   // Clipboard state
   const [clipboard, setClipboard] = useState<CanvasShape[]>([]);
   
-  // Track if we're applying history action (to prevent recursive recording)
-  const isApplyingHistoryRef = useRef(false);
+  // History manager integration
+  const [canUndoState, setCanUndoState] = useState(false);
+  const [canRedoState, setCanRedoState] = useState(false);
 
-  /**
-   * Handler for undo action
-   */
-  const handleUndo = useCallback(async (action: HistoryAction) => {
-    if (!action.beforeState) return;
-    
-    isApplyingHistoryRef.current = true;
-    console.log('[useCanvas] Undoing action:', action.type, 'affecting shapes:', action.affectedShapeIds);
-    
-    try {
-      // Restore the before state
-      const affectedIds = action.affectedShapeIds;
-      
-      // Update Firestore for each affected shape
-      for (const shapeId of affectedIds) {
-        const beforeShape = action.beforeState.find(s => s.id === shapeId);
-        const afterShape = action.afterState?.find(s => s.id === shapeId);
-        
-        // Shape was created -> delete it
-        if (!beforeShape && afterShape) {
-          console.log('[useCanvas] Undo: Deleting created shape', shapeId);
+  const applyChangeSet = useCallback(async (changes: ChangeSet, direction: 'undo' | 'redo') => {
+    // Apply via Firestore service; real-time listener will sync local state
+    for (const change of Object.values(changes)) {
+      const { shapeId, before, after } = change;
+      if (direction === 'undo') {
+        if (before === null && after !== null) {
+          // Undo a creation → delete
           await canvasService.deleteShape(shapeId);
-          // Real-time listener will update local state
+        } else if (before !== null && after === null) {
+          // Undo a deletion → recreate (expects full shape in before)
+          await canvasService.createShape(before as CanvasShape);
+        } else if (before !== null && after !== null) {
+          // Undo an update → restore previous fields
+          await canvasService.updateShape(shapeId, before);
         }
-        // Shape was deleted -> recreate it
-        else if (beforeShape && !afterShape) {
-          console.log('[useCanvas] Undo: Recreating deleted shape', shapeId);
-          await canvasService.createShape(beforeShape);
-          // Real-time listener will update local state
-        }
-        // Shape was modified -> restore previous state
-        else if (beforeShape) {
-          console.log('[useCanvas] Undo: Restoring modified shape', shapeId);
-          await canvasService.updateShape(shapeId, beforeShape);
-          // Real-time listener will update local state
+      } else {
+        if (before === null && after !== null) {
+          // Redo a creation → create
+          await canvasService.createShape(after as CanvasShape);
+        } else if (before !== null && after === null) {
+          // Redo a deletion → delete again
+          await canvasService.deleteShape(shapeId);
+        } else if (before !== null && after !== null) {
+          // Redo an update → apply after fields
+          await canvasService.updateShape(shapeId, after);
         }
       }
-      console.log('[useCanvas] Undo completed successfully');
-    } catch (error) {
-      console.error('Failed to undo action:', error);
-      setError('Failed to undo. Please check your connection.');
-    } finally {
-      isApplyingHistoryRef.current = false;
     }
   }, []);
 
-  /**
-   * Handler for redo action
-   */
-  const handleRedo = useCallback(async (action: HistoryAction) => {
-    if (!action.afterState) return;
-    
-    isApplyingHistoryRef.current = true;
-    console.log('[useCanvas] Redoing action:', action.type, 'affecting shapes:', action.affectedShapeIds);
-    
-    try {
-      // Restore the after state
-      const affectedIds = action.affectedShapeIds;
-      
-      // Update Firestore for each affected shape
-      for (const shapeId of affectedIds) {
-        const beforeShape = action.beforeState?.find(s => s.id === shapeId);
-        const afterShape = action.afterState.find(s => s.id === shapeId);
-        
-        // Shape was created -> recreate it
-        if (!beforeShape && afterShape) {
-          console.log('[useCanvas] Redo: Recreating created shape', shapeId);
-          await canvasService.createShape(afterShape);
-          // Real-time listener will update local state
-        }
-        // Shape was deleted -> delete it again
-        else if (beforeShape && !afterShape) {
-          console.log('[useCanvas] Redo: Deleting shape again', shapeId);
-          await canvasService.deleteShape(shapeId);
-          // Real-time listener will update local state
-        }
-        // Shape was modified -> restore after state
-        else if (afterShape) {
-          console.log('[useCanvas] Redo: Restoring modified shape', shapeId);
-          await canvasService.updateShape(shapeId, afterShape);
-          // Real-time listener will update local state
-        }
-      }
-      console.log('[useCanvas] Redo completed successfully');
-    } catch (error) {
-      console.error('Failed to redo action:', error);
-      setError('Failed to redo. Please check your connection.');
-    } finally {
-      isApplyingHistoryRef.current = false;
-    }
+  const historyRef = useRef<HistoryManager | null>(null);
+  if (!historyRef.current) {
+    historyRef.current = new HistoryManager(applyChangeSet, (canUndo, canRedo) => {
+      setCanUndoState(canUndo);
+      setCanRedoState(canRedo);
+    });
+  }
+
+  // History helpers
+  const historyBegin = useCallback((type: ActionType, meta?: Record<string, unknown>) => {
+    historyRef.current?.begin(type, meta);
   }, []);
 
-  // Initialize history hook
-  const history = useHistory({
-    userId,
-    shapes,
-    onUndo: handleUndo,
-    onRedo: handleRedo,
-  });
+  const historyRecord = useCallback((shapeId: string, before: Partial<CanvasShape> | null, after: Partial<CanvasShape> | null) => {
+    historyRef.current?.record(shapeId, before, after);
+  }, []);
 
-  /**
-   * Helper to record action in history
-   */
-  const recordHistoryAction = useCallback(
-    (type: ActionType, affectedShapeIds: string[], beforeState: CanvasShape[], afterState: CanvasShape[]) => {
-      if (isApplyingHistoryRef.current || !userId) {
-        console.log('[useCanvas] Skipping history record:', isApplyingHistoryRef.current ? 'applying history' : 'no user');
-        return;
-      }
-      console.log('[useCanvas] Recording history action:', type, 'for shapes:', affectedShapeIds);
-      console.log('[useCanvas] Before state length:', beforeState.length, 'After state length:', afterState.length);
-      history.recordAction(type, affectedShapeIds, beforeState, afterState);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userId] // history는 의도적으로 제외 (무한 루프 방지)
-  );
+  const historyCommit = useCallback(() => {
+    historyRef.current?.commit();
+  }, []);
+
+  const historyCoalesce = useCallback((key: string, type: ActionType, builder: () => void, idleMs = 250, meta?: Record<string, unknown>) => {
+    historyRef.current?.coalesce(key, type, builder, idleMs, meta);
+  }, []);
 
   // Add a new shape to the canvas and persist it to Firestore
   const addShape = useCallback(async (
     shapeData: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>,
     userId: string,
-    recordHistory = true
+    overrideId?: string
   ) => {
     // Create the full shape object with metadata
     const newShape: CanvasShape = {
       ...shapeData,
-      id: `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: overrideId ?? `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       createdBy: userId,
       createdAt: Date.now(),
       lastModifiedBy: userId,
@@ -217,15 +163,7 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     try {
       // Optimistic update: Add to local state immediately for better UX
       setShapes(prevShapes => {
-        const beforeState = [...prevShapes];
-        const afterState = [...prevShapes, newShape];
-        
-        // Record in history
-        if (recordHistory && !isApplyingHistoryRef.current) {
-          recordHistoryAction('create', [newShape.id], beforeState, afterState);
-        }
-        
-        return afterState;
+        return [...prevShapes, newShape];
       });
 
       // Persist to Firestore (real-time listener will sync across users)
@@ -237,36 +175,15 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
       // Rollback optimistic update on error
       setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
     }
-  }, [recordHistoryAction]);
+  }, []);
 
   // Update an existing shape and persist it to Firestore
-  const updateShape = useCallback(async (id: string, updates: Partial<CanvasShape>, recordHistory = true) => {
+  const updateShape = useCallback(async (id: string, updates: Partial<CanvasShape>) => {
+    let originalShape: CanvasShape | undefined = shapes.find(s => s.id === id);
     setShapes((prevShapes) => {
-      // Check if this is a meaningful update (not just metadata)
-      const isMeaningfulUpdate = recordHistory && (
-        updates.x !== undefined ||
-        updates.y !== undefined ||
-        updates.color !== undefined ||
-        updates.rotation !== undefined ||
-        'width' in updates ||
-        'height' in updates ||
-        'radius' in updates ||
-        'text' in updates ||
-        'fontSize' in updates
-      );
-      
-      const originalShape = prevShapes.find(s => s.id === id);
-      const beforeState = [...prevShapes];
-      const afterState = prevShapes.map((shape) => 
+      return prevShapes.map((shape) => 
         shape.id === id ? { ...shape, ...updates } as CanvasShape : shape
       );
-      
-      // Record in history only for meaningful updates
-      if (isMeaningfulUpdate && originalShape && !isApplyingHistoryRef.current) {
-        recordHistoryAction('update', [id], beforeState, afterState);
-      }
-      
-      return afterState;
     });
     
     try {
@@ -276,28 +193,15 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
       setError('Failed to update shape. Please check your connection.');
       // Revert optimistic update on failure
       if (originalShape) {
-        setShapes((prev) =>
-          prev.map((shape) => 
-            shape.id === id ? originalShape! : shape
-          )
-        );
+        setShapes((prev) => prev.map((shape) => shape.id === id ? originalShape! : shape));
       }
     }
-  }, [recordHistoryAction]);
+  }, [shapes]);
 
   // Remove a shape from the canvas and delete from Firestore
-  const removeShape = useCallback(async (id: string, recordHistory = true) => {
+  const removeShape = useCallback(async (id: string) => {
     setShapes((prevShapes) => {
-      const beforeState = [...prevShapes];
-      const shapeToDelete = prevShapes.find(s => s.id === id);
-      const afterState = prevShapes.filter(s => s.id !== id);
-      
-      // Record in history before deletion
-      if (recordHistory && shapeToDelete && !isApplyingHistoryRef.current) {
-        recordHistoryAction('delete', [id], beforeState, afterState);
-      }
-      
-      return afterState;
+      return prevShapes.filter(s => s.id !== id);
     });
     
     // Clear selection if the removed shape was selected
@@ -311,7 +215,7 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
       setError('Failed to delete shape. Please check your connection.');
       // Note: The shape will reappear via onSnapshot if deletion failed
     }
-  }, [recordHistoryAction]);
+  }, []);
 
   // Select a single shape (clears other selections)
   const selectShape = useCallback((id: string | null) => {
@@ -338,7 +242,7 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
 
   // Select shapes within a rectangular area (for drag-to-select)
   const selectShapesInArea = useCallback((x1: number, y1: number, x2: number, y2: number) => {
-    setSelectedShapeIds(prevSelectedIds => {
+    setSelectedShapeIds(() => {
       // Normalize coordinates (handle dragging in any direction)
       const minX = Math.min(x1, x2);
       const minY = Math.min(y1, y2);
@@ -401,7 +305,8 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     const duplicateOffset = 20; // Offset duplicates by 20px
 
     try {
-      // Create duplicates for each selected shape using addShape
+      // Batch as one history transaction
+      historyBegin('duplicate');
       for (const shape of selectedShapes) {
         let shapeData;
 
@@ -449,14 +354,26 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
           continue; // Skip unknown types
         }
 
-        // Use addShape which handles Firestore and history automatically
-        await addShape(shapeData, userId, true);
+        const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const afterShape: CanvasShape = {
+          ...(shapeData as any),
+          id: newId,
+          createdBy: userId,
+          createdAt: Date.now(),
+          lastModifiedBy: userId,
+          lastModifiedAt: Date.now(),
+          lockedBy: null,
+          lockedAt: null,
+        } as CanvasShape;
+        historyRecord(newId, null, afterShape);
+        await addShape(shapeData as any, userId, newId);
       }
+      historyCommit();
     } catch (error) {
       console.error("Failed to duplicate shapes:", error);
       setError('Failed to duplicate shapes. Please check your connection.');
     }
-  }, [shapes, selectedShapeIds, addShape]);
+  }, [shapes, selectedShapeIds, addShape, historyBegin, historyRecord, historyCommit]);
   
   // Clear error state
   const clearError = useCallback(() => {
@@ -542,7 +459,8 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
 
     console.log(`[useCanvas] Pasting ${clipboard.length} shapes...`);
     
-    // Create copies for each clipboard shape using addShape
+    // Create copies for each clipboard shape as one transaction
+    historyBegin('duplicate');
     for (const shape of clipboard) {
       let shapeData;
 
@@ -591,17 +509,28 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
       }
 
       try {
-        // Use addShape which handles Firestore and history automatically
-        await addShape(shapeData, userId, true);
+        const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const afterShape: CanvasShape = {
+          ...(shapeData as any),
+          id: newId,
+          createdBy: userId,
+          createdAt: Date.now(),
+          lastModifiedBy: userId,
+          lastModifiedAt: Date.now(),
+          lockedBy: null,
+          lockedAt: null,
+        } as CanvasShape;
+        historyRecord(newId, null, afterShape);
+        await addShape(shapeData as any, userId, newId);
         console.log(`[useCanvas] Pasted shape: ${shape.type}`);
       } catch (error) {
         console.error("Failed to paste shape:", error);
         setError('Failed to paste shapes. Please check your connection.');
       }
     }
-
+    historyCommit();
     console.log(`[useCanvas] Successfully pasted ${clipboard.length} shapes`);
-  }, [clipboard, addShape]);
+  }, [clipboard, addShape, historyBegin, historyRecord, historyCommit]);
 
   return {
     // State
@@ -633,11 +562,14 @@ export const useCanvas = ({ userId = '' }: UseCanvasProps = {}): UseCanvasReturn
     setCurrentFontSize,
     
     // History (undo/redo)
-    recordHistoryAction, // Manual history recording
-    canUndo: history.canUndo,
-    canRedo: history.canRedo,
-    undo: history.undo,
-    redo: history.redo,
+    historyBegin,
+    historyRecord,
+    historyCommit,
+    historyCoalesce,
+    canUndo: canUndoState,
+    canRedo: canRedoState,
+    undo: () => historyRef.current?.undo() ?? Promise.resolve(),
+    redo: () => historyRef.current?.redo() ?? Promise.resolve(),
     
     // Clipboard
     clipboard,

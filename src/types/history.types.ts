@@ -9,7 +9,9 @@ export type ActionType =
   | 'color_change'
   | 'text_update'
   | 'rotate'
-  | 'duplicate';
+  | 'duplicate'
+  | 'align'
+  | 'distribute';
 
 export interface HistoryAction {
   id: string;

@@ -548,16 +548,16 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
 
 ### Tasks:
 
-- [ ] **16.1: Implement Action History System**
-  - Create action history store
-  - Define action types (create, delete, move, resize, etc.)
-  - Store state snapshots for each action
+- [x] **16.1: Implement Action History System**
+  - Replace legacy hook with command/transaction/coalescing manager
+  - Define action types (create, delete, move, resize, rotate, color_change, text_update, duplicate, align, distribute)
+  - Use per-shape diffs (before/after) instead of full snapshots
   - Max 50 actions in history
   - **Files Created:**
-    - `src/stores/history.store.ts`
-    - `src/types/history.types.ts`
+    - `src/history/historyManager.ts`
+    - `src/types/history.types.ts` (extended)
 
-- [ ] **16.2: Implement Undo Functionality**
+- [x] **16.2: Implement Undo Functionality**
   - Undo last action
   - Restore previous state
   - Update canvas
@@ -565,9 +565,9 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
   - Keyboard shortcut: Cmd/Ctrl+Z
   - **Files Updated:**
     - `src/hooks/useCanvas.ts`
-    - `src/stores/history.store.ts`
+    - `src/components/Canvas/Canvas.tsx`
 
-- [ ] **16.3: Implement Redo Functionality**
+- [x] **16.3: Implement Redo Functionality**
   - Redo undone action
   - Restore forward state
   - Update canvas
@@ -575,16 +575,16 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
   - Keyboard shortcut: Cmd/Ctrl+Shift+Z
   - **Files Updated:**
     - `src/hooks/useCanvas.ts`
-    - `src/stores/history.store.ts`
+    - `src/components/Canvas/Canvas.tsx`
 
-- [ ] **16.4: Add Undo/Redo UI Buttons**
+- [x] **16.4: Add Undo/Redo UI Buttons**
   - Add undo/redo buttons to toolbar
   - Disable when no actions to undo/redo
   - Show tooltip with keyboard shortcut
   - **Files Updated:**
-    - `src/components/Canvas/CanvasToolbar.tsx`
+    - `src/components/Canvas/CanvasToolbar.tsx` (UI already present; wired to new history)
 
-- [ ] **16.5: Implement Keyboard Shortcuts System**
+- [x] **16.5: Implement Keyboard Shortcuts System**
   - Global keyboard listener
   - Handle Cmd (Mac) vs Ctrl (Windows)
   - Prevent browser default shortcuts
@@ -593,7 +593,7 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
   - **Files Updated:**
     - `src/components/Canvas/Canvas.tsx`
 
-- [ ] **16.6: Implement Core Keyboard Shortcuts**
+- [x] **16.6: Implement Core Keyboard Shortcuts**
   - Delete/Backspace: Delete selected
   - Cmd/Ctrl+D: Duplicate
   - Cmd/Ctrl+Z: Undo
@@ -605,14 +605,14 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
   - **Files Updated:**
     - `src/hooks/useKeyboardShortcuts.ts`
 
-- [ ] **16.7: Implement Arrow Key Movement**
+- [x] **16.7: Implement Arrow Key Movement**
   - Arrow keys: Move 1px
   - Shift+Arrow: Move 10px
   - Only when object selected
   - **Files Updated:**
     - `src/hooks/useKeyboardShortcuts.ts`
 
-- [ ] **16.8: Implement Copy/Paste**
+- [x] **16.8: Implement Copy/Paste**
   - Copy selected object to clipboard state
   - Paste creates duplicate at offset position
   - Can paste multiple times
@@ -621,7 +621,7 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
     - `src/hooks/useCanvas.ts`
     - `src/hooks/useKeyboardShortcuts.ts`
 
-- [ ] **16.9: Add Keyboard Shortcuts Cheat Sheet**
+- [x] **16.9: Add Keyboard Shortcuts Cheat Sheet**
   - Press "?" to show shortcuts
   - Modal with all shortcuts listed
   - Grouped by category
@@ -637,16 +637,21 @@ You can press Cmd/Ctrl+K to open/focus the AI input instantly.
     - `src/hooks/useKeyboardShortcuts.test.ts`
 
 **PR Checklist:**
-- [ ] Undo works (Cmd/Ctrl+Z)
-- [ ] Redo works (Cmd/Ctrl+Shift+Z)
-- [ ] Undo/redo buttons work
-- [ ] Action history max 50 items
-- [ ] All keyboard shortcuts work
-- [ ] Arrow keys move objects
-- [ ] Copy/paste works
-- [ ] Shortcuts cheat sheet displays on "?"
+- [x] Undo works (Cmd/Ctrl+Z)
+- [x] Redo works (Cmd/Ctrl+Shift+Z)
+- [x] Undo/redo buttons work
+- [x] Action history max 50 items
+- [x] All keyboard shortcuts work
+- [x] Arrow keys move objects
+- [x] Copy/paste works
+- [x] Shortcuts cheat sheet displays on "?"
 - [ ] All tests pass
-- [ ] Undo/redo syncs across users
+- [x] Undo/redo syncs across users
+
+Notes:
+- Replaced legacy `useHistory` with `historyManager` (command/transaction/coalescing, per-shape diffs).
+- Integrated across create/delete/move/resize/rotate/text/color/font/align/distribute/duplicate/paste.
+- Fixed redo for rotation by recording normalized rotation diffs.
 
 ---
 

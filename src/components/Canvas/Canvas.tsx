@@ -118,7 +118,10 @@ export const Canvas = () => {
     setShapes,
     applyShapeChanges,
     // History
-    recordHistoryAction,
+    historyBegin,
+    historyRecord,
+    historyCommit,
+    historyCoalesce,
     canUndo,
     canRedo,
     undo,
@@ -166,14 +169,17 @@ export const Canvas = () => {
   // Delete selected shapes
   const handleDeleteSelected = useCallback(async () => {
     if (selectedShapeIds.length === 0 || !user) return;
-    
-    // Delete all selected shapes
+    // Begin single transaction for deletions
+    historyBegin('delete');
     for (const shapeId of selectedShapeIds) {
-      await removeShape(shapeId, true);
+      const shape = shapes.find(s => s.id === shapeId);
+      if (!shape) continue;
+      historyRecord(shapeId, { ...shape }, null);
+      await removeShape(shapeId);
     }
-    
+    historyCommit();
     clearSelection();
-  }, [selectedShapeIds, user, removeShape, clearSelection]);
+  }, [selectedShapeIds, user, removeShape, clearSelection, shapes, historyBegin, historyRecord, historyCommit]);
 
   // Select all shapes
   const handleSelectAll = useCallback(() => {
@@ -184,16 +190,17 @@ export const Canvas = () => {
   // Handle arrow key movement
   const handleArrowMove = useCallback(async (dx: number, dy: number) => {
     if (selectedShapeIds.length === 0 || !user) return;
-
-    // Move all selected shapes
-    for (const shapeId of selectedShapeIds) {
-      const shape = shapes.find(s => s.id === shapeId);
-      if (!shape) continue;
-
-      const newPosition = constrainPoint(shape.x + dx, shape.y + dy);
-      await updateShape(shapeId, { x: newPosition.x, y: newPosition.y }, true);
-    }
-  }, [selectedShapeIds, shapes, user, updateShape]);
+    const key = `move:${selectedShapeIds.slice().sort().join(',')}`;
+    historyCoalesce(key, 'move', () => {
+      for (const shapeId of selectedShapeIds) {
+        const shape = shapes.find(s => s.id === shapeId);
+        if (!shape) continue;
+        const newPosition = constrainPoint(shape.x + dx, shape.y + dy);
+        historyRecord(shapeId, { x: shape.x, y: shape.y }, { x: newPosition.x, y: newPosition.y });
+        void updateShape(shapeId, { x: newPosition.x, y: newPosition.y, lastModifiedBy: user.id, lastModifiedAt: Date.now() });
+      }
+    }, 250);
+  }, [selectedShapeIds, shapes, user, updateShape, historyCoalesce, historyRecord]);
 
   // Toggle keyboard shortcuts modal with '?'
   useEffect(() => {
@@ -747,7 +754,13 @@ export const Canvas = () => {
     // Only create/update text shape if user entered something
     if (trimmedText.length > 0) {
       if (editingTextId) {
-        // Update existing text
+        // Update existing text with history
+        const existing = shapes.find(s => s.id === editingTextId);
+        if (existing && existing.type === 'text' && existing.text !== trimmedText) {
+          historyBegin('text_update');
+          historyRecord(editingTextId, { text: existing.text }, { text: trimmedText });
+          historyCommit();
+        }
         updateShape(editingTextId, {
           text: trimmedText,
           lastModifiedBy: user.id,
@@ -771,7 +784,24 @@ export const Canvas = () => {
           color: currentColor,
         };
         
-        addShape(newShapeData, user.id);
+        // Create as one history transaction (create)
+        // new id generated inside addShape; we can't know it ahead, so record using after full shape
+        // HistoryManager supports before=null/after=full shape; we'll piggyback by reusing the id returned optimistically
+        const tempId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const afterShape = {
+          ...newShapeData,
+          id: tempId,
+          createdBy: user.id,
+          createdAt: Date.now(),
+          lastModifiedBy: user.id,
+          lastModifiedAt: Date.now(),
+          lockedBy: null,
+          lockedAt: null,
+        } as CanvasShape;
+        historyBegin('create');
+        historyRecord(tempId, null, afterShape);
+        historyCommit();
+        addShape(newShapeData, user.id, tempId);
       }
     }
     
@@ -965,13 +995,13 @@ export const Canvas = () => {
           if (initialPos) {
             const newX = initialPos.x + deltaX;
             const newY = initialPos.y + deltaY;
-            updateShape(shapeId, { x: newX, y: newY }, false); // Don't record during drag
+            updateShape(shapeId, { x: newX, y: newY });
           }
         });
       }
     } else {
       // Single shape drag
-      updateShape(id, { x, y }, false); // Don't record during drag
+      updateShape(id, { x, y });
     }
   }, [updateShape, selectedShapeIds, isDraggingGroup, groupDragInitialPositions, shapes]);
 
@@ -991,20 +1021,23 @@ export const Canvas = () => {
         const deltaX = x - draggedShapeInitial.x;
         const deltaY = y - draggedShapeInitial.y;
 
-        // Update all selected shapes with final positions and metadata
+        // Update all selected shapes with final positions and metadata (as one history tx)
+        historyBegin('move');
         selectedShapeIds.forEach((shapeId) => {
           const initialPos = groupDragInitialPositions.get(shapeId);
           if (initialPos) {
             const finalX = initialPos.x + deltaX;
             const finalY = initialPos.y + deltaY;
+            historyRecord(shapeId, { x: initialPos.x, y: initialPos.y }, { x: finalX, y: finalY });
             updateShape(shapeId, {
               x: finalX,
               y: finalY,
               lastModifiedBy: user.id,
               lastModifiedAt: Date.now(),
-            }, true); // Record history for each shape
+            });
           }
         });
+        historyCommit();
       }
 
       // Reset group drag state
@@ -1012,25 +1045,24 @@ export const Canvas = () => {
       setGroupDragInitialPositions(new Map());
     } else {
       // Single shape drag end
-      // Manually record history using the initial shape state
       if (initialShape && (initialShape.x !== x || initialShape.y !== y)) {
-        const beforeState = shapes.map(s => s.id === id ? initialShape : s);
-        const afterState = shapes.map(s => s.id === id ? { ...s, x, y } : s);
-        recordHistoryAction('update', [id], beforeState, afterState);
+        historyBegin('move');
+        historyRecord(id, { x: initialShape.x, y: initialShape.y }, { x, y });
+        historyCommit();
       }
       
       // Update metadata only (position already updated by dragMove)
       updateShape(id, {
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
-      }, false); // Don't record - we already did it manually
+      });
     }
     
     // Clear the drag start reference
     dragStartShapeRef.current = null;
     
     // Lock will be released when shape is deselected (via selection management effect)
-  }, [user, updateShape, selectedShapeIds, groupDragInitialPositions, shapes, recordHistoryAction]);
+  }, [user, updateShape, selectedShapeIds, groupDragInitialPositions, shapes, historyBegin, historyRecord, historyCommit]);
 
   // Handle transform start - acquire lock when starting to resize (if not already locked)
   const handleTransformStart = useCallback(async () => {
@@ -1090,7 +1122,7 @@ export const Canvas = () => {
         width,
         height,
         rotation,
-      }, false); // Don't record history during transform (only at end)
+      });
     } else if (shape.type === 'circle') {
       // For circles, always use original shape radius as base to avoid accumulation
       const rawRadius = Math.max(5, shape.radius * ((scaleX + scaleY) / 2));
@@ -1134,7 +1166,7 @@ export const Canvas = () => {
         y: nodeY,
         radius,
         rotation,
-      }, false); // Don't record during transform
+      });
     } else if (shape.type === 'text') {
       // Text: no resizing, auto-fit to content, but support rotation
       // Reset scale to 1
@@ -1146,7 +1178,7 @@ export const Canvas = () => {
         x: nodeX,
         y: nodeY,
         rotation,
-      }, false); // Don't record during transform
+      });
     }
   };
 
@@ -1160,26 +1192,28 @@ export const Canvas = () => {
     
     // If we have both initial and current shape, record the full transform in history
     if (initialShape && currentShape) {
-      const updates: Partial<CanvasShape> = {
-        lastModifiedBy: user.id,
-        lastModifiedAt: Date.now(),
-      };
-      
-      // Include all changed geometric properties
-      if (currentShape.x !== initialShape.x) updates.x = currentShape.x;
-      if (currentShape.y !== initialShape.y) updates.y = currentShape.y;
-      if (currentShape.rotation !== initialShape.rotation) updates.rotation = currentShape.rotation;
-      
+      const before: Partial<CanvasShape> = {};
+      const after: Partial<CanvasShape> = {};
+      if (currentShape.x !== initialShape.x) { before.x = initialShape.x; after.x = currentShape.x; }
+      if (currentShape.y !== initialShape.y) { before.y = initialShape.y; after.y = currentShape.y; }
+      const initialRotation = initialShape.rotation ?? 0;
+      const currentRotation = currentShape.rotation ?? 0;
+      if (currentRotation !== initialRotation) { before.rotation = initialRotation; after.rotation = currentRotation; }
       if (currentShape.type === 'rectangle' && initialShape.type === 'rectangle') {
-        if (currentShape.width !== initialShape.width) (updates as any).width = currentShape.width;
-        if (currentShape.height !== initialShape.height) (updates as any).height = currentShape.height;
+        if (currentShape.width !== initialShape.width) { (before as any).width = initialShape.width; (after as any).width = currentShape.width; }
+        if (currentShape.height !== initialShape.height) { (before as any).height = initialShape.height; (after as any).height = currentShape.height; }
       } else if (currentShape.type === 'circle' && initialShape.type === 'circle') {
-        if (currentShape.radius !== initialShape.radius) (updates as any).radius = currentShape.radius;
+        if (currentShape.radius !== initialShape.radius) { (before as any).radius = initialShape.radius; (after as any).radius = currentShape.radius; }
       }
-      
-      // Update with history recording (will automatically detect meaningful changes)
-      updateShape(shapeId, updates, true);
-      
+
+      const resized = ('width' in after) || ('height' in after) || ('radius' in after);
+      const rotated = ('rotation' in after);
+      const actionType: ActionType = resized ? 'resize' : (rotated ? 'rotate' : 'move');
+
+      historyBegin(actionType);
+      historyRecord(shapeId, before, after);
+      historyCommit();
+
       // Clear the transform start reference
       transformStartShapeRef.current = null;
     } else {
@@ -1187,7 +1221,7 @@ export const Canvas = () => {
       updateShape(shapeId, {
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
-      }, false);
+      });
     }
     
     // Lock will be released when shape is deselected (via selection management effect)
@@ -1200,13 +1234,18 @@ export const Canvas = () => {
     
     // If shape(s) are selected, update their color
     if (selectedShapeIds.length > 0 && user) {
+      historyBegin('color_change');
       selectedShapeIds.forEach(shapeId => {
+        const prev = shapes.find(s => s.id === shapeId);
+        if (!prev) return;
+        historyRecord(shapeId, { color: prev.color }, { color });
         updateShape(shapeId, {
           color,
           lastModifiedBy: user.id,
           lastModifiedAt: Date.now(),
         });
       });
+      historyCommit();
     }
   };
 
@@ -1215,9 +1254,11 @@ export const Canvas = () => {
     
     // If text shape(s) are selected, update their fontSize
     if (selectedShapeIds.length > 0 && user) {
+      historyBegin('text_update');
       selectedShapeIds.forEach(shapeId => {
         const selectedShape = shapes.find(s => s.id === shapeId);
         if (selectedShape && selectedShape.type === 'text') {
+          historyRecord(shapeId, { fontSize: selectedShape.fontSize }, { fontSize });
           updateShape(shapeId, {
             fontSize,
             lastModifiedBy: user.id,
@@ -1225,6 +1266,7 @@ export const Canvas = () => {
           });
         }
       });
+      historyCommit();
     }
   };
 
@@ -1337,14 +1379,17 @@ export const Canvas = () => {
     
     const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
     const leftmostX = Math.min(...selectedShapes.map(s => getShapeLeft(s)));
-    
+    historyBegin('align');
     selectedShapes.forEach(shape => {
+      const newX = setShapeLeft(shape, leftmostX);
+      historyRecord(shape.id, { x: shape.x }, { x: newX });
       updateShape(shape.id, {
-        x: setShapeLeft(shape, leftmostX),
+        x: newX,
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
       });
     });
+    historyCommit();
   };
 
   // Align selected shapes to the center
@@ -1357,14 +1402,17 @@ export const Canvas = () => {
     const leftmostX = Math.min(...selectedShapes.map(s => getShapeLeft(s)));
     const rightmostX = Math.max(...selectedShapes.map(s => getShapeRight(s)));
     const centerX = (leftmostX + rightmostX) / 2;
-    
+    historyBegin('align');
     selectedShapes.forEach(shape => {
+      const newX = setShapeCenterX(shape, centerX);
+      historyRecord(shape.id, { x: shape.x }, { x: newX });
       updateShape(shape.id, {
-        x: setShapeCenterX(shape, centerX),
+        x: newX,
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
       });
     });
+    historyCommit();
   };
 
   // Align selected shapes to the right
@@ -1373,14 +1421,17 @@ export const Canvas = () => {
     
     const selectedShapes = shapes.filter(s => selectedShapeIds.includes(s.id));
     const rightmostX = Math.max(...selectedShapes.map(s => getShapeRight(s)));
-    
+    historyBegin('align');
     selectedShapes.forEach(shape => {
+      const newX = setShapeRight(shape, rightmostX);
+      historyRecord(shape.id, { x: shape.x }, { x: newX });
       updateShape(shape.id, {
-        x: setShapeRight(shape, rightmostX),
+        x: newX,
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
       });
     });
+    historyCommit();
   };
 
   // Distribute selected shapes horizontally with even spacing
@@ -1403,16 +1454,20 @@ export const Canvas = () => {
     // Calculate spacing between shapes
     const spacing = (totalSpace - totalShapeWidth) / (sortedShapes.length - 1);
     
-    // Position each shape
+    // Position each shape as one history transaction
     let currentLeft = leftmostLeft;
+    historyBegin('distribute');
     sortedShapes.forEach(shape => {
+      const newX = setShapeLeft(shape, currentLeft);
+      historyRecord(shape.id, { x: shape.x }, { x: newX });
       updateShape(shape.id, {
-        x: setShapeLeft(shape, currentLeft),
+        x: newX,
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
       });
       currentLeft += getShapeWidth(shape) + spacing;
     });
+    historyCommit();
   };
 
   // Distribute selected shapes vertically with even spacing
@@ -1435,16 +1490,20 @@ export const Canvas = () => {
     // Calculate spacing between shapes
     const spacing = (totalSpace - totalShapeHeight) / (sortedShapes.length - 1);
     
-    // Position each shape
+    // Position each shape as one history transaction
     let currentTop = topmostTop;
+    historyBegin('distribute');
     sortedShapes.forEach(shape => {
+      const newY = setShapeTop(shape, currentTop);
+      historyRecord(shape.id, { y: shape.y }, { y: newY });
       updateShape(shape.id, {
-        y: setShapeTop(shape, currentTop),
+        y: newY,
         lastModifiedBy: user.id,
         lastModifiedAt: Date.now(),
       });
       currentTop += getShapeHeight(shape) + spacing;
     });
+    historyCommit();
   };
 
   // Register shape ref for transformer
@@ -1529,7 +1588,7 @@ export const Canvas = () => {
           onColorChange={handleColorChange}
           onFontSizeChange={handleFontSizeChange}
           onDuplicate={() => user && duplicateSelectedShapes(user.id)}
-          onDelete={() => selectedShapeIds.forEach(id => removeShape(id))}
+          onDelete={handleDeleteSelected}
           onAlignLeft={handleAlignLeft}
           onAlignCenter={handleAlignCenter}
           onAlignRight={handleAlignRight}
