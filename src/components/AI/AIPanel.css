@@ -47,24 +47,25 @@
 .ai-history { display: flex; flex-direction: column; }
 .ai-history-header { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
 .ai-clear-history-button { 
-  background: transparent; 
-  border: 1px solid #e0e0e0; 
+  background: #1f2937; 
+  border: 1px solid #1f2937; 
   border-radius: 6px; 
   padding: 6px 12px; 
   font-size: 13px; 
-  color: #666; 
+  color: #ffffff; 
   cursor: pointer; 
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+  font-weight: 500;
 }
 .ai-clear-history-button:hover { 
-  background: #fee2e2; 
-  border-color: #ef4444; 
-  color: #991b1b; 
+  background: #111827; 
+  border-color: #111827; 
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 .ai-clear-history-button:active { 
-  transform: translateY(0); 
+  transform: translateY(0);
+  background: #0f1419;
 }
 .ai-history-scroll { overflow-y: auto; max-height: 300px; padding: 12px 16px; }
 .ai-history-scroll:has(.ai-preset-commands) { min-height: 270px; }
@@ -119,8 +120,8 @@
   font-weight: bold;
   margin-top: 2px;
 }
-.ai-history-item.success .ai-history-status-icon { background: #d1fae5; color: #059669; }
-.ai-history-item.failure .ai-history-status-icon { background: #fee2e2; color: #dc2626; }
+.ai-history-item.success .ai-history-status-icon { background: #047857; color: #ffffff; }
+.ai-history-item.failure .ai-history-status-icon { background: #dc2626; color: #ffffff; }
 .ai-history-content { flex: 1; min-width: 0; }
 .ai-history-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .ai-history-prompt { 
