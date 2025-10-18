@@ -14,6 +14,7 @@ import {
 import { firestore } from './firebase';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape, ImageShape } from '../types/canvas.types';
 import type { ChangeSet } from '../history/historyManager';
+import { BatchUpdateManager } from '../utils/virtualization.utils';
 
 // Firestore collection name for canvas objects
 const CANVAS_COLLECTION = 'canvasObjects';
@@ -644,5 +645,48 @@ export const releaseLock = async (
     console.error('[Canvas Service] Error releasing lock:', error);
     throw new Error(`Failed to release lock: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+};
+
+/**
+ * Debounced batch update manager for Firestore writes
+ * Automatically batches multiple shape updates within a 100ms window
+ * This reduces Firestore write operations significantly during rapid changes (e.g., dragging)
+ */
+const debouncedUpdateManager = new BatchUpdateManager<Partial<CanvasShape>>(
+  async (updates) => {
+    const updateArray = Array.from(updates.entries()).map(([id, shapeUpdates]) => ({
+      id,
+      updates: shapeUpdates,
+    }));
+    
+    console.log(`[Canvas Service] Debounced batch: flushing ${updateArray.length} updates`);
+    await updateMultipleShapesInBatch(updateArray);
+  },
+  100 // 100ms debounce delay - balances responsiveness with batching
+);
+
+/**
+ * Debounced update shape - accumulates updates and writes in batches
+ * Use this instead of updateShape for high-frequency updates (drag, resize)
+ * @param id - Shape ID
+ * @param updates - Partial shape updates
+ */
+export const debouncedUpdateShape = (id: string, updates: Partial<CanvasShape>): void => {
+  debouncedUpdateManager.addUpdate(id, updates);
+};
+
+/**
+ * Force immediate flush of all pending debounced updates
+ * Useful when you need to ensure all updates are saved immediately (e.g., before navigating away)
+ */
+export const flushDebouncedUpdates = async (): Promise<void> => {
+  debouncedUpdateManager.flush();
+};
+
+/**
+ * Get count of pending debounced updates (useful for debugging/testing)
+ */
+export const getPendingUpdatesCount = (): number => {
+  return debouncedUpdateManager.getPendingCount();
 };
 

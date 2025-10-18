@@ -69,6 +69,28 @@ const ShapeComponent = ({
     
     hasAnimatedIn.current = true;
   }, []);
+  
+  // ⚡ Performance: Enable Konva caching for static shapes
+  // Caching converts shapes to images for faster rendering
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (!node) return;
+    
+    // Only cache if shape is not selected/highlighted (static state)
+    // Caching is beneficial for shapes that don't change frequently
+    if (!isSelected && !isHighlighted && !isEditing) {
+      // Cache the shape (converts to image internally for faster rendering)
+      node.cache();
+      
+      // When shape becomes dynamic again, clear cache
+      return () => {
+        node.clearCache();
+      };
+    } else {
+      // Clear cache when shape is being interacted with
+      node.clearCache();
+    }
+  }, [isSelected, isHighlighted, isEditing, shape]);
 
   // Update shapeRef and local nodeRef when ref changes
   const handleRef = useCallback((node: Konva.Node | null) => {

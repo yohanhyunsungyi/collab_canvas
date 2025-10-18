@@ -270,7 +270,7 @@
   padding: 10px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--color-primary, #4ECDC4);
+  background: #333;
   color: white;
   font-size: 14px;
   font-weight: 600;
@@ -279,9 +279,10 @@
 }
 
 .apply-color-button:hover {
-  background: var(--color-primary-dark, #45B7D1);
+  background: #1a1a1a;
+  color: white;
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md, 0 2px 8px rgba(78, 205, 196, 0.3));
+  box-shadow: var(--shadow-md, 0 2px 8px rgba(0, 0, 0, 0.3));
 }
 
 .apply-color-button:active {

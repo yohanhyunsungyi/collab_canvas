@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "load-test": "tsx scripts/load-test.ts"
   },
   "dependencies": {
     "firebase": "^12.4.0",

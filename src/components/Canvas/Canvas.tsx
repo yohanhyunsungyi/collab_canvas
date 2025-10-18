@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Stage, Layer, Rect, Circle, Transformer } from 'react-konva';
 import Konva from 'konva';
 import type { Viewport, RectangleShape, CircleShape, TextShape, CanvasShape } from '../../types/canvas.types';
@@ -36,6 +36,12 @@ import {
   constrainShapeCreation,
   constrainPoint,
 } from '../../utils/boundaries';
+import {
+  SpatialIndex,
+  getViewportBounds,
+  isShapeVisible,
+  PerformanceMonitor,
+} from '../../utils/virtualization.utils';
 import './Canvas.css';
 
 type BaseCreateInput<TShape extends CanvasShape> = Omit<
@@ -62,6 +68,13 @@ export const Canvas = () => {
   const aiPanelRef = useRef<AIPanelHandle | null>(null);
   const transformStartShapeRef = useRef<CanvasShape | null>(null); // Store shape state at transform start
   const dragStartShapeRef = useRef<CanvasShape | null>(null); // Store shape state at drag start
+  
+  // ⚡ Performance optimization: Spatial indexing for fast shape lookup
+  const spatialIndex = useRef<SpatialIndex>(new SpatialIndex(500)); // 500px grid cells
+  
+  // ⚡ Performance monitoring
+  const perfMonitor = useRef<PerformanceMonitor>(new PerformanceMonitor());
+  const [showPerfStats, setShowPerfStats] = useState(false); // Toggle with 'P' key
   
   // AI highlight state - tracks shapes recently modified by AI
   const [highlightedShapeIds, setHighlightedShapeIds] = useState<Set<string>>(new Set());
@@ -171,6 +184,32 @@ export const Canvas = () => {
     y: 0,
     scale: INITIAL_SCALE,
   });
+  
+  // ⚡ Virtualization: Calculate visible shapes based on viewport
+  // This dramatically improves performance with 1000+ objects
+  const visibleShapes = useMemo(() => {
+    // If we have few shapes, don't bother with virtualization overhead
+    if (shapes.length < 100) {
+      return shapes;
+    }
+    
+    const viewportBounds = getViewportBounds(
+      containerSize.width,
+      containerSize.height,
+      viewport,
+      200 // 200px padding to preload shapes just outside viewport
+    );
+    
+    // Filter shapes using fast bounding box check
+    const visible = shapes.filter(shape => isShapeVisible(shape, viewportBounds));
+    
+    // Log virtualization stats for performance monitoring
+    if (shapes.length > 100) {
+      console.log(`[Virtualization] Rendering ${visible.length}/${shapes.length} shapes (${Math.round(visible.length / shapes.length * 100)}% visible)`);
+    }
+    
+    return visible;
+  }, [shapes, viewport, containerSize]);
 
   const getNextZIndex = useCallback(() => {
     if (shapes.length === 0) return 0;
@@ -243,7 +282,7 @@ export const Canvas = () => {
     }, 250);
   }, [selectedShapeIds, shapes, user, updateShape, historyCoalesce, historyRecord]);
 
-  // Toggle keyboard shortcuts modal with '?'
+  // Toggle keyboard shortcuts modal with '?' and performance stats with 'P'
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Don't trigger in input fields
@@ -259,6 +298,12 @@ export const Canvas = () => {
       if (e.key === '?' || (e.shiftKey && e.key === '/')) {
         e.preventDefault();
         setShowKeyboardShortcuts(prev => !prev);
+      }
+      
+      // Toggle performance stats with 'P' key
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        setShowPerfStats(prev => !prev);
       }
     };
 
@@ -298,6 +343,42 @@ export const Canvas = () => {
 
   // Track whether initial load is complete to prevent race conditions
   const initialLoadComplete = useRef(false);
+  
+  // ⚡ Update spatial index when shapes change
+  useEffect(() => {
+    if (shapes.length > 100) { // Only use spatial index for many shapes
+      spatialIndex.current.clear();
+      shapes.forEach(shape => spatialIndex.current.addShape(shape));
+      
+      const stats = spatialIndex.current.getStats();
+      console.log(`[Spatial Index] Indexed ${stats.totalShapes} shapes in ${stats.totalCells} cells (avg ${stats.avgShapesPerCell.toFixed(1)} shapes/cell)`);
+    }
+  }, [shapes]);
+  
+  // ⚡ Performance monitoring: track FPS and render times
+  useEffect(() => {
+    let animationFrameId: number;
+    
+    const measureFrame = () => {
+      const startTime = perfMonitor.current.startFrame();
+      
+      // Schedule next frame measurement
+      animationFrameId = requestAnimationFrame(() => {
+        perfMonitor.current.endFrame(startTime);
+        measureFrame();
+      });
+    };
+    
+    // Start measuring
+    measureFrame();
+    
+    // Cleanup
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, []);
 
   // Effect for loading shapes from Firestore and subscribing to real-time updates
   useEffect(() => {
@@ -1819,6 +1900,52 @@ export const Canvas = () => {
             )
           </div>
         </div>
+        
+        {/* ⚡ Performance Stats Overlay (toggle with 'P' key) */}
+        {showPerfStats && (() => {
+          const stats = perfMonitor.current.getStats();
+          return (
+            <div 
+              className="performance-stats-overlay"
+              style={{
+                position: 'absolute',
+                top: '80px',
+                right: '10px',
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: '#fff',
+                padding: '12px',
+                borderRadius: '8px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                zIndex: 1000,
+                minWidth: '200px',
+              }}
+            >
+              <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#4ECDC4' }}>
+                ⚡ Performance Stats (P to toggle)
+              </div>
+              <div>FPS: <span style={{ color: stats.fps >= 55 ? '#4CAF50' : stats.fps >= 30 ? '#FFA726' : '#F44336' }}>{stats.fps}</span></div>
+              <div>Avg Render: {stats.avgRenderTime.toFixed(2)}ms</div>
+              <div>Max Render: {stats.maxRenderTime.toFixed(2)}ms</div>
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                Total Shapes: {shapes.length}
+              </div>
+              <div>Visible Shapes: {visibleShapes.length}</div>
+              <div>Culled: {shapes.length - visibleShapes.length} ({Math.round((1 - visibleShapes.length / Math.max(shapes.length, 1)) * 100)}%)</div>
+              {shapes.length > 100 && (() => {
+                const indexStats = spatialIndex.current.getStats();
+                return (
+                  <>
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                      Spatial Index Cells: {indexStats.totalCells}
+                    </div>
+                    <div>Avg Shapes/Cell: {indexStats.avgShapesPerCell.toFixed(1)}</div>
+                  </>
+                );
+              })()}
+            </div>
+          );
+        })()}
 
         <CanvasToolbar
           currentTool={currentTool}
@@ -1948,7 +2075,8 @@ export const Canvas = () => {
             />
             
             {/* Render all shapes sorted by zIndex (lower zIndex = rendered first = behind) */}
-            {[...shapes].sort((a, b) => a.zIndex - b.zIndex).map((shape) => {
+            {/* ⚡ Performance: Only render visible shapes (virtualization) */}
+            {[...visibleShapes].sort((a, b) => a.zIndex - b.zIndex).map((shape) => {
               const handleShapeSelect = async (e: Konva.KonvaEventObject<MouseEvent>) => {
                 console.log('[Canvas] onSelect called for shape:', shape.id, 'currentTool:', currentTool);
                 
