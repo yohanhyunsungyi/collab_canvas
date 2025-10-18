@@ -143,7 +143,19 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
               aria-label="Get AI design suggestions"
               disabled={shapes.length === 0}
             >
-              ✨
+              <svg 
+                width="20" 
+                height="20" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M12 3L13.5 8.5L19 10L13.5 11.5L12 17L10.5 11.5L5 10L10.5 8.5Z"/>
+                <path d="M19 4L19.5 6L21.5 6.5L19.5 7L19 9L18.5 7L16.5 6.5L18.5 6Z"/>
+              </svg>
             </button>
           )}
           <AIInput
