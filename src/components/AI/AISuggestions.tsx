@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { DesignSuggestion } from '../../services/ai-suggestions.service';
 import { analyzeCanvasDesign, isAISuggestionsAvailable } from '../../services/ai-suggestions.service';
 import type { CanvasShape } from '../../types/canvas.types';
-import { Button } from '../UI/Button';
 import { Spinner } from '../UI/Spinner';
 import './AISuggestions.css';
 
@@ -87,17 +86,61 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'alignment':
-        return '⚡';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="21" y1="10" x2="3" y2="10"></line>
+            <line x1="21" y1="6" x2="3" y2="6"></line>
+            <line x1="21" y1="14" x2="3" y2="14"></line>
+            <line x1="21" y1="18" x2="3" y2="18"></line>
+          </svg>
+        );
       case 'spacing':
-        return '📏';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <line x1="15" y1="3" x2="15" y2="21"></line>
+          </svg>
+        );
       case 'color':
-        return '🎨';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="13.5" cy="6.5" r=".5"></circle>
+            <circle cx="17.5" cy="10.5" r=".5"></circle>
+            <circle cx="8.5" cy="7.5" r=".5"></circle>
+            <circle cx="6.5" cy="12.5" r=".5"></circle>
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+          </svg>
+        );
       case 'grouping':
-        return '📦';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        );
       case 'layout':
-        return '🎯';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+        );
+      case 'completeness':
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z"></path>
+          </svg>
+        );
       default:
-        return '✨';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z"></path>
+          </svg>
+        );
     }
   };
 
@@ -186,7 +229,6 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
                       className="ai-suggestion-severity"
                       style={{ color: getSeverityColor(suggestion.severity) }}
                     >
-                      <span>{getSeverityIcon(suggestion.severity)}</span>
                       <span>{suggestion.severity}</span>
                     </div>
                   </div>
@@ -228,12 +270,20 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
 
                   <div className="ai-suggestion-actions">
                     {appliedSuggestions.has(suggestion.id) ? (
-                      <div className="ai-suggestion-applied">✓ Applied</div>
+                      <div className="ai-suggestion-applied">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Applied
+                      </div>
                     ) : (
                       <>
-                        <Button onClick={() => handleApply(suggestion)} variant="primary">
+                        <button
+                          className="ai-suggestion-apply"
+                          onClick={() => handleApply(suggestion)}
+                        >
                           Apply
-                        </Button>
+                        </button>
                         <button
                           className="ai-suggestion-dismiss"
                           onClick={() => handleDismiss(suggestion.id)}

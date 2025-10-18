@@ -213,7 +213,9 @@
 }
 
 .ai-suggestion-type-icon {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  color: #1f2937;
 }
 
 .ai-suggestion-type-label {
@@ -227,7 +229,6 @@
 .ai-suggestion-severity {
   display: flex;
   align-items: center;
-  gap: 6px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -284,20 +285,52 @@
   align-items: center;
 }
 
-.ai-suggestion-dismiss {
-  background: transparent;
-  border: none;
-  color: #6b7280;
+.ai-suggestion-apply {
+  background: #1f2937;
+  border: 1px solid #1f2937;
+  color: #ffffff;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-radius: 6px;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-suggestion-apply:hover {
+  background: #111827;
+  border-color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.ai-suggestion-apply:active {
+  transform: translateY(0);
+  background: #0f1419;
+}
+
+.ai-suggestion-dismiss {
+  background: #1f2937;
+  border: 1px solid #1f2937;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ai-suggestion-dismiss:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: #111827;
+  border-color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.ai-suggestion-dismiss:active {
+  transform: translateY(0);
+  background: #0f1419;
 }
 
 .ai-suggestion-applied {
@@ -306,7 +339,11 @@
   font-size: 14px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.ai-suggestion-applied svg {
+  flex-shrink: 0;
 }
 
 .ai-suggestions-footer {
