@@ -18,6 +18,7 @@ interface AIPanelProps {
   defaultCollapsed?: boolean;
   className?: string;
   onShapesHighlight?: (shapeIds: string[]) => void;
+  onSuggestImprovements?: () => void;
 }
 
 export interface AIPanelHandle {
@@ -35,6 +36,7 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
   defaultCollapsed = true,
   className = '',
   onShapesHighlight,
+  onSuggestImprovements,
 }: AIPanelProps, ref) => {
   const { loading, error, commandHistory, sendCommand, clearError, clearHistory, rerunCommand, deleteCommand, isAvailable, rateLimitStatus, streamingStatus } = useAI(
     userId,
@@ -133,13 +135,26 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
       </div>
 
       <div className="ai-dock">
-        <AIInput
-          value={prompt}
-          onChange={setPrompt}
-          onSend={handleSend}
-          disabled={disabled}
-          ref={inputRef}
-        />
+        <div className="ai-input-container">
+          {onSuggestImprovements && (
+            <button
+              className="ai-suggestions-button-dock"
+              onClick={onSuggestImprovements}
+              title="Get AI Design Suggestions"
+              aria-label="Get AI design suggestions"
+              disabled={shapes.length === 0}
+            >
+              ✨
+            </button>
+          )}
+          <AIInput
+            value={prompt}
+            onChange={setPrompt}
+            onSend={handleSend}
+            disabled={disabled}
+            ref={inputRef}
+          />
+        </div>
 
         <div className="ai-aux">
           {streamingStatus && (

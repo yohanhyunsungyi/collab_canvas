@@ -194,6 +194,46 @@
   box-shadow: 0 12px 32px rgba(0,0,0,0.15);
 }
 
+.ai-input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.ai-suggestions-button-dock {
+  background: linear-gradient(135deg, #5B7FEE 0%, #4A6DD8 100%);
+  border: none;
+  color: white;
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(91, 127, 238, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-suggestions-button-dock:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(91, 127, 238, 0.4);
+}
+
+.ai-suggestions-button-dock:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(91, 127, 238, 0.3);
+}
+
+.ai-suggestions-button-dock:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #a0a0a0 0%, #888 100%);
+}
+
 .ai-collapse-toggle-overlay { 
   position: absolute; 
   left: 50%; 

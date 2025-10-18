@@ -1782,7 +1782,6 @@ export const Canvas = () => {
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
-          onSuggestImprovements={() => setShowAISuggestions(true)}
         />
         
         {/* Empty state when no shapes exist */}
@@ -2064,6 +2063,7 @@ export const Canvas = () => {
           containerSize={containerSize}
           defaultCollapsed={true}
           onShapesHighlight={highlightShapes}
+          onSuggestImprovements={() => setShowAISuggestions(true)}
         />
       )}
       

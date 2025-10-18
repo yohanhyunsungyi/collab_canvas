@@ -33,8 +33,6 @@ interface CanvasToolbarProps {
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
-  // AI Suggestions
-  onSuggestImprovements?: () => void;
 }
 
 export const CanvasToolbar = ({
@@ -64,7 +62,6 @@ export const CanvasToolbar = ({
   canRedo = false,
   onUndo,
   onRedo,
-  onSuggestImprovements,
 }: CanvasToolbarProps) => {
   const [isSelectMenuOpen, setIsSelectMenuOpen] = useState(false);
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
@@ -522,20 +519,6 @@ export const CanvasToolbar = ({
       </div>
 
       <div className="toolbar-divider" />
-
-      {/* AI Suggestions button */}
-      {onSuggestImprovements && (
-        <div className="toolbar-section">
-          <button
-            className="toolbar-button ai-suggestions-button"
-            onClick={onSuggestImprovements}
-            title="Get AI Design Suggestions"
-            aria-label="Get AI design suggestions"
-          >
-            ✨
-          </button>
-        </div>
-      )}
 
       <div className="toolbar-section">
         <div className="help-button-wrapper">

@@ -1037,12 +1037,12 @@ Notes:
     - `src/components/Canvas/CanvasToolbar.css` - Added button styles with gradient
     - `src/components/Canvas/Canvas.tsx` - Integrated modal and apply handler
 
-- [ ] **19.8: Add Onboarding Tutorial**
+<!-- - [ ] **19.8: Add Onboarding Tutorial**
   - First-time user walkthrough
   - Highlight key features
   - Skip option
   - **Files Created:**
-    - `src/components/Onboarding/Tutorial.tsx`
+    - `src/components/Onboarding/Tutorial.tsx` -->
 
 - [ ] **19.9: Performance Optimization for Scale** ⭐ SCALE BONUS
   - Object virtualization (render only visible)
