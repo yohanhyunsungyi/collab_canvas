@@ -13,7 +13,7 @@ interface SpinnerProps {
  */
 export const Spinner = ({ 
   size = 'medium', 
-  color = '#5B7FEE', 
+  color = '#1f2937', 
   label = 'Loading...', 
   className = '' 
 }: SpinnerProps) => {
