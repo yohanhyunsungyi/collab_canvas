@@ -920,6 +920,28 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
       },
     },
   },
+
+  // ==========================================
+  // DESIGN SYSTEM TOOL
+  // ==========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getDesignSystemTokens',
+      description: 'Get design system tokens including colors, spacing, typography, and canvas defaults. Use this to access the professional color palette, spacing values, and design constants. Returns comprehensive design tokens that should be used for creating visually consistent shapes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            enum: ['colors', 'spacing', 'typography', 'canvas', 'all'],
+            description: 'Category of design tokens to retrieve. "colors" returns the full color palette, "spacing" returns spacing values, "typography" returns font sizes, "canvas" returns canvas-specific tokens, "all" returns everything',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 /**
@@ -963,5 +985,6 @@ export const TOOL_CATEGORIES = {
   DISTRIBUTION: ['arrangeHorizontal', 'distributeHorizontally', 'distributeVertically'], // From toolbar
   LEGACY_LAYOUT: ['arrangeVertical', 'arrangeGrid', 'centerShape'], // Legacy - not in toolbar
   COMPLEX_LAYOUTS: ['createLoginForm', 'createNavigationBar', 'createCardLayout', 'createDashboard'], // Professional pre-built layouts
+  DESIGN_SYSTEM: ['getDesignSystemTokens'], // Access design system colors, spacing, typography
   UTILITY: ['getCanvasBounds', 'clearCanvas'],
 } as const;

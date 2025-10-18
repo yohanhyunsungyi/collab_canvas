@@ -1,10 +1,11 @@
-import { memo, useMemo, useState, useEffect, type ReactElement } from 'react';
+import { memo, useEffect, useRef, useCallback, type ReactElement } from 'react';
 import { Rect, Circle, Text, Image } from 'react-konva';
-import type Konva from 'konva';
+import Konva from 'konva';
 import type { CanvasShape, RectangleShape, CircleShape, TextShape, ImageShape } from '../../types/canvas.types';
 import { CANVAS_MIN_X, CANVAS_MAX_X, CANVAS_MIN_Y, CANVAS_MAX_Y } from '../../utils/boundaries';
 import { isLockExpired } from '../../services/canvas.service';
 import useImage from 'use-image';
+import { transitions } from '../../styles/design-system';
 
 interface ShapeProps {
   shape: CanvasShape;
@@ -42,10 +43,38 @@ const ShapeComponent = ({
   currentUserId,
   shapeRef 
 }: ShapeProps): ReactElement | null => {
+  // Local ref for animation control
+  const nodeRef = useRef<Konva.Node | null>(null);
+  const hasAnimatedIn = useRef(false);
+  
   // Check if shape is locked by another user
   const isLockedByOther = shape.lockedBy && 
     shape.lockedBy !== currentUserId && 
     !isLockExpired(shape.lockedAt);
+
+  // Fade in animation when shape is first created
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (!node || hasAnimatedIn.current) return;
+    
+    // Start invisible
+    node.opacity(0);
+    
+    // Fade in
+    node.to({
+      opacity: 1,
+      duration: transitions.duration.base / 1000, // Convert ms to seconds
+      easing: Konva.Easings.EaseOut,
+    });
+    
+    hasAnimatedIn.current = true;
+  }, []);
+
+  // Update shapeRef and local nodeRef when ref changes
+  const handleRef = useCallback((node: Konva.Node | null) => {
+    nodeRef.current = node;
+    shapeRef(shape.id, node);
+  }, [shape.id, shapeRef]);
 
   // Handle click for selection
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -196,7 +225,7 @@ const ShapeComponent = ({
           width={shape.width}
           height={shape.height}
           fill={shape.color}
-          ref={(node) => shapeRef(shape.id, node)}
+          ref={handleRef}
           {...commonProps}
         />
       );
@@ -209,7 +238,7 @@ const ShapeComponent = ({
           y={shape.y}
           radius={shape.radius}
           fill={shape.color}
-          ref={(node) => shapeRef(shape.id, node)}
+          ref={handleRef}
           {...commonProps}
         />
       );
@@ -224,7 +253,7 @@ const ShapeComponent = ({
           text={textShape.text}
           fontSize={textShape.fontSize}
           fill={shape.color}
-          ref={(node) => shapeRef(shape.id, node)}
+          ref={handleRef}
           {...commonProps}
         />
       );
@@ -241,7 +270,7 @@ const ShapeComponent = ({
           image={image}
           width={imageShape.width}
           height={imageShape.height}
-          ref={(node) => shapeRef(shape.id, node)}
+          ref={handleRef}
           {...commonProps}
         />
       );

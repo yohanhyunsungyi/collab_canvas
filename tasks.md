@@ -866,30 +866,95 @@ Notes:
 
 ### Tasks:
 
-- [ ] **19.1: Implement Design System**
-  - Define color palette
-  - Define typography scale
+- [x] **19.1: Implement Design System** ✅ **+ AI Tool Integration**
+  - Define color palette with universal palette
+  - Define typography scale and font
+  - **Extended:** Integrated design system into toolbar and created AI tool
+  - **Features Implemented:**
+    - Comprehensive color system (brand, text, status, canvas, shapes)
+    - Spacing scale based on 4px grid (xs to 3xl)
+    - Typography scale with font sizes, weights, line heights
+    - Border radius scale (sm to full circle)
+    - Shadow levels (sm to 2xl)
+    - Transition timings with easing functions
+    - Z-index layering system
+    - Canvas-specific tokens (dimensions, zoom, locks)
+    - Animation presets (fade, slide, scale, pulse)
+    - CSS variable helpers
+    - Full TypeScript support with exported types
+    - Light/dark theme system (currently light only)
+    - Theme persistence with localStorage
+    - System preference detection
   - **Files Created:**
-    - `src/styles/design-system.ts`
-    - `src/styles/theme.ts`
+    - `src/styles/design-system.ts` - Core design tokens (400+ lines)
+    - `src/styles/theme.ts` - Theme system with light/dark support (300+ lines)
+    - `src/styles/index.ts` - Centralized exports
+    - `src/styles/README.md` - Comprehensive documentation with examples
+    - `src/styles/examples.tsx` - 8 example components showing usage
+    - `src/hooks/useTheme.ts` - React hooks (useTheme, useThemeColors, useMediaQuery)
+  - **AI Tool Integration (NEW):**
+    - Created `getDesignSystemTokens` AI tool for accessing design system
+    - AI can now query colors, spacing, typography, and canvas defaults
+    - Supports category filtering (colors, spacing, typography, canvas, all)
+    - Returns professional color palette (10 shape colors) and design tokens
+    - Enables AI to create visually consistent designs using design system
+  - **Toolbar Integration (NEW):**
+    - Updated CanvasToolbar.css to use design system CSS variables
+    - Toolbar now uses `--color-*`, `--spacing-*`, `--shadow-*`, `--radius-*` variables
+    - Smooth transitions using `--transition-base`
+    - Hover effects with shadow elevation
+    - Consistent with overall design system
+  - **Files Updated:**
+    - `src/services/ai-tools.schema.ts` - Added getDesignSystemTokens tool
+    - `src/services/ai-executor.service.ts` - Implemented design system executor (80 lines)
+    - `src/components/Canvas/CanvasToolbar.css` - Integrated design system variables
 
-- [ ] **19.2: Add Smooth Animations**
+- [x] **19.2: Add Smooth Animations** ✅
   - Fade in/out for objects
   - Slide in for AI panel
   - Scale animation for selections
   - Smooth transitions (200-300ms)
+  - **Features Implemented:**
+    - **Canvas Shape Animations (Konva):**
+      - Fade-in animation when shapes are created (200ms)
+      - Smooth easing with Konva.Easings
+    - **AI Panel Animations:**
+      - Slide-in from bottom on mount (300ms cubic-bezier)
+      - Smooth expand/collapse with opacity transitions (250ms)
+      - Staggered fade-in for history items (50-250ms delays)
+      - Staggered fade-in for preset buttons (100-450ms delays)
+      - Hover lift effects on buttons (+1-2px translateY)
+      - Scale animations on button interactions (1.15x hover, 0.95x active)
+    - **UI Component Animations:**
+      - Button ripple effect on click
+      - Button scale and lift on hover (1.02x scale, -2px translateY)
+      - Smooth transitions with cubic-bezier(0.4, 0, 0.2, 1)
+      - Toast slide-in from right (300ms)
+      - Toast gradient backgrounds (success/error/info)
+      - Input field focus ring animation (3px shadow)
+    - **Polish Details:**
+      - All animations use consistent timing (150-300ms)
+      - Cubic-bezier easing for natural feel
+      - Active state feedback on all interactive elements
+      - Smooth hover transitions throughout
   - **Files Updated:**
-    - `src/components/Canvas/Shape.tsx`
-    - `src/components/AI/AIPanel.tsx`
-    - `src/components/Comments/CommentPin.tsx`
+    - `src/components/Canvas/Shape.tsx` - Konva shape animations (fade, pulse, selection)
+    - `src/components/AI/AIPanel.css` - Panel, history, and preset animations
+    - `src/components/UI/Button.css` - Button ripple, scale, and lift effects
+    - `src/components/UI/Toast.css` - Toast slide-in and gradient backgrounds
 
-- [ ] **19.3: Improve Toolbar UI**
-  - Icon library (Lucide React)
-  - Group related tools
-  - Tooltips with shortcuts
-  - Professional styling
+- [x] **19.3: Improve Toolbar UI** ✅
+  - ✅ Grouped alignment tools (left, center, right, top, middle, bottom) with dropdown
+  - ✅ Grouped distribute tools (horizontal, vertical) with dropdown
+  - ✅ Added state management for current alignment/distribute selection
+  - ✅ Main button shows current selection, dropdown reveals other options
+  - ✅ Similar pattern to shape tool (button + caret dropdown)
+  - ✅ Two-step workflow: Dropdown selects tool → Main button executes action
+  - ✅ Help button (?) with keyboard shortcuts tooltip
+  - ✅ Professional styling maintained
   - **Files Updated:**
-    - `src/components/Canvas/CanvasToolbar.tsx`
+    - `src/components/Canvas/CanvasToolbar.tsx` - Alignment & distribute dropdown groups, help button
+    - `src/components/Canvas/CanvasToolbar.css` - Help button & shortcuts menu styling
 
 - [ ] **19.4: Add Toast Notifications**
   - Success messages

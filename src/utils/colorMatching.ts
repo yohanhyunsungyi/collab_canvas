@@ -1,61 +1,70 @@
-import { SHAPE_COLORS } from './colors';
+import { colors } from '../styles/design-system';
+
+// Design system shape colors for color matching
+const DESIGN_SYSTEM_COLORS = [
+  colors.shapes.red,
+  colors.shapes.orange,
+  colors.shapes.yellow,
+  colors.shapes.green,
+  colors.shapes.blue,
+  colors.shapes.indigo,
+  colors.shapes.purple,
+  colors.shapes.pink,
+  colors.shapes.gray,
+  colors.shapes.black,
+];
 
 const HEX_COLOR_REGEX = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const RGB_FUNCTION_REGEX = /^rgba?\((.+)\)$/i;
 
 const COLOR_ALIAS_MAP: Record<string, string> = {
-  // Blues
-  blue: '#0000FF',
-  navy: '#000080',
-  navyblue: '#000080',
-  skyblue: '#87CEEB',
-  royalblue: '#4169E1',
-  cobalt: '#0047AB',
-  ocean: '#4DB6AC',
-  azure: '#4FC3F7',
-  babyblue: '#4FC3F7',
-  powderblue: '#4FC3F7',
-  lightblue: '#4FC3F7',
-  cyan: '#4DD0E1',
-  aqua: '#4DD0E1',
-  aquamarine: '#4DD0E1',
-  turquoise: '#4DD0E1',
-  teal: '#4DB6AC',
-  mint: '#4DB6AC',
-  seafoam: '#4DB6AC',
-  emerald: '#4DB6AC',
-  // Greens
-  green: '#008000',
-  lime: '#00FF00',
-  chartreuse: '#7FFF00',
-  jade: '#00A86B',
-  // Warm colors
-  yellow: '#FFFF00',
-  amber: '#FFBF00',
-  gold: '#FFD700',
-  orange: '#FFA500',
-  apricot: '#FBCEB1',
-  peach: '#FFE5B4',
-  butterscotch: '#E3963E',
-  coral: '#FF7F50',
-  salmon: '#FA8072',
-  terracotta: '#E2725B',
-  red: '#FF0000',
-  brick: '#B22222',
-  // Pinks & Purples
-  pink: '#FFC0CB',
-  blush: '#DE5D83',
-  rose: '#FF007F',
-  magenta: '#FF00FF',
-  fuchsia: '#FF00FF',
-  purple: '#800080',
-  plum: '#DDA0DD',
-  mauve: '#E0B0FF',
-  violet: '#EE82EE',
-  lavender: '#E6E6FA',
-  lilac: '#C8A2C8',
-  periwinkle: '#CCCCFF',
-  indigo: '#4B0082',
+  // Design system colors (primary names)
+  red: colors.shapes.red,
+  orange: colors.shapes.orange,
+  yellow: colors.shapes.yellow,
+  green: colors.shapes.green,
+  blue: colors.shapes.blue,
+  indigo: colors.shapes.indigo,
+  purple: colors.shapes.purple,
+  pink: colors.shapes.pink,
+  gray: colors.shapes.gray,
+  grey: colors.shapes.gray,
+  black: colors.shapes.black,
+  
+  // Additional aliases for design system colors
+  navy: colors.shapes.indigo,
+  navyblue: colors.shapes.indigo,
+  skyblue: colors.shapes.blue,
+  lightblue: colors.shapes.blue,
+  royalblue: colors.shapes.blue,
+  cobalt: colors.shapes.blue,
+  cyan: colors.shapes.blue,
+  aqua: colors.shapes.blue,
+  teal: colors.shapes.green,
+  lime: colors.shapes.green,
+  chartreuse: colors.shapes.green,
+  jade: colors.shapes.green,
+  emerald: colors.shapes.green,
+  mint: colors.shapes.green,
+  amber: colors.shapes.yellow,
+  gold: colors.shapes.yellow,
+  apricot: colors.shapes.orange,
+  peach: colors.shapes.orange,
+  coral: colors.shapes.orange,
+  salmon: colors.shapes.orange,
+  brick: colors.shapes.red,
+  crimson: colors.shapes.red,
+  scarlet: colors.shapes.red,
+  blush: colors.shapes.pink,
+  rose: colors.shapes.pink,
+  magenta: colors.shapes.pink,
+  fuchsia: colors.shapes.pink,
+  violet: colors.shapes.purple,
+  lavender: colors.shapes.purple,
+  plum: colors.shapes.purple,
+  mauve: colors.shapes.purple,
+  lilac: colors.shapes.purple,
+  periwinkle: colors.shapes.purple,
 };
 
 let colorTestElement: HTMLElement | null = null;
@@ -219,7 +228,7 @@ const getClosestPaletteColor = (hex: string): { hex: string | null; distance: nu
   let closest: string | null = null;
   let minDistance = Number.POSITIVE_INFINITY;
 
-  for (const paletteColor of SHAPE_COLORS) {
+  for (const paletteColor of DESIGN_SYSTEM_COLORS) {
     const normalizedPaletteColor = normalizeHexColor(paletteColor);
     if (!normalizedPaletteColor) {
       continue;

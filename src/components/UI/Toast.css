@@ -1,9 +1,76 @@
-.toast { position: fixed; right: 16px; bottom: 16px; min-width: 240px; max-width: 360px; padding: 10px 12px; border-radius: 10px; border: 1px solid #e0e0e0; background: #ffffff; color: #333; box-shadow: 0 8px 24px rgba(0,0,0,0.12); display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; z-index: 2000; }
-.toast-inline { position: static; right: auto; bottom: auto; box-shadow: none; }
-.toast-success { border-color: #10b981; }
-.toast-error { border-color: #ef4444; }
-.toast-info { border-color: #60a5fa; }
-.toast-dismiss { background: transparent; border: none; cursor: pointer; font-size: 14px; }
+.toast { 
+  position: fixed; 
+  right: 16px; 
+  bottom: 16px; 
+  min-width: 240px; 
+  max-width: 360px; 
+  padding: 10px 12px; 
+  border-radius: 10px; 
+  border: 1px solid #e0e0e0; 
+  background: #ffffff; 
+  color: #333; 
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); 
+  display: grid; 
+  grid-template-columns: 1fr auto; 
+  align-items: center; 
+  gap: 8px; 
+  z-index: 2000;
+  /* Slide in from right animation */
+  animation: slideInFromRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-inline { 
+  position: static; 
+  right: auto; 
+  bottom: auto; 
+  box-shadow: none;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.toast-success { 
+  border-color: #10b981;
+  background: linear-gradient(to bottom, #ffffff, #f0fdf4);
+}
+.toast-error { 
+  border-color: #ef4444;
+  background: linear-gradient(to bottom, #ffffff, #fef2f2);
+}
+.toast-info { 
+  border-color: #60a5fa;
+  background: linear-gradient(to bottom, #ffffff, #eff6ff);
+}
+.toast-dismiss { 
+  background: transparent; 
+  border: none; 
+  cursor: pointer; 
+  font-size: 14px;
+  transition: all 0.2s ease;
+  padding: 4px;
+  border-radius: 4px;
+}
+.toast-dismiss:hover {
+  background: rgba(0, 0, 0, 0.05);
+  transform: scale(1.1);
+}
+.toast-dismiss:active {
+  transform: scale(0.9);
+}
 .toast-message { font-size: 14px; }
 
 

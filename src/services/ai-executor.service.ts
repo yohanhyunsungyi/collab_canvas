@@ -2,7 +2,7 @@ import type { CanvasShape } from '../types/canvas.types';
 import { createShape, updateShape, deleteShape, deleteMultipleShapes as batchDeleteShapes, createMultipleShapesInBatch } from './canvas.service';
 import type { AIToolCall } from '../types/ai.types';
 import { normalizeHexColor, resolveColorQuery } from '../utils/colorMatching';
-import { SHAPE_COLORS } from '../utils/colors';
+import { colors, spacing, spacingPx, typography, canvas as canvasTokens } from '../styles/design-system';
 
 // Social login logos
 import googleLogo from '../assets/social-logos/google-logo.svg';
@@ -12,6 +12,20 @@ import facebookLogo from '../assets/social-logos/facebook-logo.svg';
 // Icons
 import chevronDown from '../assets/icons/chevron-down.svg';
 
+// Design system shape colors as array for random selection
+const DESIGN_SYSTEM_COLORS = [
+  colors.shapes.red,
+  colors.shapes.orange,
+  colors.shapes.yellow,
+  colors.shapes.green,
+  colors.shapes.blue,
+  colors.shapes.indigo,
+  colors.shapes.purple,
+  colors.shapes.pink,
+  colors.shapes.gray,
+  colors.shapes.black,
+];
+
 /**
  * Generate a unique ID for shapes
  */
@@ -20,10 +34,10 @@ const generateShapeId = (): string => {
 };
 
 /**
- * Get a random color from the shape color palette
+ * Get a random color from the design system shape color palette
  */
 const getRandomColor = (): string => {
-  return SHAPE_COLORS[Math.floor(Math.random() * SHAPE_COLORS.length)];
+  return DESIGN_SYSTEM_COLORS[Math.floor(Math.random() * DESIGN_SYSTEM_COLORS.length)];
 };
 
 /**
@@ -208,6 +222,10 @@ class AIExecutorService {
           return await this.createCardLayout(args, context);
         case 'createDashboard':
           return await this.createDashboard(args, context);
+
+        // Design System tool
+        case 'getDesignSystemTokens':
+          return this.getDesignSystemTokens(args);
 
         // Utility tools
         case 'getCanvasBounds':
@@ -2844,6 +2862,83 @@ class AIExecutorService {
     return {
       success: true,
       message: `Cleared ${count} shapes from canvas`,
+    };
+  }
+
+  private getDesignSystemTokens(args: { category?: string }): ToolExecutionResult {
+    const category = args.category || 'all';
+
+    const designSystem = {
+      colors: {
+        // Brand colors
+        brand: colors.brand,
+        
+        // Shape palette (recommended for canvas shapes)
+        shapes: colors.shapes,
+        
+        // Status colors
+        status: colors.status,
+        
+        // Canvas-specific
+        canvas: colors.canvas,
+        
+        // Text colors
+        text: colors.text,
+        
+        // Background colors
+        background: colors.background,
+        
+        // Border colors
+        border: colors.border,
+      },
+      spacing: {
+        values: spacing,
+        pixels: spacingPx,
+      },
+      typography: {
+        fontSize: typography.fontSize,
+        fontWeight: typography.fontWeight,
+        lineHeight: typography.lineHeight,
+      },
+      canvas: {
+        width: canvasTokens.width,
+        height: canvasTokens.height,
+        defaultShapeColor: canvasTokens.defaultShapeColor,
+        defaultTextSize: canvasTokens.defaultTextSize,
+        defaultRectangleSize: canvasTokens.defaultRectangleSize,
+        defaultCircleRadius: canvasTokens.defaultCircleRadius,
+      },
+    };
+
+    let data: any;
+    let message: string;
+
+    switch (category) {
+      case 'colors':
+        data = designSystem.colors;
+        message = `Design system colors: ${Object.keys(colors.shapes).length} shape colors (${Object.keys(colors.shapes).join(', ')}), brand colors, status colors. Use colors.shapes.* for shape colors.`;
+        break;
+      case 'spacing':
+        data = designSystem.spacing;
+        message = `Design system spacing: xs=${spacing.xs}, sm=${spacing.sm}, md=${spacing.md}, lg=${spacing.lg}, xl=${spacing.xl}. Pixel values also available.`;
+        break;
+      case 'typography':
+        data = designSystem.typography;
+        message = `Design system typography: Font sizes from xs (${typography.fontSize.xs}) to 5xl (${typography.fontSize['5xl']}). Default text size: ${canvasTokens.defaultTextSize}px.`;
+        break;
+      case 'canvas':
+        data = designSystem.canvas;
+        message = `Canvas tokens: ${canvasTokens.width}x${canvasTokens.height}px, default shape color: ${canvasTokens.defaultShapeColor}, default text size: ${canvasTokens.defaultTextSize}px.`;
+        break;
+      default:
+        data = designSystem;
+        message = `Full design system with ${Object.keys(colors.shapes).length} shape colors, spacing scale, typography, and canvas defaults. Use these tokens for consistent, professional designs.`;
+    }
+
+    return {
+      success: true,
+      message,
+      data,
     };
   }
 }

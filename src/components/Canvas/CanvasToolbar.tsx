@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ToolType } from '../../types/canvas.types';
 import { ColorPicker } from '../UI/ColorPicker';
+import { typography } from '../../styles/design-system';
 import './CanvasToolbar.css';
 
 interface CanvasToolbarProps {
@@ -64,12 +65,91 @@ export const CanvasToolbar = ({
 }: CanvasToolbarProps) => {
   const [isSelectMenuOpen, setIsSelectMenuOpen] = useState(false);
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
+  const [isAlignMenuOpen, setIsAlignMenuOpen] = useState(false);
+  const [isDistributeMenuOpen, setIsDistributeMenuOpen] = useState(false);
+  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
+  const [currentAlign, setCurrentAlign] = useState<'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'>('left');
+  const [currentDistribute, setCurrentDistribute] = useState<'horizontal' | 'vertical'>('horizontal');
 
   const textTool = { type: 'text' as ToolType, label: 'Text', icon: '📝' };
 
   const isShapeTool = currentTool === 'rectangle' || currentTool === 'circle';
   const currentShapeIcon = currentTool === 'circle' ? '⭕' : '⬜';
   const currentPointerIcon = currentTool === 'pan' ? 'hand' : 'cursor';
+
+  // Alignment icons and handlers
+  const alignmentOptions = {
+    left: {
+      label: 'Align Left',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="4" x2="3" y2="20"/><rect x="7" y="6" width="10" height="4"/><rect x="7" y="14" width="14" height="4"/></svg>,
+      action: onAlignLeft
+    },
+    center: {
+      label: 'Align Center',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><rect x="7" y="6" width="10" height="4"/><rect x="5" y="14" width="14" height="4"/></svg>,
+      action: onAlignCenter
+    },
+    right: {
+      label: 'Align Right',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" y1="4" x2="21" y2="20"/><rect x="7" y="6" width="10" height="4"/><rect x="3" y="14" width="14" height="4"/></svg>,
+      action: onAlignRight
+    },
+    top: {
+      label: 'Align Top',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="3" x2="20" y2="3"/><rect x="6" y="7" width="4" height="10"/><rect x="14" y="7" width="4" height="14"/></svg>,
+      action: onAlignTop
+    },
+    middle: {
+      label: 'Align Middle',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><rect x="6" y="7" width="4" height="10"/><rect x="14" y="5" width="4" height="14"/></svg>,
+      action: onAlignMiddleVertical
+    },
+    bottom: {
+      label: 'Align Bottom',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="20" y2="21"/><rect x="6" y="7" width="4" height="10"/><rect x="14" y="3" width="4" height="14"/></svg>,
+      action: onAlignBottom
+    }
+  };
+
+  // Distribute icons and handlers
+  const distributeOptions = {
+    horizontal: {
+      label: 'Distribute Horizontally',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="8" width="4" height="8"/><rect x="10" y="8" width="4" height="8"/><rect x="16" y="8" width="4" height="8"/></svg>,
+      action: onDistributeHorizontally
+    },
+    vertical: {
+      label: 'Distribute Vertically',
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="4" width="8" height="4"/><rect x="8" y="10" width="8" height="4"/><rect x="8" y="16" width="8" height="4"/></svg>,
+      action: onDistributeVertically
+    }
+  };
+
+  // Handler for selecting which tool is facing (from dropdown)
+  const handleAlignSelection = (type: typeof currentAlign) => {
+    // Only update which icon is showing, don't execute action
+    setCurrentAlign(type);
+  };
+
+  const handleDistributeSelection = (type: typeof currentDistribute) => {
+    // Only update which icon is showing, don't execute action
+    setCurrentDistribute(type);
+  };
+
+  // Handler for executing the action (from main button)
+  const handleAlignAction = () => {
+    // Execute the currently selected alignment action
+    if (currentTool === 'select' && selectedShapeCount >= 2) {
+      alignmentOptions[currentAlign].action();
+    }
+  };
+
+  const handleDistributeAction = () => {
+    // Execute the currently selected distribution action
+    if (currentTool === 'select' && selectedShapeCount >= 2) {
+      distributeOptions[currentDistribute].action();
+    }
+  };
 
   return (
     <div className="canvas-toolbar">
@@ -205,23 +285,23 @@ export const CanvasToolbar = ({
               <span className="tool-label">{textTool.label}</span>
             </button>
 
-            {/* Font size selector moved next to Text button */}
+            {/* Font size selector using design system typography */}
             <select
               className="font-size-select"
               aria-label="Font size"
               value={currentFontSize}
               onChange={(e) => onFontSizeChange(Number(e.target.value))}
+              title="Font size"
             >
               <option value={12}>12px</option>
+              <option value={14}>14px</option>
               <option value={16}>16px</option>
+              <option value={18}>18px</option>
               <option value={20}>20px</option>
               <option value={24}>24px</option>
-              <option value={32}>32px</option>
+              <option value={30}>30px</option>
+              <option value={36}>36px</option>
               <option value={48}>48px</option>
-              <option value={64}>64px</option>
-              <option value={72}>72px</option>
-              <option value={96}>96px</option>
-              <option value={128}>128px</option>
             </select>
           </div>
         </div>
@@ -279,107 +359,99 @@ export const CanvasToolbar = ({
         
         <div className="toolbar-button-divider" />
         
-        {/* Align buttons */}
-        <button
-          className="duplicate-button"
-          onClick={onAlignLeft}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Left'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="4" x2="3" y2="20"/>
-            <rect x="7" y="6" width="10" height="4"/>
-            <rect x="7" y="14" width="14" height="4"/>
-          </svg>
-        </button>
-        <button
-          className="duplicate-button"
-          onClick={onAlignCenter}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Center'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="4" x2="12" y2="20"/>
-            <rect x="7" y="6" width="10" height="4"/>
-            <rect x="5" y="14" width="14" height="4"/>
-          </svg>
-        </button>
-        <button
-          className="duplicate-button"
-          onClick={onAlignRight}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Right'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="21" y1="4" x2="21" y2="20"/>
-            <rect x="7" y="6" width="10" height="4"/>
-            <rect x="3" y="14" width="14" height="4"/>
-          </svg>
-        </button>
-        <button
-          className="duplicate-button"
-          onClick={onAlignTop}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Top'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="3" x2="20" y2="3"/>
-            <rect x="6" y="7" width="4" height="10"/>
-            <rect x="14" y="7" width="4" height="14"/>
-          </svg>
-        </button>
-        <button
-          className="duplicate-button"
-          onClick={onAlignMiddleVertical}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Middle'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="12" x2="20" y2="12"/>
-            <rect x="6" y="7" width="4" height="10"/>
-            <rect x="14" y="5" width="4" height="14"/>
-          </svg>
-        </button>
-        <button
-          className="duplicate-button"
-          onClick={onAlignBottom}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : 'Align Bottom'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="21" x2="20" y2="21"/>
-            <rect x="6" y="7" width="4" height="10"/>
-            <rect x="14" y="3" width="4" height="14"/>
-          </svg>
-        </button>
+        {/* Align group with dropdown */}
+        <div className="button-with-caret">
+          <button
+            className="duplicate-button"
+            onClick={handleAlignAction}
+            disabled={currentTool !== 'select' || selectedShapeCount < 2}
+            title={currentTool !== 'select' ? 'Switch to Select mode to align' : selectedShapeCount < 2 ? 'Select at least 2 shapes to align' : alignmentOptions[currentAlign].label}
+          >
+            {alignmentOptions[currentAlign].icon}
+          </button>
+          <button
+            className="caret-button"
+            aria-label="Open alignment menu"
+            onClick={() => {
+              setIsAlignMenuOpen(!isAlignMenuOpen);
+              setIsDistributeMenuOpen(false);
+              setIsSelectMenuOpen(false);
+              setIsShapeMenuOpen(false);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          {isAlignMenuOpen && (
+            <div className="dropdown-menu dropdown-menu--dark">
+              {(Object.keys(alignmentOptions) as Array<keyof typeof alignmentOptions>).map((key) => {
+                return (
+                  <button
+                    key={key}
+                    className={`dropdown-item ${currentAlign === key ? 'selected' : ''}`}
+                    onClick={() => {
+                      // Only change which tool is facing, don't execute action
+                      handleAlignSelection(key);
+                      setIsAlignMenuOpen(false);
+                    }}
+                  >
+                    <span className="dropdown-icon" aria-hidden>
+                      {alignmentOptions[key].icon}
+                    </span>
+                    <span className="dropdown-label">{alignmentOptions[key].label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
         
         <div className="toolbar-button-divider" />
         
-        {/* Distribute buttons */}
-        <button
-          className="duplicate-button"
-          onClick={onDistributeHorizontally}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to distribute' : selectedShapeCount < 2 ? 'Select at least 2 shapes to distribute' : 'Distribute Horizontally'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4" y="8" width="4" height="8"/>
-            <rect x="10" y="8" width="4" height="8"/>
-            <rect x="16" y="8" width="4" height="8"/>
-          </svg>
-        </button>
-        <button
-          className="duplicate-button"
-          onClick={onDistributeVertically}
-          disabled={currentTool !== 'select' || selectedShapeCount < 2}
-          title={currentTool !== 'select' ? 'Switch to Select mode to distribute' : selectedShapeCount < 2 ? 'Select at least 2 shapes to distribute' : 'Distribute Vertically'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="8" y="4" width="8" height="4"/>
-            <rect x="8" y="10" width="8" height="4"/>
-            <rect x="8" y="16" width="8" height="4"/>
-          </svg>
-        </button>
+        {/* Distribute group with dropdown */}
+        <div className="button-with-caret">
+          <button
+            className="duplicate-button"
+            onClick={handleDistributeAction}
+            disabled={currentTool !== 'select' || selectedShapeCount < 2}
+            title={currentTool !== 'select' ? 'Switch to Select mode to distribute' : selectedShapeCount < 2 ? 'Select at least 2 shapes to distribute' : distributeOptions[currentDistribute].label}
+          >
+            {distributeOptions[currentDistribute].icon}
+          </button>
+          <button
+            className="caret-button"
+            aria-label="Open distribute menu"
+            onClick={() => {
+              setIsDistributeMenuOpen(!isDistributeMenuOpen);
+              setIsAlignMenuOpen(false);
+              setIsSelectMenuOpen(false);
+              setIsShapeMenuOpen(false);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          {isDistributeMenuOpen && (
+            <div className="dropdown-menu dropdown-menu--dark">
+              {(Object.keys(distributeOptions) as Array<keyof typeof distributeOptions>).map((key) => {
+                return (
+                  <button
+                    key={key}
+                    className={`dropdown-item ${currentDistribute === key ? 'selected' : ''}`}
+                    onClick={() => {
+                      // Only change which tool is facing, don't execute action
+                      handleDistributeSelection(key);
+                      setIsDistributeMenuOpen(false);
+                    }}
+                  >
+                    <span className="dropdown-icon" aria-hidden>
+                      {distributeOptions[key].icon}
+                    </span>
+                    <span className="dropdown-label">{distributeOptions[key].label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
         
         <div className="toolbar-button-divider" />
         
@@ -432,13 +504,114 @@ export const CanvasToolbar = ({
 
       <div className="toolbar-section">
         <button
-          className="delete-button"
+          className="duplicate-button"
           onClick={onDelete}
           disabled={currentTool !== 'select' || !selectedShapeId}
           title={currentTool !== 'select' ? 'Switch to Select mode to delete' : !selectedShapeId ? 'Select a shape to delete' : 'Delete selected shape (Delete/Backspace)'}
         >
-          Delete
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            <line x1="10" y1="11" x2="10" y2="17"/>
+            <line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
         </button>
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-section">
+        <div className="help-button-wrapper">
+          <button
+            className="help-button"
+            onClick={() => setIsHelpMenuOpen(!isHelpMenuOpen)}
+            title="Keyboard shortcuts"
+            aria-label="Show keyboard shortcuts"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </button>
+          {isHelpMenuOpen && (
+            <div className="help-menu">
+              <div className="help-menu-header">
+                <h3>Keyboard Shortcuts</h3>
+                <button 
+                  className="help-menu-close"
+                  onClick={() => setIsHelpMenuOpen(false)}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="help-menu-content">
+                <div className="help-section">
+                  <h4>Tools</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Select</span>
+                    <kbd>V</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Rectangle</span>
+                    <kbd>R</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Circle</span>
+                    <kbd>C</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Text</span>
+                    <kbd>T</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Pan</span>
+                    <kbd>Space</kbd>
+                  </div>
+                </div>
+                <div className="help-section">
+                  <h4>Actions</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Undo</span>
+                    <kbd>Cmd/Ctrl</kbd> + <kbd>Z</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Redo</span>
+                    <kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Duplicate</span>
+                    <kbd>Cmd/Ctrl</kbd> + <kbd>D</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Delete</span>
+                    <kbd>Delete</kbd> / <kbd>Backspace</kbd>
+                  </div>
+                </div>
+                <div className="help-section">
+                  <h4>Layer Order</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Bring to Front</span>
+                    <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>]</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Bring Forward</span>
+                    <kbd>Ctrl</kbd> + <kbd>]</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Send Backward</span>
+                    <kbd>Ctrl</kbd> + <kbd>[</kbd>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-label">Send to Back</span>
+                    <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>[</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       
