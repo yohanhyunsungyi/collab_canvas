@@ -154,13 +154,15 @@
 }
 
 .ai-suggestions-summary {
-  background: #1f2937;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-weight: 500;
+  background: transparent;
+  color: #1f2937;
+  padding: 12px 0;
+  border-bottom: 2px solid #1f2937;
+  font-weight: 600;
   margin-bottom: 20px;
-  text-align: center;
+  text-align: left;
+  font-size: 16px;
+  letter-spacing: 0.3px;
 }
 
 .ai-suggestions-list {
