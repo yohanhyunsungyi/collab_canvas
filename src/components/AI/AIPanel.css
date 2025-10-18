@@ -93,7 +93,7 @@
 .ai-history-item:nth-child(5) { animation-delay: 0.25s; }
 .ai-history-item:hover {
   background: #f8f9fa;
-  border-color: #00bcd4;
+  border-color: #1f2937;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transform: translateY(-1px);
 }
@@ -287,11 +287,11 @@
   transition: all 0.2s ease;
 }
 .ai-input-field:focus {
-  border-color: #00bcd4;
-  box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.1);
+  border-color: #1f2937;
+  box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.1);
 }
 .ai-input-field:hover:not(:focus) {
-  border-color: #b0b0b0;
+  border-color: #6b7280;
 }
 
 .ai-aux { display: flex; align-items: center; gap: 12px; }
@@ -386,7 +386,7 @@
 .ai-preset-button:nth-child(8) { animation-delay: 0.45s; }
 .ai-preset-button:hover { 
   background: #f8f9fa; 
-  border-color: #00bcd4; 
+  border-color: #1f2937; 
   color: #111; 
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transform: translateY(-2px);
