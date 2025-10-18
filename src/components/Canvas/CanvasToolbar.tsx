@@ -33,6 +33,8 @@ interface CanvasToolbarProps {
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  // Keyboard shortcuts modal
+  onShowKeyboardShortcuts?: () => void;
 }
 
 export const CanvasToolbar = ({
@@ -62,12 +64,12 @@ export const CanvasToolbar = ({
   canRedo = false,
   onUndo,
   onRedo,
+  onShowKeyboardShortcuts,
 }: CanvasToolbarProps) => {
   const [isSelectMenuOpen, setIsSelectMenuOpen] = useState(false);
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
   const [isAlignMenuOpen, setIsAlignMenuOpen] = useState(false);
   const [isDistributeMenuOpen, setIsDistributeMenuOpen] = useState(false);
-  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
   const [currentAlign, setCurrentAlign] = useState<'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'>('left');
   const [currentDistribute, setCurrentDistribute] = useState<'horizontal' | 'vertical'>('horizontal');
 
@@ -521,97 +523,18 @@ export const CanvasToolbar = ({
       <div className="toolbar-divider" />
 
       <div className="toolbar-section">
-        <div className="help-button-wrapper">
-          <button
-            className="help-button"
-            onClick={() => setIsHelpMenuOpen(!isHelpMenuOpen)}
-            title="Keyboard shortcuts"
-            aria-label="Show keyboard shortcuts"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </button>
-          {isHelpMenuOpen && (
-            <div className="help-menu">
-              <div className="help-menu-header">
-                <h3>Keyboard Shortcuts</h3>
-                <button 
-                  className="help-menu-close"
-                  onClick={() => setIsHelpMenuOpen(false)}
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="help-menu-content">
-                <div className="help-section">
-                  <h4>Tools</h4>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Select</span>
-                    <kbd>V</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Rectangle</span>
-                    <kbd>R</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Circle</span>
-                    <kbd>C</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Text</span>
-                    <kbd>T</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Pan</span>
-                    <kbd>Space</kbd>
-                  </div>
-                </div>
-                <div className="help-section">
-                  <h4>Actions</h4>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Undo</span>
-                    <kbd>Cmd/Ctrl</kbd> + <kbd>Z</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Redo</span>
-                    <kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Duplicate</span>
-                    <kbd>Cmd/Ctrl</kbd> + <kbd>D</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Delete</span>
-                    <kbd>Delete</kbd> / <kbd>Backspace</kbd>
-                  </div>
-                </div>
-                <div className="help-section">
-                  <h4>Layer Order</h4>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Bring to Front</span>
-                    <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>]</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Bring Forward</span>
-                    <kbd>Ctrl</kbd> + <kbd>]</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Send Backward</span>
-                    <kbd>Ctrl</kbd> + <kbd>[</kbd>
-                  </div>
-                  <div className="shortcut-item">
-                    <span className="shortcut-label">Send to Back</span>
-                    <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>[</kbd>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <button
+          className="help-button"
+          onClick={onShowKeyboardShortcuts}
+          title="Keyboard shortcuts (Shift + ?)"
+          aria-label="Show keyboard shortcuts"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
       </div>
 
       

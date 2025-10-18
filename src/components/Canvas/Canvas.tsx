@@ -1867,6 +1867,7 @@ export const Canvas = () => {
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
+          onShowKeyboardShortcuts={() => setShowKeyboardShortcuts(true)}
         />
         
         {/* Empty state when no shapes exist */}
