@@ -299,11 +299,13 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
           )}
         </div>
 
-        <div className="ai-suggestions-footer">
-          <button className="ai-suggestions-reanalyze" onClick={handleAnalyze} disabled={loading}>
-            Re-analyze
-          </button>
-        </div>
+        {analyzed && (
+          <div className="ai-suggestions-footer">
+            <button className="ai-suggestions-reanalyze" onClick={handleAnalyze} disabled={loading}>
+              Re-analyze
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
