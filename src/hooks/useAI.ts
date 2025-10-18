@@ -4,7 +4,6 @@ import type { AICommandRequest, AICommandResponse } from '../types/ai.types';
 import { aiService } from '../services/ai.service';
 // Local parsing removed per requirement; rely solely on provider tool calls
 import { aiExecutorService, type ExecutionContext, type ToolExecutionResult } from '../services/ai-executor.service';
-import { aiToolsSchema } from '../services/ai-tools.schema';
 
 /**
  * Command history entry
@@ -81,7 +80,7 @@ export const useAI = (
         };
 
         // Send to AI service with streaming callbacks
-        const aiResponse = await aiService.sendCommand(request, aiToolsSchema, {
+        const aiResponse = await aiService.sendCommand(request, {
           onStreamStart: () => {
             setStreamingStatus('Thinking...');
           },
@@ -137,19 +136,24 @@ export const useAI = (
 
         // Execute tool calls if present
         if (aiResponse.toolCalls && aiResponse.toolCalls.length > 0) {
+          console.log(`[useAI] Executing ${aiResponse.toolCalls.length} tool call(s):`, aiResponse.toolCalls.map(tc => tc.function.name));
+
           // Calculate viewport center for dynamic positioning
           let viewportCenter: { x: number; y: number } | undefined;
-          
+
           if (viewport && containerSize && containerSize.width > 0 && containerSize.height > 0) {
             // Convert center of screen to canvas coordinates
             const screenCenterX = containerSize.width / 2;
             const screenCenterY = containerSize.height / 2;
             const viewportCenterX = (screenCenterX - viewport.x) / viewport.scale;
             const viewportCenterY = (screenCenterY - viewport.y) / viewport.scale;
-            
+
             viewportCenter = { x: viewportCenterX, y: viewportCenterY };
+            console.log(`[useAI] Viewport center:`, viewportCenter);
+          } else {
+            console.log(`[useAI] No viewport center calculated - viewport:`, viewport, 'containerSize:', containerSize);
           }
-          
+
           const context: ExecutionContext = {
             userId,
             shapes,
@@ -158,20 +162,24 @@ export const useAI = (
             canvasHeight,
             viewportCenter,
           };
+          console.log(`[useAI] Execution context:`, { userId, shapeCount: shapes.length, selectedCount: selectedShapeIds.length, canvasWidth, canvasHeight, viewportCenter });
 
           const executionResults = await aiExecutorService.executeTools(
             aiResponse.toolCalls,
             context
           );
 
+          console.log(`[useAI] Execution results:`, executionResults);
+
           // Check if any executions failed
           const hasFailures = executionResults.some((r) => !r.success);
-          
+
           let message = aiResponse.message;
           if (hasFailures) {
             const firstFailure = executionResults.find((r) => !r.success);
             const failureMessage = firstFailure?.message || 'Command failed. Try again.';
             message = failureMessage;
+            console.error(`[useAI] Tool execution failed:`, firstFailure);
             setError(failureMessage);
           }
 

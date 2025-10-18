@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Transformer } from 'react-konva';
 import Konva from 'konva';
 import type { Viewport, RectangleShape, CircleShape, TextShape, CanvasShape } from '../../types/canvas.types';
+import type { ActionType } from '../../types/history.types';
 import { CanvasToolbar } from './CanvasToolbar';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
@@ -33,6 +34,16 @@ import {
   constrainPoint,
 } from '../../utils/boundaries';
 import './Canvas.css';
+
+type BaseCreateInput<TShape extends CanvasShape> = Omit<
+  TShape,
+  'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'
+>;
+
+type RectangleCreateInput = BaseCreateInput<RectangleShape>;
+type CircleCreateInput = BaseCreateInput<CircleShape>;
+type TextCreateInput = BaseCreateInput<TextShape>;
+
 const INITIAL_SCALE = 1;
 const MIN_SCALE = 0.1; // 10% zoom out
 const MAX_SCALE = 3; // 300% zoom in
@@ -110,6 +121,7 @@ export const Canvas = () => {
     setCurrentFontSize,
     addShape,
     updateShape,
+    updateMultipleShapes,
     removeShape,
     selectShape,
     toggleShapeSelection,
@@ -156,6 +168,11 @@ export const Canvas = () => {
     y: 0,
     scale: INITIAL_SCALE,
   });
+
+  const getNextZIndex = useCallback(() => {
+    if (shapes.length === 0) return 0;
+    return Math.max(...shapes.map(shape => shape.zIndex ?? 0)) + 1;
+  }, [shapes]);
 
   // Drawing state for creating new shapes
   const [isDrawing, setIsDrawing] = useState(false);
@@ -273,25 +290,63 @@ export const Canvas = () => {
     shapes,
   });
 
+  // Track whether initial load is complete to prevent race conditions
+  const initialLoadComplete = useRef(false);
+
   // Effect for loading shapes from Firestore and subscribing to real-time updates
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
     let initialSnapshotReceived = false;
+    let initialShapeCount = 0; // Track how many shapes we fetched initially
     
     // Initial load: fetch all shapes, then subscribe to real-time changes
     fetchAllShapes()
       .then((allShapes) => {
         console.log(`[Canvas] Initial load: ${allShapes.length} shapes`);
-        setShapes(allShapes);
+        initialShapeCount = allShapes.length;
+        
+        // RACE CONDITION FIX: Merge with existing shapes instead of replacing
+        // This prevents overwriting shapes that were optimistically added during initial load
+        setShapes((currentShapes: CanvasShape[]) => {
+          if (currentShapes.length === 0) {
+            // No optimistic updates, just use fetched shapes
+            console.log('[Canvas] No existing shapes, using fetched shapes');
+            return allShapes;
+          }
+          
+          // Merge: keep optimistic shapes that don't exist in fetched data
+          const fetchedIds = new Set(allShapes.map((s: CanvasShape) => s.id));
+          const optimisticShapes = currentShapes.filter((s: CanvasShape) => !fetchedIds.has(s.id));
+          
+          if (optimisticShapes.length > 0) {
+            console.log(`[Canvas] Preserving ${optimisticShapes.length} optimistically added shapes during initial load`);
+            return [...allShapes, ...optimisticShapes];
+          }
+          
+          return allShapes;
+        });
+        
+        initialLoadComplete.current = true;
         
         // Subscribe to real-time changes AFTER initial load completes
         // This ensures we don't skip any changes made immediately after page load
         unsubscribe = subscribeToShapes((changes) => {
-          // Skip only the very first onSnapshot callback (all existing documents)
+          // IMPROVED: Only skip first snapshot if it matches what we already loaded
+          // If there are MORE shapes in the first snapshot, it means shapes were created during initial load
           if (!initialSnapshotReceived) {
             initialSnapshotReceived = true;
-            console.log('[Canvas] Skipping initial snapshot (already loaded)');
-            return;
+            
+            // Count "added" events in first snapshot
+            const addedCount = changes.filter(c => c.type === 'added').length;
+            
+            if (addedCount > initialShapeCount) {
+              // New shapes were created during initial load - DON'T skip this snapshot!
+              console.log(`[Canvas] First snapshot has ${addedCount} shapes vs ${initialShapeCount} fetched - processing new shapes`);
+            } else {
+              // Same count - this is just the initial data we already have
+              console.log('[Canvas] Skipping initial snapshot (already loaded)');
+              return;
+            }
           }
 
           // Buffer changes and flush once per animation frame to avoid N renders
@@ -648,6 +703,7 @@ export const Canvas = () => {
       
       // Apply boundary constraints for preview
       const constrained = constrainShapeCreation('rectangle', rawX, rawY, rawWidth, rawHeight);
+      const nextZIndex = getNextZIndex();
       
       // Create rectangle preview
       const preview: RectangleShape = {
@@ -664,6 +720,7 @@ export const Canvas = () => {
         lastModifiedAt: Date.now(),
         lockedBy: null,
         lockedAt: null,
+        zIndex: nextZIndex,
       };
       
       setPreviewShape(preview);
@@ -675,6 +732,7 @@ export const Canvas = () => {
       
       // Apply boundary constraints for preview
       const constrained = constrainShapeCreation('circle', startPoint.x, startPoint.y, undefined, undefined, radius);
+      const nextZIndex = getNextZIndex();
       
       // Create circle preview
       const preview: CircleShape = {
@@ -690,6 +748,7 @@ export const Canvas = () => {
         lastModifiedAt: Date.now(),
         lockedBy: null,
         lockedAt: null,
+        zIndex: nextZIndex,
       };
       
       setPreviewShape(preview);
@@ -731,13 +790,15 @@ export const Canvas = () => {
         // Apply boundary constraints
         const constrained = constrainShapeCreation('rectangle', rawX, rawY, rawWidth, rawHeight);
         
-        const newShapeData = {
+        const nextZIndex = getNextZIndex();
+        const newShapeData: RectangleCreateInput = {
           type: 'rectangle' as const,
           x: constrained.x,
           y: constrained.y,
           width: constrained.width ?? rawWidth,
           height: constrained.height ?? rawHeight,
           color: currentColor,
+          zIndex: nextZIndex,
         };
         
         addShape(newShapeData, user.id);
@@ -753,12 +814,14 @@ export const Canvas = () => {
         // Apply boundary constraints
         const constrained = constrainShapeCreation('circle', startPoint.x, startPoint.y, undefined, undefined, radius);
         
-        const newShapeData = {
+        const nextZIndex = getNextZIndex();
+        const newShapeData: CircleCreateInput = {
           type: 'circle' as const,
           x: constrained.x,
           y: constrained.y,
           radius: constrained.radius ?? radius,
           color: currentColor,
+          zIndex: nextZIndex,
         };
         
         addShape(newShapeData, user.id);
@@ -814,14 +877,16 @@ export const Canvas = () => {
         
         // Apply boundary constraints
         const constrained = constrainPoint(canvasX, canvasY);
+        const nextZIndex = getNextZIndex();
         
-        const newShapeData = {
+        const newShapeData: TextCreateInput = {
           type: 'text' as const,
           x: constrained.x,
           y: constrained.y,
           text: trimmedText,
           fontSize: currentFontSize,
           color: currentColor,
+          zIndex: nextZIndex,
         };
         
         // Create as one history transaction (create)
@@ -1061,6 +1126,9 @@ export const Canvas = () => {
         const deltaX = x - draggedShapeInitial.x;
         const deltaY = y - draggedShapeInitial.y;
 
+        // Prepare batch updates for all selected shapes
+        const batchUpdates: Array<{ id: string; updates: Partial<CanvasShape> }> = [];
+        
         // Update all selected shapes with final positions and metadata (as one history tx)
         historyBegin('move');
         selectedShapeIds.forEach((shapeId) => {
@@ -1069,15 +1137,25 @@ export const Canvas = () => {
             const finalX = initialPos.x + deltaX;
             const finalY = initialPos.y + deltaY;
             historyRecord(shapeId, { x: initialPos.x, y: initialPos.y }, { x: finalX, y: finalY });
-            updateShape(shapeId, {
-              x: finalX,
-              y: finalY,
-              lastModifiedBy: user.id,
-              lastModifiedAt: Date.now(),
+            
+            // Add to batch updates instead of individual updates
+            batchUpdates.push({
+              id: shapeId,
+              updates: {
+                x: finalX,
+                y: finalY,
+                lastModifiedBy: user.id,
+                lastModifiedAt: Date.now(),
+              },
             });
           }
         });
         historyCommit();
+        
+        // OPTIMIZED: Single batch update instead of 500 individual updates!
+        if (batchUpdates.length > 0) {
+          updateMultipleShapes(batchUpdates);
+        }
       }
 
       // Reset group drag state
@@ -1102,7 +1180,7 @@ export const Canvas = () => {
     dragStartShapeRef.current = null;
     
     // Lock will be released when shape is deselected (via selection management effect)
-  }, [user, updateShape, selectedShapeIds, groupDragInitialPositions, shapes, historyBegin, historyRecord, historyCommit]);
+  }, [user, updateShape, updateMultipleShapes, selectedShapeIds, groupDragInitialPositions, shapes, historyBegin, historyRecord, historyCommit]);
 
   // Handle transform start - acquire lock when starting to resize (if not already locked)
   const handleTransformStart = useCallback(async () => {

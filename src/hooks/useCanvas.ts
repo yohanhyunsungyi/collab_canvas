@@ -15,7 +15,7 @@ interface UseCanvasProps {
 interface UseCanvasReturn {
   // Canvas objects state
   shapes: CanvasShape[];
-  setShapes: (shapes: CanvasShape[]) => void; // Added for initial load
+  setShapes: (shapes: CanvasShape[] | ((prev: CanvasShape[]) => CanvasShape[])) => void; // Added for initial load, supports functional updates
   selectedShapeIds: string[]; // Changed from selectedShapeId for multi-select
   
   // Tool and style state
@@ -34,6 +34,7 @@ interface UseCanvasReturn {
     overrideId?: string
   ) => Promise<void>;
   updateShape: (id: string, updates: Partial<CanvasShape>) => Promise<void>;
+  updateMultipleShapes: (updates: Array<{ id: string; updates: Partial<CanvasShape> }>) => Promise<void>;
   removeShape: (id: string) => Promise<void>;
   selectShape: (id: string | null) => void; // Select single shape (clears others)
   toggleShapeSelection: (id: string) => void; // Add/remove from selection (for shift-click)
@@ -146,7 +147,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
 
   // Add a new shape to the canvas and persist it to Firestore
   const addShape = useCallback(async (
-    shapeData: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt' | 'zIndex'>,
+    shapeData: Omit<CanvasShape, 'id' | 'createdAt' | 'lastModifiedAt' | 'lastModifiedBy' | 'createdBy' | 'lockedBy' | 'lockedAt'>,
     userId: string,
     overrideId?: string
   ) => {
@@ -156,7 +157,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     const maxZIndex = shapes.length > 0 
       ? Math.max(...shapes.map(s => s.zIndex ?? 0)) 
       : -1;
-    const nextZIndex = maxZIndex + 1;
+    const nextZIndex = shapeData.zIndex ?? (maxZIndex + 1);
     
     // Create the full shape object with metadata
     const newShape: CanvasShape = {
@@ -208,6 +209,46 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
       if (originalShape) {
         setShapes((prev) => prev.map((shape) => shape.id === id ? originalShape! : shape));
       }
+    }
+  }, [shapes]);
+
+  // Update multiple shapes in a batch (optimized for group operations)
+  const updateMultipleShapes = useCallback(async (
+    updates: Array<{ id: string; updates: Partial<CanvasShape> }>
+  ) => {
+    const startTime = performance.now();
+    console.log(`[useCanvas] Batch updating ${updates.length} shapes`);
+    
+    // Store original shapes for rollback
+    const originalShapes = new Map<string, CanvasShape>();
+    updates.forEach(({ id }) => {
+      const shape = shapes.find(s => s.id === id);
+      if (shape) {
+        originalShapes.set(id, { ...shape });
+      }
+    });
+    
+    // Optimistic update: Apply all changes at once
+    setShapes((prevShapes) => {
+      return prevShapes.map((shape) => {
+        const update = updates.find(u => u.id === shape.id);
+        return update ? { ...shape, ...update.updates } as CanvasShape : shape;
+      });
+    });
+    
+    try {
+      // Single batch write to Firestore
+      await canvasService.updateMultipleShapesInBatch(updates);
+      const elapsed = performance.now() - startTime;
+      console.log(`[useCanvas] Batch update completed in ${elapsed.toFixed(2)}ms`);
+    } catch (error) {
+      console.error("Failed to batch update shapes:", error);
+      setError('Failed to update shapes. Please check your connection.');
+      
+      // Revert all updates on failure
+      setShapes((prev) =>
+        prev.map((shape) => originalShapes.get(shape.id) || shape)
+      );
     }
   }, [shapes]);
 
@@ -319,7 +360,14 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
 
     try {
       const changes: ChangeSet = {};
+      // Calculate base zIndex for duplicated shapes
+      const maxZIndex = shapes.length > 0 ? Math.max(...shapes.map(s => s.zIndex ?? 0)) : -1;
+
+      let zIndexOffset = 0;
       for (const shape of selectedShapes) {
+        const nextZIndex = maxZIndex + 1 + zIndexOffset;
+        zIndexOffset++;
+
         if (shape.type === 'rectangle') {
           const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
           changes[newId] = {
@@ -332,6 +380,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               width: shape.width,
               height: shape.height,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -353,6 +402,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               y: shape.y + duplicateOffset,
               radius: shape.radius,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -375,6 +425,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               text: shape.text,
               fontSize: shape.fontSize,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -398,6 +449,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               height: shape.height,
               src: shape.src,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -430,20 +482,24 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     
     setShapes((prevShapes) => {
       console.log('[useCanvas] Current shapes count:', prevShapes.length);
-      let updatedShapes = [...prevShapes];
+      
+      // OPTIMIZED: Use Map for O(1) lookups instead of O(n) array operations
+      const shapeMap = new Map<string, CanvasShape>();
+      prevShapes.forEach(shape => shapeMap.set(shape.id, shape));
+      
       let addedCount = 0;
       let modifiedCount = 0;
       let removedCount = 0;
       let skippedDuplicates = 0;
       
+      // Process all changes using Map operations (much faster for bulk updates)
       changes.forEach((change) => {
         const { type, shape } = change;
         
         if (type === 'added') {
           // Add new shape if it doesn't already exist (prevent duplicates)
-          const exists = updatedShapes.some((s) => s.id === shape.id);
-          if (!exists) {
-            updatedShapes.push(shape);
+          if (!shapeMap.has(shape.id)) {
+            shapeMap.set(shape.id, shape);
             addedCount++;
             console.log(`[useCanvas] Added shape from real-time update: ${shape.id} (${shape.type})`);
           } else {
@@ -451,19 +507,24 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
             console.log(`[useCanvas] Skipped duplicate shape: ${shape.id} (already in state)`);
           }
         } else if (type === 'modified') {
-          // Update existing shape
-          updatedShapes = updatedShapes.map((s) =>
-            s.id === shape.id ? shape : s
-          );
-          modifiedCount++;
-          console.log(`[useCanvas] Modified shape from real-time update: ${shape.id}`);
+          // Update existing shape (O(1) Map operation)
+          if (shapeMap.has(shape.id)) {
+            shapeMap.set(shape.id, shape);
+            modifiedCount++;
+            console.log(`[useCanvas] Modified shape from real-time update: ${shape.id}`);
+          }
         } else if (type === 'removed') {
-          // Remove shape
-          updatedShapes = updatedShapes.filter((s) => s.id !== shape.id);
-          removedCount++;
-          console.log(`[useCanvas] Removed shape from real-time update: ${shape.id}`);
+          // Remove shape (O(1) Map operation)
+          if (shapeMap.has(shape.id)) {
+            shapeMap.delete(shape.id);
+            removedCount++;
+            console.log(`[useCanvas] Removed shape from real-time update: ${shape.id}`);
+          }
         }
       });
+      
+      // Convert Map back to array
+      const updatedShapes = Array.from(shapeMap.values());
       
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -475,11 +536,10 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     });
     
     // Clear selection for any removed shapes
-    changes.forEach((change) => {
-      if (change.type === 'removed') {
-        setSelectedShapeIds((prev) => prev.filter(id => id !== change.shape.id));
-      }
-    });
+    const removedIds = changes.filter(c => c.type === 'removed').map(c => c.shape.id);
+    if (removedIds.length > 0) {
+      setSelectedShapeIds((prev) => prev.filter(id => !removedIds.includes(id)));
+    }
   }, []);
 
   /**
@@ -502,8 +562,14 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     console.log(`[useCanvas] Pasting ${clipboard.length} shapes...`);
     try {
       const changes: ChangeSet = {};
-      for (const shape of clipboard) {
+      // Calculate base zIndex for pasted shapes
+      const maxZIndex = shapes.length > 0 ? Math.max(...shapes.map(s => s.zIndex ?? 0)) : -1;
+
+      for (let i = 0; i < clipboard.length; i++) {
+        const shape = clipboard[i];
         const newId = `shape-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const nextZIndex = maxZIndex + 1 + i; // Each pasted shape gets incrementing zIndex
+
         if (shape.type === 'rectangle') {
           changes[newId] = {
             shapeId: newId,
@@ -515,6 +581,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               width: shape.width,
               height: shape.height,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -535,6 +602,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               y: shape.y + pasteOffset,
               radius: shape.radius,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -556,6 +624,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               text: shape.text,
               fontSize: shape.fontSize,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -578,6 +647,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
               height: shape.height,
               src: shape.src,
               color: shape.color,
+              zIndex: nextZIndex,
               rotation: shape.rotation || 0,
               id: newId,
               createdBy: userId,
@@ -596,7 +666,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
       console.error("Failed to paste shape:", error);
       setError('Failed to paste shapes. Please check your connection.');
     }
-  }, [clipboard, commitChangeSet]);
+  }, [clipboard, commitChangeSet, shapes]);
 
   // Z-Index operations: Bring to front
   const bringToFront = useCallback(async () => {
@@ -906,6 +976,7 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     // Shape management
     addShape,
     updateShape,
+    updateMultipleShapes,
     removeShape,
     selectShape, // Select single shape
     toggleShapeSelection, // Toggle selection for shift-click
@@ -952,4 +1023,3 @@ export const useCanvas = ({ userId: initialUserId = '' }: UseCanvasProps = {}): 
     distributeVertically: distributeVerticallyFn,
   };
 };
-

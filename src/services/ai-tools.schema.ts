@@ -108,7 +108,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createMultipleShapes',
-      description: 'Create multiple identical shapes at once. For large grids (100+ shapes), use the "count" parameter to duplicate the first shape. For grid layouts: Create shapes with the SAME x,y coordinates (like x:0, y:0), then call arrangeGrid to position them. Example: "Create a grid of 500 squares" → createMultipleShapes(shapes=[{type:rectangle, x:0, y:0, width:20, height:20, color:#FF0000}], count:500) THEN arrangeGrid(shapeIds=[], columns:Math.ceil(Math.sqrt(500))). Do NOT pre-calculate grid positions - let arrangeGrid handle positioning!',
+      description: 'Create multiple identical shapes with INSTANT grid positioning in ONE STEP. When all shapes have the SAME x,y coordinates, they are auto-arranged in a square grid. Spacing is AUTO-CALCULATED (shape size + 20px gap) unless specified. Examples: "Create 3x3 squares" → createMultipleShapes(shapes=[{type:rectangle, x:0, y:0, width:100, height:100}], count:9); "Create 500 squares with 2px spacing" → createMultipleShapes(shapes=[{type:rectangle, x:0, y:0, width:20, height:20}], count:500, spacingX:22, spacingY:22). NO separate arrangeGrid needed! Use count for large grids (100+ shapes).',
       parameters: {
         type: 'object',
         properties: {
@@ -123,8 +123,8 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
                   enum: ['rectangle', 'circle', 'text'],
                   description: 'Type of shape to create',
                 },
-                x: { type: 'number', description: 'X coordinate. For grid layouts, use the SAME value for all shapes (e.g., 0).' },
-                y: { type: 'number', description: 'Y coordinate. For grid layouts, use the SAME value for all shapes (e.g., 0).' },
+                x: { type: 'number', description: 'X coordinate. For grid layouts, use the SAME value for all shapes (e.g., 0) and they will be auto-arranged.' },
+                y: { type: 'number', description: 'Y coordinate. For grid layouts, use the SAME value for all shapes (e.g., 0) and they will be auto-arranged.' },
                 width: { type: 'number', description: 'Width (rectangle only)' },
                 height: { type: 'number', description: 'Height (rectangle only)' },
                 radius: { type: 'number', description: 'Radius (circle only)' },
@@ -138,6 +138,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           count: {
             type: 'number',
             description: 'Number of times to duplicate the first shape in the shapes array. Use this for creating many identical shapes (e.g., count:500 for 500 squares). If omitted, creates exactly the number of shapes in the array.',
+          },
+          spacingX: {
+            type: 'number',
+            description: 'Horizontal spacing between shapes in pixels for auto-grid arrangement. If omitted, automatically calculated as shape width + 20px gap. For custom spacing like "2px apart", specify explicitly (e.g., width + 2).',
+          },
+          spacingY: {
+            type: 'number',
+            description: 'Vertical spacing between shapes in pixels for auto-grid arrangement. If omitted, automatically calculated as shape height + 20px gap. For custom spacing like "2px apart", specify explicitly (e.g., height + 2).',
           },
         },
         required: ['shapes'],
@@ -677,14 +685,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeGrid',
-      description: 'Arrange shapes in a grid layout with rows and columns. MUST be called AFTER createMultipleShapes to arrange the created shapes. Use shapeIds=[] (empty array) to arrange ALL shapes on canvas. The grid will be automatically centered. This tool repositions shapes, so do NOT pre-calculate grid positions in createMultipleShapes.',
+      description: 'Rearrange EXISTING shapes into a grid layout. ONLY use this to rearrange shapes that are already on the canvas. For NEW shapes, use createMultipleShapes with spacingX/spacingY which creates them in a grid instantly (much faster). Use shapeIds=[] to rearrange ALL shapes on canvas. This tool is for reorganizing, not initial creation.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange in a grid. MUST use [] (empty array) to arrange all shapes on canvas after createMultipleShapes.',
+            description: 'Array of shape IDs to rearrange into a grid. Use [] (empty array) to rearrange all existing shapes on canvas. Note: For creating NEW grids, use createMultipleShapes instead.',
           },
           startX: {
             type: 'number',

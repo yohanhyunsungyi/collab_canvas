@@ -1,4 +1,5 @@
-.ai-panel { position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%); width: min(900px, 92%); z-index: 20; }
+.ai-panel { position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%); width: min(900px, 92%); z-index: 10; pointer-events: none; }
+.ai-panel > * { pointer-events: auto; }
 
 .ai-history-wrapper { position: relative; margin-bottom: 0; width: calc(100% - 48px); margin-left: auto; margin-right: auto; }
 .ai-history-wrapper.is-expanded { margin-bottom: 0; }

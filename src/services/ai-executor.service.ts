@@ -1,5 +1,5 @@
 import type { CanvasShape } from '../types/canvas.types';
-import { createShape, updateShape, deleteShape, deleteMultipleShapes as batchDeleteShapes } from './canvas.service';
+import { createShape, updateShape, deleteShape, deleteMultipleShapes as batchDeleteShapes, createMultipleShapesInBatch } from './canvas.service';
 import type { AIToolCall } from '../types/ai.types';
 import { normalizeHexColor, resolveColorQuery } from '../utils/colorMatching';
 import { SHAPE_COLORS } from '../utils/colors';
@@ -24,6 +24,38 @@ const generateShapeId = (): string => {
  */
 const getRandomColor = (): string => {
   return SHAPE_COLORS[Math.floor(Math.random() * SHAPE_COLORS.length)];
+};
+
+/**
+ * Resolve a color string (name or hex) to a valid hex color
+ * This ensures color names like "blue" are converted to hex codes for consistent storage
+ */
+const resolveColorToHex = (color: string | undefined): string => {
+  if (!color) {
+    return getRandomColor();
+  }
+
+  // If it's already a valid hex, return normalized version
+  const normalizedHex = normalizeHexColor(color);
+  if (normalizedHex) {
+    return normalizedHex;
+  }
+
+  // Try to resolve color name to hex using the color matching utility
+  const { direct, fallback } = resolveColorQuery(color);
+  
+  // Use the first direct match if available
+  if (direct.size > 0) {
+    return Array.from(direct)[0];
+  }
+  
+  // Use the first fallback match if available
+  if (fallback.size > 0) {
+    return Array.from(fallback)[0];
+  }
+
+  // If all else fails, use a random color
+  return getRandomColor();
 };
 
 /**
@@ -70,7 +102,19 @@ class AIExecutorService {
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     try {
-      const args = JSON.parse(toolCall.function.arguments);
+      // Handle empty or invalid JSON
+      let args;
+      try {
+        args = JSON.parse(toolCall.function.arguments || '{}');
+      } catch (parseError) {
+        console.error('[AI Executor] JSON parse error:', toolCall.function.arguments);
+        return {
+          success: false,
+          message: 'Invalid tool arguments',
+          error: `JSON parse error: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`
+        };
+      }
+
       const functionName = toolCall.function.name;
 
       console.log(`[AI Executor] Executing tool: ${functionName}`, args);
@@ -180,6 +224,11 @@ class AIExecutorService {
       }
     } catch (error) {
       console.error('[AI Executor] Error executing tool:', error);
+      console.error('[AI Executor] Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return {
         success: false,
         message: 'Failed to execute tool',
@@ -252,7 +301,7 @@ class AIExecutorService {
       y: defaultY,
       width: args.width,
       height: args.height,
-      color: args.color ?? getRandomColor(),
+      color: resolveColorToHex(args.color),
       zIndex: getNextZIndex(context.shapes),
       createdBy: context.userId,
       createdAt: now,
@@ -284,7 +333,7 @@ class AIExecutorService {
       x: args.x ?? context.viewportCenter?.x ?? 0,
       y: args.y ?? context.viewportCenter?.y ?? 0,
       radius: args.radius ?? 50,
-      color: args.color ?? getRandomColor(),
+      color: resolveColorToHex(args.color),
       zIndex: getNextZIndex(context.shapes),
       createdBy: context.userId,
       createdAt: now,
@@ -317,7 +366,7 @@ class AIExecutorService {
       y: args.y ?? context.viewportCenter?.y ?? 0,
       text: args.text,
       fontSize: args.fontSize ?? 24,
-      color: args.color ?? getRandomColor(),
+      color: resolveColorToHex(args.color),
       zIndex: getNextZIndex(context.shapes),
       createdBy: context.userId,
       createdAt: now,
@@ -351,31 +400,91 @@ class AIExecutorService {
         color: string;
       }>;
       count?: number;
+      spacingX?: number;
+      spacingY?: number;
     },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    const createdShapes: string[] = [];
+    const startTime = Date.now();
     
     // If count is provided and > shapes.length, duplicate the first shape
     const totalShapes = args.count && args.count > args.shapes.length ? args.count : args.shapes.length;
     const templateShape = args.shapes[0];
+    const shouldUseRandomColor = args.count && args.count > 1;
+
+    // Check if we need to auto-arrange in a grid
+    const firstX = templateShape.x;
+    const firstY = templateShape.y;
+    const allSamePosition = args.shapes.every(s => s.x === firstX && s.y === firstY);
+    const shouldArrangeGrid = allSamePosition && totalShapes >= 4;
+
+    // Calculate grid dimensions if needed
+    let gridColumns = 1;
+    
+    // AUTO-CALCULATE spacing based on shape dimensions if not provided
+    let gridSpacingX: number;
+    let gridSpacingY: number;
+    
+    if (templateShape.type === 'rectangle') {
+      const width = templateShape.width || 100;
+      const height = templateShape.height || 100;
+      // Add 20px gap between shapes (or use provided spacing)
+      gridSpacingX = args.spacingX || (width + 20);
+      gridSpacingY = args.spacingY || (height + 20);
+    } else if (templateShape.type === 'circle') {
+      const radius = templateShape.radius || 50;
+      const diameter = radius * 2;
+      // Add 20px gap between shapes (or use provided spacing)
+      gridSpacingX = args.spacingX || (diameter + 20);
+      gridSpacingY = args.spacingY || (diameter + 20);
+    } else if (templateShape.type === 'text') {
+      const fontSize = templateShape.fontSize || 24;
+      // Estimate text dimensions (width ~10x fontSize, height ~1.5x fontSize)
+      gridSpacingX = args.spacingX || (fontSize * 10 + 20);
+      gridSpacingY = args.spacingY || (fontSize * 1.5 + 20);
+    } else {
+      // Fallback
+      gridSpacingX = args.spacingX || 120;
+      gridSpacingY = args.spacingY || 120;
+    }
+    
+    if (shouldArrangeGrid) {
+      gridColumns = Math.ceil(Math.sqrt(totalShapes));
+      console.log(`[AI Executor] Pre-arranging ${totalShapes} shapes in a ${gridColumns}x${Math.ceil(totalShapes / gridColumns)} grid with spacing ${gridSpacingX}x${gridSpacingY}`);
+    }
+
+    // Build all shapes in memory first (much faster than individual Firebase writes)
+    const shapesToCreate: CanvasShape[] = [];
+    const now = Date.now();
+    const baseZIndex = getNextZIndex(context.shapes);
 
     for (let i = 0; i < totalShapes; i++) {
       // Use the template shape if count is specified, otherwise use the indexed shape
       const shapeData = args.count ? templateShape : args.shapes[i];
-      const now = Date.now();
+      
+      // Calculate final position (with grid arrangement if needed)
+      let finalX = shapeData.x;
+      let finalY = shapeData.y;
+      
+      if (shouldArrangeGrid) {
+        const row = Math.floor(i / gridColumns);
+        const col = i % gridColumns;
+        finalX = firstX + (col * gridSpacingX);
+        finalY = firstY + (row * gridSpacingY);
+      }
+      
       let shape: CanvasShape;
-
+      
       if (shapeData.type === 'rectangle') {
         shape = {
           id: generateShapeId(),
           type: 'rectangle',
-          x: shapeData.x,
-          y: shapeData.y,
+          x: finalX,
+          y: finalY,
           width: shapeData.width || 100,
           height: shapeData.height || 100,
-          color: shapeData.color ?? getRandomColor(),
-          zIndex: getNextZIndex(context.shapes),
+          color: shouldUseRandomColor ? getRandomColor() : resolveColorToHex(shapeData.color),
+          zIndex: baseZIndex + i,
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -387,11 +496,11 @@ class AIExecutorService {
         shape = {
           id: generateShapeId(),
           type: 'circle',
-          x: shapeData.x,
-          y: shapeData.y,
+          x: finalX,
+          y: finalY,
           radius: shapeData.radius || 50,
-          color: shapeData.color ?? getRandomColor(),
-          zIndex: getNextZIndex(context.shapes),
+          color: shouldUseRandomColor ? getRandomColor() : resolveColorToHex(shapeData.color),
+          zIndex: baseZIndex + i,
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -403,12 +512,12 @@ class AIExecutorService {
         shape = {
           id: generateShapeId(),
           type: 'text',
-          x: shapeData.x,
-          y: shapeData.y,
+          x: finalX,
+          y: finalY,
           text: shapeData.text || 'Text',
           fontSize: shapeData.fontSize || 24,
-          color: shapeData.color ?? getRandomColor(),
-          zIndex: getNextZIndex(context.shapes),
+          color: shouldUseRandomColor ? getRandomColor() : resolveColorToHex(shapeData.color),
+          zIndex: baseZIndex + i,
           createdBy: context.userId,
           createdAt: now,
           lastModifiedBy: context.userId,
@@ -418,26 +527,35 @@ class AIExecutorService {
         };
       }
 
-      try {
-        await createShape(shape);
-        context.shapes.push(shape);
-        createdShapes.push(shape.id);
-        
-        // Add small delay every 10 shapes to avoid Firebase rate limiting
-        if ((i + 1) % 10 === 0 && i < args.shapes.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      } catch (error) {
-        console.error(`[AI Executor] Error creating shape ${i}:`, error);
-        // Continue with other shapes even if one fails
-      }
+      shapesToCreate.push(shape);
     }
 
-    return {
-      success: true,
-      message: `Created ${createdShapes.length} shapes`,
-      data: { shapeIds: createdShapes },
-    };
+    // Use batch write for all shapes at once (MUCH faster)
+    try {
+      await createMultipleShapesInBatch(shapesToCreate);
+      
+      // Update context with created shapes
+      context.shapes.push(...shapesToCreate);
+      const createdShapeIds = shapesToCreate.map(s => s.id);
+      
+      const elapsed = Date.now() - startTime;
+      const message = shouldArrangeGrid
+        ? `Created ${totalShapes} shapes in a ${gridColumns}x${Math.ceil(totalShapes / gridColumns)} grid in ${elapsed}ms`
+        : `Created ${totalShapes} shapes in ${elapsed}ms`;
+      
+      return {
+        success: true,
+        message,
+        data: { shapeIds: createdShapeIds },
+      };
+    } catch (error) {
+      console.error('[AI Executor] Error creating shapes:', error);
+      return {
+        success: false,
+        message: `Failed to create shapes: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: 'CREATE_FAILED',
+      };
+    }
   }
 
   // ==========================================
@@ -707,8 +825,9 @@ class AIExecutorService {
       };
     }
 
+    const resolvedColor = resolveColorToHex(args.color);
     await updateShape(args.shapeId, {
-      color: args.color,
+      color: resolvedColor,
       lastModifiedBy: context.userId,
     });
 

@@ -8,6 +8,7 @@ import type {
   OpenAIModelName,
 } from '../types/ai.types';
 import { AI_CONFIG, OPENAI_MODELS } from '../types/ai.types';
+import { aiToolsSchema } from './ai-tools.schema';
 
 // ==========================================
 // PHASE 3: Smart Tool Selection
@@ -149,13 +150,17 @@ COMPLEX LAYOUTS (use these tools directly):
 • "card"/"pricing card" → createCardLayout (8 elements: border, title, image, description)
 • "dashboard" → createDashboard (21 elements: 4 stat cards with metrics)
 
-GRID LAYOUTS (2-step process):
-1. createMultipleShapes with ALL shapes at SAME x,y (e.g., x:0, y:0)
-2. arrangeGrid(shapeIds=[], columns=N) - handles positioning
+GRID LAYOUTS (OPTIMIZED - single step):
+• createMultipleShapes automatically arranges shapes in a grid when they have the SAME x,y
+• Spacing is AUTO-CALCULATED (shape size + 20px gap) if not specified
+• For custom spacing, use spacingX/spacingY parameters explicitly
+• Example: "Create 3x3 squares" → createMultipleShapes(shapes=[{x:0,y:0,width:100,height:100}], count:9) - auto 120px spacing
+• Example: "Create 500 squares with 2px spacing" → createMultipleShapes(shapes=[{x:0,y:0,width:20,height:20}], count:500, spacingX:22, spacingY:22)
+• Grid is calculated instantly during creation - NO need for arrangeGrid afterward!
 
 KEY RULES:
 1. Use smart tools (moveShapeByDescription, resizeShapeByDescription) when describing shapes by type/color
-2. For grids: createMultipleShapes at x:0,y:0, then arrangeGrid
+2. For grids: use createMultipleShapes with spacingX/spacingY (ONE step, instant arrangement)
 3. For rotation: rotateShapes(shapeIds=[], rotation=degrees)
 4. Be precise with coordinates; default to sensible values
 5. Always complete commands with tool calls`;
@@ -264,7 +269,7 @@ class AIService {
 
     // Filter tools
     const filtered = allTools.filter(tool => 
-      tool.function && relevantToolNames.has(tool.function.name)
+      'function' in tool && tool.function && relevantToolNames.has(tool.function.name)
     );
 
     const reduction = Math.round((1 - filtered.length / allTools.length) * 100);
@@ -278,7 +283,6 @@ class AIService {
    */
   async sendCommand(
     request: AICommandRequest & { shapeCount?: number },
-    tools: OpenAI.Chat.ChatCompletionTool[],
     options?: {
       onStreamStart?: () => void;
       onStreamProgress?: (toolName: string) => void;
@@ -315,7 +319,7 @@ class AIService {
       console.log(`[AI Service] Using model: ${selectedModel}`);
 
       // PHASE 3: Filter tools based on prompt
-      const relevantTools = this.filterRelevantTools(tools, request.prompt);
+      const relevantTools = this.filterRelevantTools(aiToolsSchema, request.prompt);
 
       const messages: AIMessage[] = [
         {
@@ -444,8 +448,8 @@ class AIService {
             id: tc.id,
             type: 'function' as const,
             function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments,
+              name: 'function' in tc ? tc.function.name : '',
+              arguments: 'function' in tc ? tc.function.arguments : '',
             },
           }))
         : [],

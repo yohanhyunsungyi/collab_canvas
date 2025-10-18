@@ -1,5 +1,5 @@
 import type { AIToolCall } from '../types/ai.types';
-import type { CanvasShape } from '../types/canvas.types';
+import type { CanvasShape, CircleShape } from '../types/canvas.types';
 
 const COLOR_WORDS = [
   'red','green','blue','yellow','black','white','purple','orange','pink','gray','grey','cyan','magenta','teal'
@@ -77,7 +77,7 @@ export function parseLocalCommandWithContext(
   const p = prompt.trim();
   const lower = p.toLowerCase();
 
-  const byNewest = (arr: CanvasShape[]) =>
+  const byNewest = <T extends CanvasShape>(arr: T[]) =>
     [...arr].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
   // Move the blue rectangle to the center
@@ -98,7 +98,8 @@ export function parseLocalCommandWithContext(
 
   // Make the circle twice as big
   if ((/\bmake\b|\bscale\b|\bresize\b/.test(lower)) && /\bcircle\b/.test(lower) && /\btwice|2x|double\b/.test(lower)) {
-    const target = byNewest(shapes.filter((s) => s.type === 'circle'))[0];
+    const circles = shapes.filter((s): s is CircleShape => s.type === 'circle');
+    const target = byNewest(circles)[0];
     if (target && target.radius) {
       return [toToolCall('resizeShape', { shapeId: target.id, radius: target.radius * 2 })];
     }
@@ -119,5 +120,3 @@ export function parseLocalCommandWithContext(
 
   return [];
 }
-
-

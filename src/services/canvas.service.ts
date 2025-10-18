@@ -316,6 +316,78 @@ export const deleteMultipleShapes = async (ids: string[]): Promise<void> => {
 };
 
 /**
+ * Create multiple shapes in a single batch operation (optimized for bulk creation)
+ * Firestore batch writes have a limit of 500 operations, so we split into multiple batches if needed
+ * @param shapes - Array of shapes to create
+ * @returns Promise that resolves when all shapes are created
+ */
+export const createMultipleShapesInBatch = async (shapes: CanvasShape[]): Promise<void> => {
+  if (shapes.length === 0) return;
+
+  const BATCH_SIZE = 500; // Firestore batch limit
+  const startTime = Date.now();
+
+  try {
+    // Split shapes into batches of 500
+    for (let i = 0; i < shapes.length; i += BATCH_SIZE) {
+      const batchShapes = shapes.slice(i, Math.min(i + BATCH_SIZE, shapes.length));
+      const batch = writeBatch(firestore);
+
+      for (const shape of batchShapes) {
+        const shapeRef = doc(firestore, CANVAS_COLLECTION, shape.id);
+        batch.set(shapeRef, shapeToFirestore(shape));
+      }
+
+      await batch.commit();
+      console.log(`[Canvas Service] Batch created ${batchShapes.length} shapes (batch ${Math.floor(i / BATCH_SIZE) + 1})`);
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[Canvas Service] Created ${shapes.length} shapes in ${elapsed}ms using batch writes`);
+  } catch (error) {
+    console.error('[Canvas Service] Error batch creating shapes:', error);
+    throw new Error(`Failed to create shapes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+/**
+ * Update multiple shapes in a single batch operation (optimized for bulk updates like group moves)
+ * Firestore batch writes have a limit of 500 operations, so we split into multiple batches if needed
+ * @param updates - Array of shape updates with id and update fields
+ * @returns Promise that resolves when all shapes are updated
+ */
+export const updateMultipleShapesInBatch = async (
+  updates: Array<{ id: string; updates: Partial<CanvasShape> }>
+): Promise<void> => {
+  if (updates.length === 0) return;
+
+  const BATCH_SIZE = 500; // Firestore batch limit
+  const startTime = Date.now();
+
+  try {
+    // Split updates into batches of 500
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      const batchUpdates = updates.slice(i, Math.min(i + BATCH_SIZE, updates.length));
+      const batch = writeBatch(firestore);
+
+      for (const { id, updates: shapeUpdates } of batchUpdates) {
+        const shapeRef = doc(firestore, CANVAS_COLLECTION, id);
+        batch.update(shapeRef, partialShapeToFirestore(shapeUpdates));
+      }
+
+      await batch.commit();
+      console.log(`[Canvas Service] Batch updated ${batchUpdates.length} shapes (batch ${Math.floor(i / BATCH_SIZE) + 1})`);
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[Canvas Service] Updated ${updates.length} shapes in ${elapsed}ms using batch writes`);
+  } catch (error) {
+    console.error('[Canvas Service] Error batch updating shapes:', error);
+    throw new Error(`Failed to update shapes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+/**
  * Apply a set of creates/updates/deletes as a single Firestore batch commit (forward direction)
  * - before === null && after !== null  => create
  * - before !== null && after === null  => delete
