@@ -46,7 +46,7 @@
 
 .ai-suggestions-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: #1f2937;
 }
@@ -79,13 +79,15 @@
 }
 
 .ai-suggestions-intro-icon {
-  font-size: 64px;
   margin-bottom: 20px;
   animation: float 3s ease-in-out infinite;
+  display: flex;
+  justify-content: center;
+  color: #5B7FEE;
 }
 
 .ai-suggestions-intro h3 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: #1f2937;
   margin: 0 0 12px 0;
@@ -93,9 +95,38 @@
 
 .ai-suggestions-intro p {
   color: #6b7280;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.6;
   margin: 0 0 24px 0;
+}
+
+.ai-suggestions-analyze-button {
+  background: #1f2937;
+  border: 1px solid #1f2937;
+  color: #ffffff;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-suggestions-analyze-button:hover:not(:disabled) {
+  background: #111827;
+  border-color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.ai-suggestions-analyze-button:active:not(:disabled) {
+  transform: translateY(0);
+  background: #0f1419;
+}
+
+.ai-suggestions-analyze-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ai-suggestions-loading {
@@ -110,14 +141,15 @@
 }
 
 .ai-suggestions-error-icon {
-  font-size: 48px;
-  display: block;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
+  color: #6b7280;
 }
 
 .ai-suggestions-error p {
   color: #6b7280;
-  font-size: 16px;
+  font-size: 14px;
   margin: 0 0 20px 0;
 }
 
@@ -203,7 +235,7 @@
 }
 
 .ai-suggestion-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #1f2937;
   margin: 0 0 8px 0;
@@ -211,7 +243,7 @@
 
 .ai-suggestion-description {
   color: #4b5563;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
   margin: 0 0 16px 0;
 }
@@ -285,20 +317,27 @@
 }
 
 .ai-suggestions-reanalyze {
-  background: #f3f4f6;
-  border: none;
+  background: #1f2937;
+  border: 1px solid #1f2937;
   padding: 10px 20px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #1f2937;
+  color: #ffffff;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.ai-suggestions-reanalyze:hover {
-  background: #e5e7eb;
+.ai-suggestions-reanalyze:hover:not(:disabled) {
+  background: #111827;
+  border-color: #111827;
   transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.ai-suggestions-reanalyze:active:not(:disabled) {
+  transform: translateY(0);
+  background: #0f1419;
 }
 
 .ai-suggestions-reanalyze:disabled {
@@ -352,15 +391,6 @@
 
   .ai-suggestions-footer {
     border-top-color: #374151;
-  }
-
-  .ai-suggestions-reanalyze {
-    background: #374151;
-    color: #f9fafb;
-  }
-
-  .ai-suggestions-reanalyze:hover {
-    background: #4b5563;
   }
 }
 

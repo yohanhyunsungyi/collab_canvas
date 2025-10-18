@@ -105,7 +105,7 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
     <div className="ai-suggestions-overlay" onClick={onClose}>
       <div className="ai-suggestions-modal" onClick={(e) => e.stopPropagation()}>
         <div className="ai-suggestions-header">
-          <h2>🎨 Design Suggestions</h2>
+          <h2>Design Suggestions</h2>
           <button className="ai-suggestions-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
@@ -114,15 +114,20 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
         <div className="ai-suggestions-content">
           {!analyzed && !loading && (
             <div className="ai-suggestions-intro">
-              <div className="ai-suggestions-intro-icon">🔍</div>
+              <div className="ai-suggestions-intro-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </div>
               <h3>Improve Your Design</h3>
               <p>
                 Our AI will analyze your canvas and suggest improvements for alignment, spacing,
                 colors, and layout.
               </p>
-              <Button onClick={handleAnalyze} disabled={shapes.length === 0}>
+              <button className="ai-suggestions-analyze-button" onClick={handleAnalyze} disabled={shapes.length === 0}>
                 {shapes.length === 0 ? 'Canvas is Empty' : 'Analyze Design'}
-              </Button>
+              </button>
             </div>
           )}
 
@@ -134,12 +139,25 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
 
           {error && !loading && (
             <div className="ai-suggestions-error">
-              <span className="ai-suggestions-error-icon">
-                {error.includes('great') ? '🎉' : '⚠️'}
-              </span>
+              <div className="ai-suggestions-error-icon">
+                {error.includes('great') ? (
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                  </svg>
+                ) : (
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                )}
+              </div>
               <p>{error}</p>
               {!error.includes('great') && (
-                <Button onClick={handleAnalyze}>Try Again</Button>
+                <button className="ai-suggestions-analyze-button" onClick={handleAnalyze}>Try Again</button>
               )}
             </div>
           )}
@@ -233,7 +251,7 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
 
         <div className="ai-suggestions-footer">
           <button className="ai-suggestions-reanalyze" onClick={handleAnalyze} disabled={loading}>
-            🔄 Re-analyze
+            Re-analyze
           </button>
         </div>
       </div>
