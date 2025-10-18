@@ -154,7 +154,7 @@
 }
 
 .ai-suggestions-summary {
-  background: linear-gradient(135deg, #5B7FEE 0%, #4A6DD8 100%);
+  background: #1f2937;
   color: white;
   padding: 12px 20px;
   border-radius: 8px;
@@ -190,8 +190,8 @@
 }
 
 .ai-suggestion-card:hover {
-  border-color: #5B7FEE;
-  box-shadow: 0 4px 12px rgba(91, 127, 238, 0.15);
+  border-color: #1f2937;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .ai-suggestion-card.applied {
@@ -310,27 +310,20 @@
 }
 
 .ai-suggestion-dismiss {
-  background: #1f2937;
-  border: 1px solid #1f2937;
-  color: #ffffff;
+  background: transparent;
+  border: none;
+  color: #4b5563;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   padding: 8px 16px;
   border-radius: 6px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s;
 }
 
 .ai-suggestion-dismiss:hover {
-  background: #111827;
-  border-color: #111827;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
-.ai-suggestion-dismiss:active {
-  transform: translateY(0);
-  background: #0f1419;
+  background: #f3f4f6;
+  color: #1f2937;
 }
 
 .ai-suggestion-applied {
@@ -411,7 +404,7 @@
   }
 
   .ai-suggestion-card:hover {
-    border-color: #5B7FEE;
+    border-color: #f9fafb;
   }
 
   .ai-suggestion-title {
