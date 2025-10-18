@@ -26,6 +26,9 @@
   margin-bottom: 24px;
   opacity: 0.8;
   animation: float 3s ease-in-out infinite;
+  color: #1f2937;
+  display: flex;
+  justify-content: center;
 }
 
 @keyframes float {

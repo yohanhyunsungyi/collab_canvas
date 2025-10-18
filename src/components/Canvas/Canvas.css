@@ -28,23 +28,33 @@
 .logout-button {
   padding: 0 12px;
   height: 36px;
-  background: #ffffff;
-  color: #c62828;
-  border: 1px solid var(--color-border, #e0e0e0);
+  background: #1f2937;
+  color: #ffffff;
+  border: 1px solid #1f2937;
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logout-button svg {
+  flex-shrink: 0;
 }
 
 .logout-button:hover {
-  background: #f7f7f7;
+  background: #111827;
+  border-color: #111827;
   transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .logout-button:active {
   transform: translateY(0);
+  background: #0f1419;
 }
 
 .canvas-header h1 {
