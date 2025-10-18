@@ -195,8 +195,12 @@
 }
 
 .ai-suggestion-card.applied {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: #f3f4f6;
+  border-color: #1f2937;
+}
+
+.ai-suggestion-card.applied .ai-suggestion-changes {
+  background: #ffffff;
 }
 
 .ai-suggestion-header {
@@ -327,12 +331,15 @@
 }
 
 .ai-suggestion-applied {
-  color: #16a34a;
+  color: #1f2937;
   font-weight: 600;
   font-size: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
+  background: #e5e7eb;
+  padding: 8px 16px;
+  border-radius: 6px;
 }
 
 .ai-suggestion-applied svg {
