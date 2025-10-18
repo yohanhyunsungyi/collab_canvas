@@ -16,6 +16,8 @@ import { ErrorNotification } from '../UI/ErrorNotification';
 import { ConnectionStatus } from '../UI/ConnectionStatus';
 import { PresenceMenu } from '../Presence/PresenceMenu';
 import { AIPanel, type AIPanelHandle } from '../AI/AIPanel';
+import { AISuggestions } from '../AI/AISuggestions';
+import type { DesignSuggestion } from '../../services/ai-suggestions.service';
 import { KeyboardShortcutsModal } from '../UI/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { EmptyCanvas } from '../UI/EmptyState';
@@ -203,6 +205,9 @@ export const Canvas = () => {
 
   // Keyboard shortcuts modal state
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+
+  // AI Suggestions modal state
+  const [showAISuggestions, setShowAISuggestions] = useState(false);
 
   // Delete selected shapes
   const handleDeleteSelected = useCallback(async () => {
@@ -1625,6 +1630,55 @@ export const Canvas = () => {
     historyCommit();
   };
 
+  // Apply AI design suggestion
+  const handleApplySuggestion = useCallback((suggestion: DesignSuggestion) => {
+    if (!user) return;
+
+    // Map suggestion type to ActionType
+    const actionType: ActionType = 
+      suggestion.type === 'alignment' ? 'align' :
+      suggestion.type === 'color' ? 'color_change' : 'update';
+    
+    historyBegin(actionType);
+    
+    suggestion.changes.forEach((change) => {
+      const shape = shapes.find(s => s.id === change.shapeId);
+      if (!shape) return;
+
+      const updates: Partial<CanvasShape> = {
+        lastModifiedBy: user.id,
+        lastModifiedAt: Date.now(),
+      };
+
+      // Record old value for history
+      const before: any = {};
+      const after: any = {};
+
+      // Apply the change based on property
+      switch (change.property) {
+        case 'x':
+        case 'y':
+        case 'width':
+        case 'height':
+        case 'rotation':
+          before[change.property] = (shape as any)[change.property];
+          after[change.property] = change.newValue;
+          (updates as any)[change.property] = change.newValue;
+          break;
+        case 'color':
+          before.color = shape.color;
+          after.color = change.newValue as string;
+          updates.color = change.newValue as string;
+          break;
+      }
+
+      historyRecord(change.shapeId, before, after);
+      updateShape(change.shapeId, updates);
+    });
+
+    historyCommit();
+  }, [user, shapes, updateShape, historyBegin, historyRecord, historyCommit]);
+
   // Register shape ref for transformer
   const setShapeRef = (id: string, node: Konva.Node | null) => {
     if (node) {
@@ -1728,6 +1782,7 @@ export const Canvas = () => {
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
+          onSuggestImprovements={() => setShowAISuggestions(true)}
         />
         
         {/* Empty state when no shapes exist */}
@@ -2017,6 +2072,15 @@ export const Canvas = () => {
         isOpen={showKeyboardShortcuts}
         onClose={() => setShowKeyboardShortcuts(false)}
       />
+
+      {/* AI Suggestions Modal */}
+      {showAISuggestions && (
+        <AISuggestions
+          shapes={shapes}
+          onApplySuggestion={handleApplySuggestion}
+          onClose={() => setShowAISuggestions(false)}
+        />
+      )}
     </div>
   );
 };
