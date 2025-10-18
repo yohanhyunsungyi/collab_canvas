@@ -14,12 +14,13 @@ if (OPENAI_API_KEY) {
 
 export interface DesignSuggestion {
   id: string;
-  type: 'alignment' | 'spacing' | 'color' | 'grouping' | 'layout';
+  type: 'alignment' | 'spacing' | 'color' | 'grouping' | 'layout' | 'completeness';
   title: string;
   description: string;
   severity: 'low' | 'medium' | 'high';
   affectedShapeIds: string[];
   changes: SuggestionChange[];
+  newElements?: NewElementSuggestion[];
 }
 
 export interface SuggestionChange {
@@ -27,6 +28,18 @@ export interface SuggestionChange {
   property: 'x' | 'y' | 'color' | 'width' | 'height' | 'rotation';
   oldValue: string | number;
   newValue: string | number;
+}
+
+export interface NewElementSuggestion {
+  type: 'rectangle' | 'circle' | 'text';
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  radius?: number;
+  color: string;
+  text?: string;
+  fontSize?: number;
 }
 
 /**
@@ -87,6 +100,36 @@ export async function analyzeCanvasDesign(shapes: CanvasShape[]): Promise<Design
    - Apply the golden ratio (1:1.618) for pleasing proportions
    - Leave adequate margins around the canvas edges (at least 24-32px)
 
+7. **UI Pattern Recognition & Completeness**
+   - Detect incomplete UI patterns and suggest missing elements
+   - **Login Forms** should have:
+     * Username/email input field
+     * Password input field
+     * Submit/login button
+     * Optional: "Forgot password" link, "Remember me" checkbox, social login options
+   - **Navigation Bars** should have:
+     * Logo/brand element
+     * Navigation menu items (3-5 items)
+     * CTA button (sign up, contact, etc.)
+     * Optional: search bar, user profile icon
+   - **Cards** should have:
+     * Title/heading
+     * Content/description
+     * Action button or link
+     * Optional: image, metadata (date, author)
+   - **Forms** should have:
+     * Clear labels for each input
+     * Input fields with proper types
+     * Submit button
+     * Optional: validation messages, required field indicators
+   - **Dashboards** should have:
+     * Clear section headers
+     * Data visualization or stats
+     * Consistent card/widget layout
+     * Optional: filters, date range selector
+   
+   If you detect a partial UI pattern (e.g., only username field without password), suggest adding the missing elements to complete the pattern.
+
 **SEVERITY GUIDELINES:**
 - **High**: Breaks usability or accessibility (poor contrast, overlapping elements, inconsistent spacing that breaks the design)
 - **Medium**: Impacts visual quality (near-alignments, inconsistent colors, spacing variations)
@@ -97,7 +140,7 @@ Return ONLY valid JSON with this exact schema:
 {
   "suggestions": [
     {
-      "type": "alignment" | "spacing" | "color" | "grouping" | "layout",
+      "type": "alignment" | "spacing" | "color" | "grouping" | "layout" | "completeness",
       "title": "Brief, specific title (e.g., 'Align cards to 16px grid')",
       "description": "Clear explanation with design principle (e.g., 'These cards are 3px off grid. Aligning to 16px grid improves visual consistency and follows 8px spacing system.')",
       "severity": "low" | "medium" | "high",
@@ -109,17 +152,34 @@ Return ONLY valid JSON with this exact schema:
           "oldValue": current_value,
           "newValue": suggested_value
         }
+      ],
+      "newElements": [
+        {
+          "type": "rectangle" | "circle" | "text",
+          "x": number,
+          "y": number,
+          "width": number (for rectangle),
+          "height": number (for rectangle),
+          "radius": number (for circle),
+          "color": "#hexcolor",
+          "text": "Text content" (for text),
+          "fontSize": number (for text, default 16)
+        }
       ]
     }
   ]
 }
+
+Note: Use "newElements" array when suggesting to ADD missing components (e.g., password field for incomplete login form). Use "changes" array for modifying existing elements.
 
 **IMPORTANT:**
 - Provide 3-8 suggestions prioritized by impact
 - Each suggestion must include specific changes with exact values
 - Explain the design principle behind each suggestion
 - Focus on high-impact improvements first
-- Be specific and actionable`;
+- **Detect incomplete UI patterns**: If you see a login form with only username/email, suggest adding password field. If you see only text without labels, suggest adding labels.
+- Be specific and actionable
+- When suggesting new elements, provide complete specifications (type, position, size, color, text content)`;
 
   const userPrompt = `Analyze this canvas design and provide professional improvement suggestions.
 
@@ -140,7 +200,7 @@ Focus on actionable improvements that will make a measurable difference in desig
 
   try {
     const response = await openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -263,7 +323,203 @@ function analyzeCanvasState(shapes: CanvasShape[]) {
   const whitespaceAnalysis = analyzeWhitespace(shapes, canvasWidth, canvasHeight);
   analysis.whitespace = whitespaceAnalysis;
 
+  // Detect UI patterns
+  const patternAnalysis = detectUIPatterns(shapes);
+  analysis.uiPatterns = patternAnalysis;
+
   return analysis;
+}
+
+/**
+ * Detects common UI patterns and identifies missing elements
+ */
+function detectUIPatterns(shapes: CanvasShape[]): any {
+  const textShapes = shapes.filter(s => s.type === 'text');
+  const rectangles = shapes.filter(s => s.type === 'rectangle');
+  
+  const patterns: any = {
+    detectedPatterns: [],
+    missingElements: [],
+  };
+
+  // Detect login form pattern
+  const hasUsernameField = textShapes.some(t => 
+    t.text?.toLowerCase().includes('username') || 
+    t.text?.toLowerCase().includes('email') ||
+    t.text?.toLowerCase().includes('user')
+  );
+  const hasPasswordField = textShapes.some(t => 
+    t.text?.toLowerCase().includes('password') ||
+    t.text?.toLowerCase().includes('pass')
+  );
+  const hasLoginButton = textShapes.some(t => 
+    t.text?.toLowerCase().includes('login') || 
+    t.text?.toLowerCase().includes('sign in') ||
+    t.text?.toLowerCase().includes('submit')
+  );
+
+  if (hasUsernameField || hasPasswordField || hasLoginButton) {
+    patterns.detectedPatterns.push({
+      type: 'login_form',
+      completeness: {
+        hasUsernameField,
+        hasPasswordField,
+        hasLoginButton,
+      },
+    });
+
+    if (hasUsernameField && !hasPasswordField) {
+      patterns.missingElements.push({
+        pattern: 'login_form',
+        missing: 'password_field',
+        severity: 'high',
+        suggestion: 'Add a password input field to complete the login form',
+      });
+    }
+    if ((hasUsernameField || hasPasswordField) && !hasLoginButton) {
+      patterns.missingElements.push({
+        pattern: 'login_form',
+        missing: 'submit_button',
+        severity: 'high',
+        suggestion: 'Add a submit/login button to complete the login form',
+      });
+    }
+    if (!hasUsernameField && (hasPasswordField || hasLoginButton)) {
+      patterns.missingElements.push({
+        pattern: 'login_form',
+        missing: 'username_field',
+        severity: 'high',
+        suggestion: 'Add a username/email input field to complete the login form',
+      });
+    }
+  }
+
+  // Detect navigation bar pattern
+  const hasNavItems = textShapes.filter(t => 
+    t.text && t.text.length < 20 && t.y < 100 // Short text near top
+  ).length >= 3;
+  const hasLogo = shapes.some(s => 
+    (s.type === 'circle' || s.type === 'rectangle') && s.y < 100
+  );
+  const hasCTA = textShapes.some(t => 
+    t.text?.toLowerCase().includes('sign up') ||
+    t.text?.toLowerCase().includes('get started') ||
+    t.text?.toLowerCase().includes('contact')
+  );
+
+  if (hasNavItems || hasLogo) {
+    patterns.detectedPatterns.push({
+      type: 'navigation_bar',
+      completeness: {
+        hasNavItems,
+        hasLogo,
+        hasCTA,
+      },
+    });
+
+    if (hasNavItems && !hasLogo) {
+      patterns.missingElements.push({
+        pattern: 'navigation_bar',
+        missing: 'logo',
+        severity: 'medium',
+        suggestion: 'Add a logo or brand element to the navigation bar',
+      });
+    }
+    if (hasNavItems && !hasCTA) {
+      patterns.missingElements.push({
+        pattern: 'navigation_bar',
+        missing: 'cta_button',
+        severity: 'low',
+        suggestion: 'Consider adding a CTA button (e.g., "Sign Up") to the navigation',
+      });
+    }
+  }
+
+  // Detect card pattern
+  const groupedShapes = groupShapesByProximity(shapes, 100);
+  groupedShapes.forEach((group, idx) => {
+    const groupTexts = group.filter(s => s.type === 'text');
+    const groupRects = group.filter(s => s.type === 'rectangle');
+    
+    const hasTitle = groupTexts.some(t => (t as any).fontSize >= 18);
+    const hasDescription = groupTexts.some(t => (t as any).fontSize < 18);
+    const hasButton = groupTexts.some(t => 
+      t.text?.toLowerCase().includes('learn more') ||
+      t.text?.toLowerCase().includes('read more') ||
+      t.text?.toLowerCase().includes('buy') ||
+      t.text?.toLowerCase().includes('view')
+    );
+    const hasContainer = groupRects.length > 0;
+
+    if ((hasTitle || hasDescription) && hasContainer && group.length >= 3) {
+      patterns.detectedPatterns.push({
+        type: 'card',
+        groupIndex: idx,
+        completeness: {
+          hasTitle,
+          hasDescription,
+          hasButton,
+          hasContainer,
+        },
+      });
+
+      if (!hasTitle && hasDescription) {
+        patterns.missingElements.push({
+          pattern: 'card',
+          missing: 'title',
+          groupIndex: idx,
+          severity: 'medium',
+          suggestion: 'Add a title/heading to this card for better hierarchy',
+        });
+      }
+      if (hasTitle && !hasButton) {
+        patterns.missingElements.push({
+          pattern: 'card',
+          missing: 'action_button',
+          groupIndex: idx,
+          severity: 'low',
+          suggestion: 'Consider adding an action button or link to this card',
+        });
+      }
+    }
+  });
+
+  return patterns;
+}
+
+/**
+ * Groups shapes by proximity
+ */
+function groupShapesByProximity(shapes: CanvasShape[], maxDistance: number): CanvasShape[][] {
+  const groups: CanvasShape[][] = [];
+  const assigned = new Set<string>();
+
+  shapes.forEach(shape => {
+    if (assigned.has(shape.id)) return;
+
+    const group: CanvasShape[] = [shape];
+    assigned.add(shape.id);
+
+    shapes.forEach(otherShape => {
+      if (assigned.has(otherShape.id)) return;
+
+      const distance = Math.sqrt(
+        Math.pow(shape.x - otherShape.x, 2) + 
+        Math.pow(shape.y - otherShape.y, 2)
+      );
+
+      if (distance < maxDistance) {
+        group.push(otherShape);
+        assigned.add(otherShape.id);
+      }
+    });
+
+    if (group.length >= 2) {
+      groups.push(group);
+    }
+  });
+
+  return groups;
 }
 
 /**

@@ -1637,11 +1637,13 @@ export const Canvas = () => {
     // Map suggestion type to ActionType
     const actionType: ActionType = 
       suggestion.type === 'alignment' ? 'align' :
-      suggestion.type === 'color' ? 'color_change' : 'update';
+      suggestion.type === 'color' ? 'color_change' :
+      suggestion.type === 'completeness' ? 'create' : 'update';
     
     historyBegin(actionType);
     
-    suggestion.changes.forEach((change) => {
+    // Apply changes to existing shapes
+    suggestion.changes?.forEach((change) => {
       const shape = shapes.find(s => s.id === change.shapeId);
       if (!shape) return;
 
@@ -1676,8 +1678,86 @@ export const Canvas = () => {
       updateShape(change.shapeId, updates);
     });
 
+    // Create new elements if suggested
+    suggestion.newElements?.forEach((newEl) => {
+      const newShapeId = `shape-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const timestamp = Date.now();
+      const nextZIndex = getNextZIndex();
+
+      let newShape: CanvasShape;
+
+      if (newEl.type === 'rectangle' && newEl.width && newEl.height) {
+        newShape = {
+          id: newShapeId,
+          type: 'rectangle',
+          x: newEl.x,
+          y: newEl.y,
+          width: newEl.width,
+          height: newEl.height,
+          color: newEl.color,
+          createdBy: user.id,
+          createdAt: timestamp,
+          lastModifiedBy: user.id,
+          lastModifiedAt: timestamp,
+          lockedBy: null,
+          lockedAt: null,
+          zIndex: nextZIndex,
+        };
+      } else if (newEl.type === 'circle' && newEl.radius) {
+        newShape = {
+          id: newShapeId,
+          type: 'circle',
+          x: newEl.x,
+          y: newEl.y,
+          radius: newEl.radius,
+          color: newEl.color,
+          createdBy: user.id,
+          createdAt: timestamp,
+          lastModifiedBy: user.id,
+          lastModifiedAt: timestamp,
+          lockedBy: null,
+          lockedAt: null,
+          zIndex: nextZIndex,
+        };
+      } else if (newEl.type === 'text' && newEl.text) {
+        newShape = {
+          id: newShapeId,
+          type: 'text',
+          x: newEl.x,
+          y: newEl.y,
+          text: newEl.text,
+          fontSize: newEl.fontSize || 16,
+          color: newEl.color,
+          createdBy: user.id,
+          createdAt: timestamp,
+          lastModifiedBy: user.id,
+          lastModifiedAt: timestamp,
+          lockedBy: null,
+          lockedAt: null,
+          zIndex: nextZIndex,
+        };
+      } else {
+        return; // Skip invalid element
+      }
+
+      // Record for history
+      historyRecord(newShapeId, {}, newShape as any);
+      
+      // Add shape (extract the shape data without the metadata fields)
+      const shapeData: any = { ...newShape };
+      delete shapeData.id;
+      delete shapeData.createdAt;
+      delete shapeData.lastModifiedAt;
+      delete shapeData.lastModifiedBy;
+      delete shapeData.createdBy;
+      delete shapeData.lockedBy;
+      delete shapeData.lockedAt;
+      
+      addShape(shapeData, user.id, newShapeId);
+    });
+
     historyCommit();
-  }, [user, shapes, updateShape, historyBegin, historyRecord, historyCommit]);
+  }, [user, shapes, updateShape, addShape, historyBegin, historyRecord, historyCommit, getNextZIndex]);
 
   // Register shape ref for transformer
   const setShapeRef = (id: string, node: Konva.Node | null) => {

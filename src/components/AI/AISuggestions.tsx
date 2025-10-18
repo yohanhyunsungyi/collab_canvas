@@ -176,7 +176,7 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
                   <h4 className="ai-suggestion-title">{suggestion.title}</h4>
                   <p className="ai-suggestion-description">{suggestion.description}</p>
 
-                  {suggestion.changes.length > 0 && (
+                  {suggestion.changes && suggestion.changes.length > 0 && (
                     <div className="ai-suggestion-changes">
                       <div className="ai-suggestion-changes-title">Changes:</div>
                       {suggestion.changes.slice(0, 3).map((change, idx) => (
@@ -187,6 +187,22 @@ export const AISuggestions = ({ shapes, onApplySuggestion, onClose }: AISuggesti
                       {suggestion.changes.length > 3 && (
                         <div className="ai-suggestion-change-more">
                           + {suggestion.changes.length - 3} more changes
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {suggestion.newElements && suggestion.newElements.length > 0 && (
+                    <div className="ai-suggestion-changes">
+                      <div className="ai-suggestion-changes-title">New Elements:</div>
+                      {suggestion.newElements.slice(0, 3).map((element, idx) => (
+                        <div key={idx} className="ai-suggestion-change">
+                          • Add {element.type}: {element.text || `at (${Math.round(element.x)}, ${Math.round(element.y)})`}
+                        </div>
+                      ))}
+                      {suggestion.newElements.length > 3 && (
+                        <div className="ai-suggestion-change-more">
+                          + {suggestion.newElements.length - 3} more elements
                         </div>
                       )}
                     </div>
