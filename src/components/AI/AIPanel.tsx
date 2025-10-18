@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { CanvasShape, Viewport } from '../../types/canvas.types';
 import { useAI } from '../../hooks/useAI';
-import { Button } from '../UI/Button';
 import { Toast } from '../UI/Toast';
 import { AIInput } from './AIInput';
 import { AICommandHistory } from './AICommandHistory';
@@ -163,14 +162,14 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
               <span className="ai-streaming-text">{streamingStatus}</span>
             </div>
           )}
-          <Button
-            variant="primary"
+          <button
+            className="ai-send-button"
             onClick={handleSend}
             disabled={disabled}
             title={!isAvailable ? 'AI unavailable' : rateLimitStatus.remaining <= 0 ? 'Rate limit reached' : 'Send'}
           >
             Send
-          </Button>
+          </button>
         </div>
       </div>
     </div>
