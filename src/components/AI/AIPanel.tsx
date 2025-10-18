@@ -147,11 +147,18 @@ export const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(({
                 width="20" 
                 height="20" 
                 viewBox="0 0 24 24" 
-                fill="currentColor"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 xmlns="http://www.w3.org/2000/svg"
               >
-                <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/>
-                <path d="M19 3L20 6L23 7L20 8L19 11L18 8L15 7L18 6L19 3Z"/>
+                <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z"/>
+                <path d="M5 3v4"/>
+                <path d="M19 17v4"/>
+                <path d="M3 5h4"/>
+                <path d="M17 19h4"/>
               </svg>
             </button>
           )}
