@@ -18,6 +18,7 @@ import { PresenceMenu } from '../Presence/PresenceMenu';
 import { AIPanel, type AIPanelHandle } from '../AI/AIPanel';
 import { KeyboardShortcutsModal } from '../UI/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { EmptyCanvas } from '../UI/EmptyState';
 import { fetchAllShapes, subscribeToShapes, acquireLock, releaseLock, isLockExpired } from '../../services/canvas.service';
 import type { ShapeChangeEvent } from '../../services/canvas.service';
 import {
@@ -1728,6 +1729,14 @@ export const Canvas = () => {
           onUndo={undo}
           onRedo={redo}
         />
+        
+        {/* Empty state when no shapes exist */}
+        {shapes.length === 0 && (
+          <div className="canvas-empty-state-overlay">
+            <EmptyCanvas />
+          </div>
+        )}
+        
         <Stage
           ref={stageRef}
           width={containerSize.width}

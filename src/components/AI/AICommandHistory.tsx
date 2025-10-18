@@ -1,4 +1,5 @@
 import type { CommandHistoryEntry } from '../../hooks/useAI';
+import { Spinner } from '../UI/Spinner';
 import './AIPanel.css';
 
 interface AICommandHistoryProps {
@@ -43,8 +44,7 @@ export const AICommandHistory = ({ entries, loading, error, onDismissError, onRe
       {/* Loading row */}
       {loading && (
         <div className="ai-history-loading">
-          <div className="ai-spinner" aria-hidden />
-          <span>Thinking…</span>
+          <Spinner size="small" label="Thinking…" />
         </div>
       )}
 
