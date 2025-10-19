@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { DesignSuggestion } from '../../services/ai-suggestions.service';
-import { analyzeCanvasDesign, isAISuggestionsAvailable } from '../../services/ai-suggestions.service';
+import type { DesignSuggestion } from '../../services/ai-suggestions-cloud.service';
+import { analyzeCanvasDesign, isAISuggestionsAvailable } from '../../services/ai-suggestions-cloud.service';
 import type { CanvasShape } from '../../types/canvas.types';
 import { Spinner } from '../UI/Spinner';
 import './AISuggestions.css';

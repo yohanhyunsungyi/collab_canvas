@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { CanvasShape, Viewport } from '../types/canvas.types';
 import type { AICommandRequest, AICommandResponse } from '../types/ai.types';
-import { aiService } from '../services/ai.service';
+import { aiCloudService } from '../services/ai-cloud.service';
 // Local parsing removed per requirement; rely solely on provider tool calls
 import { aiExecutorService, type ExecutionContext, type ToolExecutionResult } from '../services/ai-executor.service';
 
@@ -56,17 +56,17 @@ export const useAI = (
   const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
 
   // Check if AI service is available
-  const isAvailable = aiService.isAvailable();
+  const isAvailable = aiCloudService.isAvailable();
 
   // Get rate limit status
-  const rateLimitStatus = aiService.getRateLimitStatus(userId);
+  const rateLimitStatus = aiCloudService.getRateLimitStatus(userId);
 
   /**
    * Send a command to the AI
    */
   const sendCommand = useCallback(
     async (prompt: string): Promise<AICommandResponse> => {
-      // Even if remote AI is unavailable, we still call the service to allow local parsing fallback
+      // Call Cloud Function for secure AI processing
 
       try {
         setLoading(true);
@@ -79,8 +79,8 @@ export const useAI = (
           shapeCount: shapes.length,
         };
 
-        // Send to AI service with streaming callbacks
-        const aiResponse = await aiService.sendCommand(request, {
+        // Send to AI Cloud service with streaming callbacks
+        const aiResponse = await aiCloudService.sendCommand(request, {
           onStreamStart: () => {
             setStreamingStatus('Thinking...');
           },
