@@ -149,8 +149,9 @@ Transform your designs with natural language commands:
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Firebase account ([Create free account](https://firebase.google.com))
-- OpenAI API key for AI features
+- Firebase account with Blaze Plan (pay-as-you-go, required for Cloud Functions) ([Create account](https://firebase.google.com))
+- Firebase CLI (`npm install -g firebase-tools`)
+- OpenAI API key for AI features ([Get API key](https://platform.openai.com/api-keys))
 
 ### Installation
 
@@ -161,17 +162,25 @@ cd 01_CollabCanvas
 
 # 2. Install dependencies
 npm install
+cd functions && npm install && cd ..
 
-# 3. Create .env.local file with your credentials
+# 3. Login to Firebase CLI
+firebase login
+
+# 4. Create .env.local file with your credentials
 cp .env.example .env.local
 
-# 4. Add your Firebase & OpenAI credentials to .env.local
+# 5. Add your Firebase credentials to .env.local
 
-# 5. Deploy Firebase security rules
+# 6. Configure OpenAI API key in Firebase Functions (secure server-side)
+firebase functions:config:set openai.key="your_openai_api_key"
+
+# 7. Deploy Firebase Functions and security rules
+firebase deploy --only functions
 firebase deploy --only firestore:rules
 firebase deploy --only database:rules
 
-# 6. Start development server
+# 8. Start development server
 npm run dev
 
 # Open http://localhost:5173
@@ -190,9 +199,17 @@ VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
+```
 
-# OpenAI Configuration (for AI features)
-VITE_OPENAI_API_KEY=your_openai_api_key
+**OpenAI API Key Configuration:**
+The OpenAI API key is **NOT stored in client-side environment variables**. Instead, it's securely configured in Firebase Functions to prevent key exposure:
+
+```bash
+# Configure OpenAI API key in Firebase Functions (secure server-side storage)
+firebase functions:config:set openai.key="your_openai_api_key"
+
+# Deploy the functions with the configuration
+firebase deploy --only functions
 ```
 
 **Get Your Credentials:**
@@ -275,14 +292,68 @@ Press **?** (Shift+/) to view all shortcuts. Key shortcuts:
 - **Firebase Firestore** - Persistent storage for shapes
 - **Firebase Realtime Database** - Ephemeral data (cursors, presence)
 - **Firebase Authentication** - Email/password and OAuth
+- **Firebase Functions** - Secure serverless backend for AI processing
 - **Firebase Hosting** - Production deployment
-- **OpenAI GPT-4** - AI command processing
+- **OpenAI GPT-4o-mini** - AI command processing (via Firebase Functions)
 
 ### Development
 - **Vitest** - Fast unit test runner
 - **React Testing Library** - Component testing
 - **ESLint** - Code quality and consistency
 - **TypeScript** - Static type checking
+
+---
+
+## 🔐 AI Architecture & Security
+
+### Firebase Functions for OpenAI API
+
+The OpenAI API is **never called directly from the client**. Instead, all AI requests flow through secure Firebase Cloud Functions:
+
+```
+Client → Firebase Function → OpenAI API → Firebase Function → Client
+```
+
+**Why Firebase Functions?**
+1. 🔒 **Security**: OpenAI API key stays server-side, never exposed to client
+2. 🛡️ **Authentication**: All requests verified with Firebase Auth tokens
+3. 💰 **Cost Control**: Server-side usage monitoring and rate limiting
+4. 🚀 **Scalability**: Auto-scales with demand, no client-side bottlenecks
+
+**Two Cloud Functions:**
+
+1. **`processAICommand`** - Processes natural language commands
+   - Receives user prompt and canvas state
+   - Calls OpenAI GPT-4o-mini with function calling
+   - Returns tool calls for client to execute
+   - Implements smart tool filtering (70% token reduction)
+
+2. **`analyzeDesign`** - Provides design improvement suggestions
+   - Analyzes canvas shapes and design patterns
+   - Identifies alignment, spacing, and color issues
+   - Detects incomplete UI patterns
+   - Returns actionable suggestions with exact values
+
+**Client-Side Flow:**
+```typescript
+// 1. Client calls Firebase Function
+const result = await httpsCallable(functions, 'processAICommand')({ 
+  prompt: "Create a login form" 
+});
+
+// 2. Function securely calls OpenAI and returns tool calls
+const toolCalls = result.data.toolCalls;
+
+// 3. Client executes tool calls locally (create shapes, etc.)
+await executeToolCalls(toolCalls);
+```
+
+**Benefits of This Architecture:**
+- ✅ Zero API key exposure risk
+- ✅ Centralized usage monitoring
+- ✅ Easy to add rate limiting/quotas
+- ✅ Better error handling and logging
+- ✅ Future-proof for model upgrades
 
 ---
 
@@ -323,16 +394,17 @@ src/
 │   ├── Presence/        # Presence menu, user avatars
 │   └── UI/              # Reusable UI components
 ├── hooks/               # Custom React hooks
-│   ├── useAI.ts         # AI command processing
+│   ├── useAI.ts         # AI command processing (calls Firebase Functions)
 │   ├── useAuth.ts       # Authentication state
 │   ├── useCanvas.ts     # Canvas state with history
 │   ├── useCursors.ts    # Multiplayer cursors
 │   ├── usePresence.ts   # User presence tracking
 │   └── useKeyboardShortcuts.ts  # Global shortcuts
 ├── services/            # Firebase & API services
-│   ├── ai.service.ts    # OpenAI integration
+│   ├── ai-cloud.service.ts  # Firebase Functions client (calls processAICommand)
 │   ├── ai-executor.service.ts  # AI command execution
-│   ├── ai-suggestions.service.ts  # AI design analysis
+│   ├── ai-suggestions.service.ts  # AI design analysis (calls analyzeDesign)
+│   ├── ai-suggestions-cloud.service.ts  # Cloud suggestions client
 │   ├── auth.service.ts  # Authentication operations
 │   ├── canvas.service.ts  # Shape CRUD with batching
 │   ├── cursor.service.ts  # Cursor position updates
@@ -347,6 +419,12 @@ src/
 ├── types/               # TypeScript definitions
 ├── styles/              # Design system
 └── __tests__/           # Test suites
+
+functions/               # Firebase Cloud Functions (secure backend)
+├── src/
+│   └── index.ts         # AI processing functions (processAICommand, analyzeDesign)
+├── package.json         # Function dependencies
+└── tsconfig.json        # Function TypeScript config
 
 scripts/
 └── load-test.ts         # Performance load testing
@@ -364,14 +442,19 @@ docs/
 ### Build & Deploy
 
 ```bash
-# Build for production
+# 1. Build for production
 npm run build
 
-# Deploy to Firebase Hosting
-firebase deploy --only hosting
+# 2. Configure OpenAI API key in Firebase Functions
+firebase functions:config:set openai.key="your_openai_api_key"
 
-# Deploy security rules
-firebase deploy --only firestore:rules,database:rules
+# 3. Deploy everything to Firebase
+firebase deploy --only functions,hosting,firestore:rules,database:rules
+
+# Or deploy individually:
+firebase deploy --only functions    # Deploy AI backend
+firebase deploy --only hosting     # Deploy frontend
+firebase deploy --only firestore:rules,database:rules  # Deploy security rules
 ```
 
 ### Environment Setup
@@ -382,14 +465,24 @@ firebase deploy --only firestore:rules,database:rules
    - Create Realtime Database
    - Add authorized domains
 
-2. **Security Rules**:
+2. **OpenAI API Configuration** (Required for AI features):
+   ```bash
+   # Set OpenAI API key in Firebase Functions config
+   firebase functions:config:set openai.key="your_openai_api_key"
+   
+   # Verify configuration
+   firebase functions:config:get
+   ```
+
+3. **Security Rules**:
    ```bash
    firebase deploy --only firestore:rules
    firebase deploy --only database:rules
    ```
 
-3. **Production Environment Variables**:
-   - Set in Firebase Hosting or your deployment platform
+4. **Production Environment Variables**:
+   - Client-side `.env.local` should ONLY contain Firebase config
+   - Never include OpenAI API key in client environment
    - Never commit `.env.local` to version control
 
 ---
@@ -476,11 +569,17 @@ firebase deploy --only database:rules
 ```
 
 **AI Commands Not Working**
-```
-# Check:
-1. VITE_OPENAI_API_KEY set in .env.local
-2. OpenAI API key has credits
-3. Browser console for error messages
+```bash
+# Check Firebase Functions configuration:
+1. Verify OpenAI key is set: firebase functions:config:get
+2. Deploy functions: firebase deploy --only functions
+3. Check OpenAI API key has credits at https://platform.openai.com/usage
+4. Check browser console for Firebase Function errors
+5. Verify user is authenticated (AI requires auth)
+
+# Common fixes:
+firebase functions:config:set openai.key="your_openai_api_key"
+firebase deploy --only functions
 ```
 
 **Shapes Not Syncing**
