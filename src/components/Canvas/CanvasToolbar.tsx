@@ -8,11 +8,17 @@ interface CanvasToolbarProps {
   currentTool: ToolType;
   currentColor: string;
   currentFontSize: number;
+  currentFontStyle?: 'normal' | 'italic';
+  currentFontWeight?: 'normal' | 'bold';
+  currentTextDecoration?: 'none' | 'underline';
   selectedShapeId: string | null;
   selectedShapeCount: number; // Number of selected shapes for multi-select operations
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
   onFontSizeChange: (fontSize: number) => void;
+  onFontStyleChange?: (fontStyle: 'normal' | 'italic') => void;
+  onFontWeightChange?: (fontWeight: 'normal' | 'bold') => void;
+  onTextDecorationChange?: (textDecoration: 'none' | 'underline') => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onAlignLeft: () => void;
@@ -41,11 +47,17 @@ export const CanvasToolbar = ({
   currentTool,
   currentColor,
   currentFontSize,
+  currentFontStyle = 'normal',
+  currentFontWeight = 'normal',
+  currentTextDecoration = 'none',
   selectedShapeId,
   selectedShapeCount,
   onToolChange,
   onColorChange,
   onFontSizeChange,
+  onFontStyleChange,
+  onFontWeightChange,
+  onTextDecorationChange,
   onDuplicate,
   onDelete,
   onAlignLeft,
@@ -73,10 +85,8 @@ export const CanvasToolbar = ({
   const [currentAlign, setCurrentAlign] = useState<'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'>('left');
   const [currentDistribute, setCurrentDistribute] = useState<'horizontal' | 'vertical'>('horizontal');
 
-  const textTool = { type: 'text' as ToolType, label: 'Text', icon: '📝' };
-
-  const isShapeTool = currentTool === 'rectangle' || currentTool === 'circle';
-  const currentShapeIcon = currentTool === 'circle' ? '⭕' : '⬜';
+  const isObjectTool = currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'text';
+  const currentObjectIcon = currentTool === 'circle' ? '⭕' : currentTool === 'text' ? '📝' : '⬜';
   const currentPointerIcon = currentTool === 'pan' ? 'hand' : 'cursor';
 
   // Alignment icons and handlers
@@ -215,30 +225,32 @@ export const CanvasToolbar = ({
           </div>
           <div className="toolbar-divider" />
 
-          {/* Hidden labels so tests can find Rectangle/Circle text */}
+          {/* Hidden labels so tests can find Rectangle/Circle/Text text */}
           <span className="sr-only-test-labels" aria-hidden>
-            Rectangle Circle
+            Rectangle Circle Text
           </span>
 
-          {/* Shapes group with dropdown */}
+          {/* Objects group with dropdown (Rectangle, Circle, Text) */}
           <div className="button-with-caret">
             <button
-              className={`tool-button ${isShapeTool ? 'active' : ''}`}
-              onClick={() => onToolChange(isShapeTool ? currentTool : 'rectangle')}
-              title={isShapeTool ? (currentTool === 'circle' ? 'Circle' : 'Rectangle') : 'Rectangle'}
+              className={`tool-button ${isObjectTool ? 'active' : ''}`}
+              onClick={() => onToolChange(isObjectTool ? currentTool : 'rectangle')}
+              title={isObjectTool ? (currentTool === 'circle' ? 'Circle' : currentTool === 'text' ? 'Text' : 'Rectangle') : 'Rectangle'}
             >
               <span className="tool-icon" aria-hidden>
-                {currentShapeIcon === '⭕' ? (
+                {currentObjectIcon === '⭕' ? (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="7"/></svg>
+                ) : currentObjectIcon === '📝' ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                 ) : (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
                 )}
               </span>
-              <span className="tool-label">Shape</span>
+              <span className="tool-label">Object</span>
             </button>
             <button
               className="caret-button"
-              aria-label="Open shape menu"
+              aria-label="Open object menu"
               onClick={() => {
                 setIsShapeMenuOpen(!isShapeMenuOpen);
                 setIsSelectMenuOpen(false);
@@ -272,40 +284,87 @@ export const CanvasToolbar = ({
                   </span>
                   <span className="dropdown-label">Circle</span>
                 </button>
+                <button
+                  className={`dropdown-item ${currentTool === 'text' ? 'selected' : ''}`}
+                  onClick={() => {
+                    onToolChange('text');
+                    setIsShapeMenuOpen(false);
+                  }}
+                >
+                  <span className="dropdown-icon" aria-hidden>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  </span>
+                  <span className="dropdown-label">Text</span>
+                </button>
               </div>
             )}
           </div>
-          <div className="toolbar-divider" />
+        </div>
+      </div>
 
-          {/* Text and font size grouped together */}
-          <div className="text-with-font-size">
-            <button
-              className={`tool-button tool-button--text ${currentTool === textTool.type ? 'active' : ''}`}
-              onClick={() => onToolChange(textTool.type)}
-              title={textTool.label}
-            >
-              <span className="tool-label">{textTool.label}</span>
-            </button>
+      <div className="toolbar-divider" />
 
-            {/* Font size selector using design system typography */}
-            <select
-              className="font-size-select"
-              aria-label="Font size"
-              value={currentFontSize}
-              onChange={(e) => onFontSizeChange(Number(e.target.value))}
-              title="Font size"
-            >
-              <option value={12}>12px</option>
-              <option value={14}>14px</option>
-              <option value={16}>16px</option>
-              <option value={18}>18px</option>
-              <option value={20}>20px</option>
-              <option value={24}>24px</option>
-              <option value={30}>30px</option>
-              <option value={36}>36px</option>
-              <option value={48}>48px</option>
-            </select>
-          </div>
+      {/* Text formatting section - Font size and styling */}
+      <div className="toolbar-section">
+        <span className="toolbar-label">Text</span>
+        <div className="text-formatting-group">
+          {/* Font size selector */}
+          <select
+            className="font-size-select"
+            aria-label="Font size"
+            value={currentFontSize}
+            onChange={(e) => onFontSizeChange(Number(e.target.value))}
+            title="Font size"
+          >
+            <option value={12}>12px</option>
+            <option value={14}>14px</option>
+            <option value={16}>16px</option>
+            <option value={18}>18px</option>
+            <option value={20}>20px</option>
+            <option value={24}>24px</option>
+            <option value={30}>30px</option>
+            <option value={36}>36px</option>
+            <option value={48}>48px</option>
+          </select>
+          
+          {/* Font styling buttons (bold, italic, underline) */}
+          <button
+            className={`font-style-button ${currentFontWeight === 'bold' ? 'active' : ''}`}
+            onClick={() => onFontWeightChange?.(currentFontWeight === 'bold' ? 'normal' : 'bold')}
+            disabled={!onFontWeightChange}
+            title="Bold (Cmd/Ctrl+B)"
+            aria-label="Bold"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
+              <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
+            </svg>
+          </button>
+          <button
+            className={`font-style-button ${currentFontStyle === 'italic' ? 'active' : ''}`}
+            onClick={() => onFontStyleChange?.(currentFontStyle === 'italic' ? 'normal' : 'italic')}
+            disabled={!onFontStyleChange}
+            title="Italic (Cmd/Ctrl+I)"
+            aria-label="Italic"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="4" x2="10" y2="4"/>
+              <line x1="14" y1="20" x2="5" y2="20"/>
+              <line x1="15" y1="4" x2="9" y2="20"/>
+            </svg>
+          </button>
+          <button
+            className={`font-style-button ${currentTextDecoration === 'underline' ? 'active' : ''}`}
+            onClick={() => onTextDecorationChange?.(currentTextDecoration === 'underline' ? 'none' : 'underline')}
+            disabled={!onTextDecorationChange}
+            title="Underline (Cmd/Ctrl+U)"
+            aria-label="Underline"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/>
+              <line x1="4" y1="21" x2="20" y2="21"/>
+            </svg>
+          </button>
         </div>
       </div>
 

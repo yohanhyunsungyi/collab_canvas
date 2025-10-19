@@ -270,6 +270,13 @@
   background: transparent;
 }
 
+/* Text formatting group */
+.text-formatting-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .font-size-select {
   height: 36px;
   padding: 0 2px;
@@ -296,6 +303,37 @@
   outline: none;
   border-bottom-color: #999;
   box-shadow: none;
+}
+
+/* Font style buttons (bold, italic, underline) - NO borders */
+.font-style-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 6px);
+  cursor: pointer;
+  transition: all var(--transition-base, 0.2s ease);
+  color: var(--color-text-secondary, #666);
+}
+
+.font-style-button:hover:not(:disabled) {
+  background: var(--color-background-tertiary, #f5f5f5);
+  color: var(--color-text-primary, #333);
+}
+
+.font-style-button.active {
+  background: var(--color-background-tertiary, #f5f5f5);
+  color: var(--color-text-primary, #333);
+}
+
+.font-style-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Duplicate Button */

@@ -33,6 +33,9 @@ export interface TextShape extends BaseShape {
   type: 'text';
   text: string;
   fontSize: number;
+  fontStyle?: 'normal' | 'italic';
+  fontWeight?: 'normal' | 'bold';
+  textDecoration?: 'none' | 'underline';
   width?: number;
   height?: number;
 }

@@ -45,6 +45,9 @@ interface FirestoreShapeData {
   // Text specific
   text?: string;
   fontSize?: number;
+  fontStyle?: 'normal' | 'italic';
+  fontWeight?: 'normal' | 'bold';
+  textDecoration?: 'none' | 'underline';
   // Image specific
   src?: string;
 }
@@ -107,6 +110,9 @@ const firestoreToShape = (data: FirestoreShapeData): CanvasShape => {
       type: 'text',
       text: data.text || '',
       fontSize: data.fontSize || 24,
+      fontStyle: data.fontStyle || 'normal',
+      fontWeight: data.fontWeight || 'normal',
+      textDecoration: data.textDecoration || 'none',
       width: data.width,
       height: data.height,
     } as TextShape;
@@ -162,6 +168,9 @@ const shapeToFirestore = (shape: CanvasShape): FirestoreShapeData => {
       ...baseData,
       text: shape.text,
       fontSize: shape.fontSize,
+      fontStyle: shape.fontStyle || 'normal',
+      fontWeight: shape.fontWeight || 'normal',
+      textDecoration: shape.textDecoration || 'none',
     };
     if (shape.width !== undefined) textData.width = shape.width;
     if (shape.height !== undefined) textData.height = shape.height;
@@ -193,6 +202,9 @@ const partialShapeToFirestore = (updates: Partial<CanvasShape>): Partial<Firesto
   if ('radius' in updates && updates.radius !== undefined) firestoreUpdates.radius = updates.radius;
   if ('text' in updates && updates.text !== undefined) firestoreUpdates.text = updates.text;
   if ('fontSize' in updates && updates.fontSize !== undefined) firestoreUpdates.fontSize = updates.fontSize;
+  if ('fontStyle' in updates && (updates as any).fontStyle !== undefined) firestoreUpdates.fontStyle = (updates as any).fontStyle;
+  if ('fontWeight' in updates && (updates as any).fontWeight !== undefined) firestoreUpdates.fontWeight = (updates as any).fontWeight;
+  if ('textDecoration' in updates && (updates as any).textDecoration !== undefined) firestoreUpdates.textDecoration = (updates as any).textDecoration;
   if ('src' in updates && (updates as any).src !== undefined) firestoreUpdates.src = (updates as any).src;
 
   return firestoreUpdates;
@@ -265,7 +277,17 @@ export const updateShape = async (
     if ('fontSize' in updates && updates.fontSize !== undefined) {
       firestoreUpdates.fontSize = updates.fontSize;
     }
+    if ('fontStyle' in updates && (updates as any).fontStyle !== undefined) {
+      firestoreUpdates.fontStyle = (updates as any).fontStyle;
+    }
+    if ('fontWeight' in updates && (updates as any).fontWeight !== undefined) {
+      firestoreUpdates.fontWeight = (updates as any).fontWeight;
+    }
+    if ('textDecoration' in updates && (updates as any).textDecoration !== undefined) {
+      firestoreUpdates.textDecoration = (updates as any).textDecoration;
+    }
     
+    console.log(`[Canvas Service] Updating shape ${id} with:`, firestoreUpdates);
     await updateDoc(shapeRef, firestoreUpdates);
     
     console.log(`[Canvas Service] Updated shape: ${id}`);

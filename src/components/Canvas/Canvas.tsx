@@ -972,6 +972,9 @@ export const Canvas = () => {
           y: constrained.y,
           text: trimmedText,
           fontSize: currentFontSize,
+          fontStyle: 'normal',
+          fontWeight: 'normal',
+          textDecoration: 'none',
           color: currentColor,
           zIndex: nextZIndex,
         };
@@ -1040,30 +1043,30 @@ export const Canvas = () => {
     
     if (!stageRef.current) return;
     
-    // Get the Konva node reference for this text shape
-    const textNode = shapeRefs.current.get(shapeId);
-    if (!textNode) {
-      console.warn('[Canvas] Text node not found in refs');
-      return;
-    }
+    // CRITICAL FIX: Don't use absolutePosition() because it already applies Stage transform
+    // We need to manually transform from canvas coordinates to screen coordinates
+    // This matches how we create new text (inverse transformation)
     
-    // Use Konva's absolutePosition() method (best practice)
-    // This handles all transformations (scale, rotation, parent transforms) automatically
-    const textPosition = textNode.absolutePosition();
-    
-    // Calculate position relative to `.canvas-container` (the textarea's offset parent).
-    // Because the Stage is transformed via `viewport.x`/`viewport.scale`, we project
-    // the Konva node's position into screen space relative to the container.
+    // Transform canvas coordinates (shape.x, shape.y) to screen coordinates
+    // Formula: screenX = canvasX * scale + viewport.x
     const areaPosition = {
-      x: textPosition.x * viewport.scale + viewport.x,
-      y: textPosition.y * viewport.scale + viewport.y,
+      x: shape.x * viewport.scale + viewport.x,
+      y: shape.y * viewport.scale + viewport.y,
     };
     
-    console.log('[Canvas] Text edit position:', {
-      canvasPos: { x: shape.x, y: shape.y },
-      absolutePos: textPosition,
-      viewport,
-      finalPos: areaPosition
+    console.log('[Canvas] 🔍 Text edit position DEBUG:', {
+      shapeData: { x: shape.x, y: shape.y, text: shape.text },
+      viewport: { x: viewport.x, y: viewport.y, scale: viewport.scale },
+      calculation: {
+        formula: 'screenPos = canvasPos * scale + viewportOffset',
+        canvasPos: { x: shape.x, y: shape.y },
+        afterScale: { 
+          x: shape.x * viewport.scale, 
+          y: shape.y * viewport.scale 
+        },
+        viewportOffset: { x: viewport.x, y: viewport.y },
+        finalScreenPos: areaPosition
+      }
     });
     
     // Set editing state with absolute position
@@ -1475,6 +1478,90 @@ export const Canvas = () => {
     }
   };
 
+  const handleFontStyleChange = (fontStyle: 'normal' | 'italic') => {
+    // If text shape(s) are selected, update their fontStyle
+    if (selectedShapeIds.length > 0 && user) {
+      historyBegin('text_update');
+      selectedShapeIds.forEach(shapeId => {
+        const selectedShape = shapes.find(s => s.id === shapeId);
+        if (selectedShape && selectedShape.type === 'text') {
+          console.log('[Canvas] Changing fontStyle:', {
+            shapeId,
+            from: selectedShape.fontStyle || 'normal',
+            to: fontStyle,
+            currentShape: selectedShape
+          });
+          historyRecord(shapeId, { fontStyle: selectedShape.fontStyle || 'normal' }, { fontStyle });
+          // IMPORTANT: Include all font properties to ensure they're set in Firestore
+          updateShape(shapeId, {
+            fontStyle,
+            fontWeight: selectedShape.fontWeight || 'normal',
+            textDecoration: selectedShape.textDecoration || 'none',
+            lastModifiedBy: user.id,
+            lastModifiedAt: Date.now(),
+          });
+        }
+      });
+      historyCommit();
+    }
+  };
+
+  const handleFontWeightChange = (fontWeight: 'normal' | 'bold') => {
+    // If text shape(s) are selected, update their fontWeight
+    if (selectedShapeIds.length > 0 && user) {
+      historyBegin('text_update');
+      selectedShapeIds.forEach(shapeId => {
+        const selectedShape = shapes.find(s => s.id === shapeId);
+        if (selectedShape && selectedShape.type === 'text') {
+          console.log('[Canvas] Changing fontWeight:', {
+            shapeId,
+            from: selectedShape.fontWeight || 'normal',
+            to: fontWeight,
+            currentShape: selectedShape
+          });
+          historyRecord(shapeId, { fontWeight: selectedShape.fontWeight || 'normal' }, { fontWeight });
+          // IMPORTANT: Include all font properties to ensure they're set in Firestore
+          updateShape(shapeId, {
+            fontStyle: selectedShape.fontStyle || 'normal',
+            fontWeight,
+            textDecoration: selectedShape.textDecoration || 'none',
+            lastModifiedBy: user.id,
+            lastModifiedAt: Date.now(),
+          });
+        }
+      });
+      historyCommit();
+    }
+  };
+
+  const handleTextDecorationChange = (textDecoration: 'none' | 'underline') => {
+    // If text shape(s) are selected, update their textDecoration
+    if (selectedShapeIds.length > 0 && user) {
+      historyBegin('text_update');
+      selectedShapeIds.forEach(shapeId => {
+        const selectedShape = shapes.find(s => s.id === shapeId);
+        if (selectedShape && selectedShape.type === 'text') {
+          console.log('[Canvas] Changing textDecoration:', {
+            shapeId,
+            from: selectedShape.textDecoration || 'none',
+            to: textDecoration,
+            currentShape: selectedShape
+          });
+          historyRecord(shapeId, { textDecoration: selectedShape.textDecoration || 'none' }, { textDecoration });
+          // IMPORTANT: Include all font properties to ensure they're set in Firestore
+          updateShape(shapeId, {
+            fontStyle: selectedShape.fontStyle || 'normal',
+            fontWeight: selectedShape.fontWeight || 'normal',
+            textDecoration,
+            lastModifiedBy: user.id,
+            lastModifiedAt: Date.now(),
+          });
+        }
+      });
+      historyCommit();
+    }
+  };
+
   // Helper functions to get shape bounding box coordinates
   // These account for different coordinate systems: circles use center, rectangles use top-left
   
@@ -1808,6 +1895,9 @@ export const Canvas = () => {
           y: newEl.y,
           text: newEl.text,
           fontSize: newEl.fontSize || 16,
+          fontStyle: 'normal',
+          fontWeight: 'normal',
+          textDecoration: 'none',
           color: newEl.color,
           createdBy: user.id,
           createdAt: timestamp,
@@ -1971,11 +2061,44 @@ export const Canvas = () => {
             // Otherwise, show the current default font size
             return currentFontSize;
           })()}
+          currentFontStyle={(() => {
+            // If a single text shape is selected, show its font style in the toolbar
+            if (selectedShapeIds.length === 1) {
+              const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+              if (selectedShape?.type === 'text') {
+                return selectedShape.fontStyle || 'normal';
+              }
+            }
+            return 'normal';
+          })()}
+          currentFontWeight={(() => {
+            // If a single text shape is selected, show its font weight in the toolbar
+            if (selectedShapeIds.length === 1) {
+              const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+              if (selectedShape?.type === 'text') {
+                return selectedShape.fontWeight || 'normal';
+              }
+            }
+            return 'normal';
+          })()}
+          currentTextDecoration={(() => {
+            // If a single text shape is selected, show its text decoration in the toolbar
+            if (selectedShapeIds.length === 1) {
+              const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+              if (selectedShape?.type === 'text') {
+                return selectedShape.textDecoration || 'none';
+              }
+            }
+            return 'none';
+          })()}
           selectedShapeId={selectedShapeIds[0] || null}
           selectedShapeCount={selectedShapeIds.length}
           onToolChange={setCurrentTool}
           onColorChange={handleColorChange}
           onFontSizeChange={handleFontSizeChange}
+          onFontStyleChange={handleFontStyleChange}
+          onFontWeightChange={handleFontWeightChange}
+          onTextDecorationChange={handleTextDecorationChange}
           onDuplicate={() => user && duplicateSelectedShapes(user.id)}
           onDelete={handleDeleteSelected}
           onAlignLeft={alignLeft}

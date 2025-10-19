@@ -267,6 +267,7 @@ const ShapeComponent = ({
 
     case 'text':
       const textShape = shape as TextShape;
+      
       return (
         <Text
           id={shape.id}
@@ -274,7 +275,12 @@ const ShapeComponent = ({
           y={shape.y}
           text={textShape.text}
           fontSize={textShape.fontSize}
+          fontFamily="Arial"
+          fontStyle={textShape.fontStyle || 'normal'}
+          fontVariant={textShape.fontWeight === 'bold' ? 'bold' : 'normal'}
+          textDecoration={textShape.textDecoration || ''}
           fill={shape.color}
+          padding={5}
           ref={handleRef}
           {...commonProps}
         />
@@ -326,7 +332,10 @@ export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
       (prevProps.shape as CircleShape).radius === (nextProps.shape as CircleShape).radius) &&
     (prevProps.shape.type !== 'text' || 
       ((prevProps.shape as TextShape).text === (nextProps.shape as TextShape).text &&
-       (prevProps.shape as TextShape).fontSize === (nextProps.shape as TextShape).fontSize)) &&
+       (prevProps.shape as TextShape).fontSize === (nextProps.shape as TextShape).fontSize &&
+       (prevProps.shape as TextShape).fontStyle === (nextProps.shape as TextShape).fontStyle &&
+       (prevProps.shape as TextShape).fontWeight === (nextProps.shape as TextShape).fontWeight &&
+       (prevProps.shape as TextShape).textDecoration === (nextProps.shape as TextShape).textDecoration)) &&
     (prevProps.shape.type !== 'image' || 
       ((prevProps.shape as ImageShape).src === (nextProps.shape as ImageShape).src &&
        (prevProps.shape as ImageShape).width === (nextProps.shape as ImageShape).width &&

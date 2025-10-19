@@ -400,6 +400,72 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'setBold',
+      description: 'Make text bold or remove bold styling. Use empty array [] for shapeIds to update ALL selected text shapes. Example: "Make the text bold" → setBold(shapeIds=[], bold=true). "Remove bold from text" → setBold(shapeIds=[], bold=false).',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+          },
+          bold: {
+            type: 'boolean',
+            description: 'true to make text bold, false to remove bold styling',
+          },
+        },
+        required: ['shapeIds', 'bold'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'setItalic',
+      description: 'Make text italic or remove italic styling. Use empty array [] for shapeIds to update ALL selected text shapes. Example: "Make the text italic" → setItalic(shapeIds=[], italic=true). "Remove italic from text" → setItalic(shapeIds=[], italic=false).',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+          },
+          italic: {
+            type: 'boolean',
+            description: 'true to make text italic, false to remove italic styling',
+          },
+        },
+        required: ['shapeIds', 'italic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'setUnderline',
+      description: 'Underline text or remove underline styling. Use empty array [] for shapeIds to update ALL selected text shapes. Example: "Underline the text" → setUnderline(shapeIds=[], underline=true). "Remove underline from text" → setUnderline(shapeIds=[], underline=false).',
+      parameters: {
+        type: 'object',
+        properties: {
+          shapeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+          },
+          underline: {
+            type: 'boolean',
+            description: 'true to underline text, false to remove underline styling',
+          },
+        },
+        required: ['shapeIds', 'underline'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'rotateShapes',
       description: 'LOW-LEVEL TOOL: Rotate shapes when you already have their exact shapeIds. DO NOT use this for commands like "Rotate the text" - use rotateShapeByDescription instead. Only use this when you have specific shapeIds from previous operations or when rotating ALL shapes with empty array [].',
       parameters: {
@@ -978,7 +1044,7 @@ export const getAllToolNames = (): string[] => {
 export const TOOL_CATEGORIES = {
   CREATION: ['createRectangle', 'createCircle', 'createText', 'createMultipleShapes'],
   SMART_MANIPULATION: ['moveShapeByDescription', 'resizeShapeByDescription', 'rotateShapeByDescription'],
-  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'rotateShapes', 'changeColor', 'updateText', 'changeFontSize', 'deleteShape', 'deleteMultipleShapes'],
+  MANIPULATION: ['moveShape', 'resizeShape', 'rotateShape', 'rotateShapes', 'changeColor', 'updateText', 'changeFontSize', 'setBold', 'setItalic', 'setUnderline', 'deleteShape', 'deleteMultipleShapes'],
   BATCH_MANIPULATION: ['moveMultipleShapes'],
   QUERY: ['getCanvasState', 'findShapesByType', 'findShapesByColor', 'findShapesByText'],
   ALIGNMENT: ['alignLeft', 'alignCenter', 'alignRight'], // From toolbar

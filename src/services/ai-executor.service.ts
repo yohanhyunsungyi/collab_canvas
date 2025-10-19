@@ -168,6 +168,12 @@ class AIExecutorService {
           return await this.updateText(args, context);
         case 'changeFontSize':
           return await this.changeFontSize(args, context);
+        case 'setBold':
+          return await this.setBold(args, context);
+        case 'setItalic':
+          return await this.setItalic(args, context);
+        case 'setUnderline':
+          return await this.setUnderline(args, context);
         case 'deleteShape':
           return await this.deleteShape(args, context);
         case 'deleteMultipleShapes':
@@ -384,6 +390,9 @@ class AIExecutorService {
       y: args.y ?? context.viewportCenter?.y ?? 0,
       text: args.text,
       fontSize: args.fontSize ?? 24,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
+      textDecoration: 'none',
       color: resolveColorToHex(args.color),
       zIndex: getNextZIndex(context.shapes),
       createdBy: context.userId,
@@ -534,6 +543,9 @@ class AIExecutorService {
           y: finalY,
           text: shapeData.text || 'Text',
           fontSize: shapeData.fontSize || 24,
+          fontStyle: 'normal',
+          fontWeight: 'normal',
+          textDecoration: 'none',
           color: shouldUseRandomColor ? getRandomColor() : resolveColorToHex(shapeData.color),
           zIndex: baseZIndex + i,
           createdBy: context.userId,
@@ -931,6 +943,168 @@ class AIExecutorService {
     return {
       success: true,
       message: `Changed font size to ${args.fontSize}px for ${updatedCount} text shape(s)`,
+    };
+  }
+
+  private async setBold(
+    args: { shapeIds: string[]; bold: boolean },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Use the SAME LOGIC as toolbar's handleFontWeightChange
+    let shapeIds = args.shapeIds;
+    
+    if (shapeIds.length === 0) {
+      // If no shapeIds provided, check if shapes are selected
+      if (context.selectedShapeIds && context.selectedShapeIds.length > 0) {
+        shapeIds = context.selectedShapeIds;
+      } else {
+        // If nothing selected, find all text shapes on canvas
+        const allTextShapes = context.shapes.filter(s => s.type === 'text');
+        shapeIds = allTextShapes.map(s => s.id);
+      }
+    }
+
+    if (shapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found on canvas',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    // Update only text shapes
+    let updatedCount = 0;
+    const fontWeight = args.bold ? 'bold' : 'normal';
+    for (const shapeId of shapeIds) {
+      const shape = context.shapes.find(s => s.id === shapeId);
+      if (shape && shape.type === 'text') {
+        await updateShape(shapeId, {
+          fontWeight,
+          lastModifiedBy: context.userId,
+        });
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found to update',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    return {
+      success: true,
+      message: `${args.bold ? 'Applied bold' : 'Removed bold'} to ${updatedCount} text shape(s)`,
+    };
+  }
+
+  private async setItalic(
+    args: { shapeIds: string[]; italic: boolean },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Use the SAME LOGIC as toolbar's handleFontStyleChange
+    let shapeIds = args.shapeIds;
+    
+    if (shapeIds.length === 0) {
+      // If no shapeIds provided, check if shapes are selected
+      if (context.selectedShapeIds && context.selectedShapeIds.length > 0) {
+        shapeIds = context.selectedShapeIds;
+      } else {
+        // If nothing selected, find all text shapes on canvas
+        const allTextShapes = context.shapes.filter(s => s.type === 'text');
+        shapeIds = allTextShapes.map(s => s.id);
+      }
+    }
+
+    if (shapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found on canvas',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    // Update only text shapes
+    let updatedCount = 0;
+    const fontStyle = args.italic ? 'italic' : 'normal';
+    for (const shapeId of shapeIds) {
+      const shape = context.shapes.find(s => s.id === shapeId);
+      if (shape && shape.type === 'text') {
+        await updateShape(shapeId, {
+          fontStyle,
+          lastModifiedBy: context.userId,
+        });
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found to update',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    return {
+      success: true,
+      message: `${args.italic ? 'Applied italic' : 'Removed italic'} to ${updatedCount} text shape(s)`,
+    };
+  }
+
+  private async setUnderline(
+    args: { shapeIds: string[]; underline: boolean },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Use the SAME LOGIC as toolbar's handleTextDecorationChange
+    let shapeIds = args.shapeIds;
+    
+    if (shapeIds.length === 0) {
+      // If no shapeIds provided, check if shapes are selected
+      if (context.selectedShapeIds && context.selectedShapeIds.length > 0) {
+        shapeIds = context.selectedShapeIds;
+      } else {
+        // If nothing selected, find all text shapes on canvas
+        const allTextShapes = context.shapes.filter(s => s.type === 'text');
+        shapeIds = allTextShapes.map(s => s.id);
+      }
+    }
+
+    if (shapeIds.length === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found on canvas',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    // Update only text shapes
+    let updatedCount = 0;
+    const textDecoration = args.underline ? 'underline' : 'none';
+    for (const shapeId of shapeIds) {
+      const shape = context.shapes.find(s => s.id === shapeId);
+      if (shape && shape.type === 'text') {
+        await updateShape(shapeId, {
+          textDecoration,
+          lastModifiedBy: context.userId,
+        });
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount === 0) {
+      return {
+        success: false,
+        message: 'No text shapes found to update',
+        error: 'NO_TEXT_SHAPES',
+      };
+    }
+
+    return {
+      success: true,
+      message: `${args.underline ? 'Applied underline' : 'Removed underline'} to ${updatedCount} text shape(s)`,
     };
   }
 
