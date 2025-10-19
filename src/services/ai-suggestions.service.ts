@@ -200,7 +200,7 @@ Focus on actionable improvements that will make a measurable difference in desig
 
   try {
     const response = await openaiClient.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

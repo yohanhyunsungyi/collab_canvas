@@ -175,7 +175,7 @@
 .ai-history-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #fee2e2; color: #991b1b; padding: 10px 12px; }
 .ai-error-dismiss { background: transparent; border: none; cursor: pointer; font-size: 16px; color: #991b1b; }
 
-.ai-history-loading { display: flex; align-items: center; gap: 10px; padding: 10px 12px; color: #374151; }
+.ai-history-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 12px; color: #374151; }
 .ai-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #d1d5db; border-top-color: #111827; animation: ai-spin 1s linear infinite; }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 
