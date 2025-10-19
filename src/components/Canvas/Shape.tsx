@@ -52,10 +52,21 @@ const ShapeComponent = ({
     shape.lockedBy !== currentUserId && 
     !isLockExpired(shape.lockedAt);
 
+  // Load image if this is an image shape (must be called before any conditionals)
+  const imageShape = shape.type === 'image' ? (shape as ImageShape) : null;
+  const [image, imageStatus] = useImage(imageShape?.src || '');
+
   // Fade in animation when shape is first created
+  // Skip animation for images (they should appear instantly once loaded)
   useEffect(() => {
     const node = nodeRef.current;
     if (!node || hasAnimatedIn.current) return;
+    
+    // Skip animation for images
+    if (shape.type === 'image') {
+      hasAnimatedIn.current = true;
+      return;
+    }
     
     // Start invisible
     node.opacity(0);
@@ -68,13 +79,18 @@ const ShapeComponent = ({
     });
     
     hasAnimatedIn.current = true;
-  }, []);
+  }, [imageStatus, shape.type]);
   
   // ⚡ Performance: Enable Konva caching for static shapes
   // Caching converts shapes to images for faster rendering
   useEffect(() => {
     const node = nodeRef.current;
     if (!node) return;
+    
+    // Don't cache images - they're already image elements and caching before load causes issues
+    if (shape.type === 'image') {
+      return;
+    }
     
     // Only cache if shape is not selected/highlighted (static state)
     // Caching is beneficial for shapes that don't change frequently
@@ -287,17 +303,19 @@ const ShapeComponent = ({
       );
 
     case 'image': {
-      const imageShape = shape as ImageShape;
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const [image] = useImage(imageShape.src, 'anonymous');
+      const imgShape = shape as ImageShape;
+      // Only render the image once it's loaded to avoid rendering empty/invisible images
+      if (!image || imageStatus !== 'loaded') {
+        return null;
+      }
       return (
         <Image
           id={shape.id}
           x={shape.x}
           y={shape.y}
           image={image}
-          width={imageShape.width}
-          height={imageShape.height}
+          width={imgShape.width}
+          height={imgShape.height}
           ref={handleRef}
           {...commonProps}
         />
@@ -311,6 +329,7 @@ const ShapeComponent = ({
 
 // Memoize the component to prevent unnecessary re-renders
 // Only re-render when shape data, selection state, editing state, highlight state, or lock state changes
+// Note: Image loading state is handled by useImage hook internally, so we don't need special memoization for it
 export const Shape = memo(ShapeComponent, (prevProps, nextProps) => {
   return (
     prevProps.shape.id === nextProps.shape.id &&
