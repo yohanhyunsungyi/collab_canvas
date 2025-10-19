@@ -28,7 +28,7 @@ export const processAICommand = functions.https.onCall(async (data, context) => 
     );
   }
 
-  const { prompt, shapeCount } = data;
+  const { prompt } = data;
 
   if (!prompt || typeof prompt !== 'string') {
     throw new functions.https.HttpsError(
@@ -65,7 +65,6 @@ export const processAICommand = functions.https.onCall(async (data, context) => 
       tools: relevantTools,
       tool_choice: 'auto',
       parallel_tool_calls: true,
-      timeout: 10000,
     });
 
     const message = response.choices[0]?.message;
