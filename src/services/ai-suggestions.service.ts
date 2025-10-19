@@ -173,13 +173,14 @@ Return ONLY valid JSON with this exact schema:
 Note: Use "newElements" array when suggesting to ADD missing components (e.g., password field for incomplete login form). Use "changes" array for modifying existing elements.
 
 **IMPORTANT:**
-- Provide 3-8 suggestions prioritized by impact
+- Provide 5-10 suggestions prioritized by impact (aim for at least 6-8 suggestions when possible)
 - Each suggestion must include specific changes with exact values
 - Explain the design principle behind each suggestion
 - Focus on high-impact improvements first
 - **Detect incomplete UI patterns**: If you see a login form with only username/email, suggest adding password field. If you see only text without labels, suggest adding labels.
 - Be specific and actionable
-- When suggesting new elements, provide complete specifications (type, position, size, color, text content)`;
+- When suggesting new elements, provide complete specifications (type, position, size, color, text content)
+- Look for multiple types of improvements: alignment, spacing, color, typography, layout, and completeness`;
 
   const userPrompt = `Analyze this canvas design and provide professional improvement suggestions.
 
@@ -188,15 +189,16 @@ ${JSON.stringify(canvasAnalysis, null, 2)}
 
 **Your Task:**
 1. Review the canvas analysis data above
-2. Identify the top 3-8 most impactful design improvements
+2. Identify 6-10 of the most impactful design improvements (provide at least 6 suggestions)
 3. For each improvement:
    - Specify which design principle it addresses
    - Provide exact values for changes (positions, colors, sizes)
    - Explain WHY the change improves the design
-4. Prioritize high-impact changes first (accessibility, usability, then polish)
-5. Return ONLY valid JSON in the specified format
+4. Cover multiple improvement types: alignment, spacing, color harmony, typography, layout, and UI pattern completeness
+5. Prioritize high-impact changes first (accessibility, usability, then polish)
+6. Return ONLY valid JSON in the specified format
 
-Focus on actionable improvements that will make a measurable difference in design quality.`;
+Focus on actionable improvements that will make a measurable difference in design quality. Be thorough and provide multiple suggestions across different design aspects.`;
 
   try {
     const response = await openaiClient.chat.completions.create({
@@ -206,8 +208,8 @@ Focus on actionable improvements that will make a measurable difference in desig
         { role: 'user', content: userPrompt },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.5,
-      max_tokens: 3000,
+      temperature: 0.7,
+      max_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content;
