@@ -13,6 +13,7 @@ interface CanvasToolbarProps {
   currentTextDecoration?: 'none' | 'underline';
   selectedShapeId: string | null;
   selectedShapeCount: number; // Number of selected shapes for multi-select operations
+  isTextSelected?: boolean; // NEW: Whether any selected shape is a text shape
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
   onFontSizeChange: (fontSize: number) => void;
@@ -52,6 +53,7 @@ export const CanvasToolbar = ({
   currentTextDecoration = 'none',
   selectedShapeId,
   selectedShapeCount,
+  isTextSelected = false,
   onToolChange,
   onColorChange,
   onFontSizeChange,
@@ -331,8 +333,8 @@ export const CanvasToolbar = ({
           <button
             className={`font-style-button ${currentFontWeight === 'bold' ? 'active' : ''}`}
             onClick={() => onFontWeightChange?.(currentFontWeight === 'bold' ? 'normal' : 'bold')}
-            disabled={!onFontWeightChange}
-            title="Bold (Cmd/Ctrl+B)"
+            disabled={!onFontWeightChange || !isTextSelected}
+            title={isTextSelected ? "Bold (Cmd/Ctrl+B)" : "Select text to enable"}
             aria-label="Bold"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -343,8 +345,8 @@ export const CanvasToolbar = ({
           <button
             className={`font-style-button ${currentFontStyle === 'italic' ? 'active' : ''}`}
             onClick={() => onFontStyleChange?.(currentFontStyle === 'italic' ? 'normal' : 'italic')}
-            disabled={!onFontStyleChange}
-            title="Italic (Cmd/Ctrl+I)"
+            disabled={!onFontStyleChange || !isTextSelected}
+            title={isTextSelected ? "Italic (Cmd/Ctrl+I)" : "Select text to enable"}
             aria-label="Italic"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -356,8 +358,8 @@ export const CanvasToolbar = ({
           <button
             className={`font-style-button ${currentTextDecoration === 'underline' ? 'active' : ''}`}
             onClick={() => onTextDecorationChange?.(currentTextDecoration === 'underline' ? 'none' : 'underline')}
-            disabled={!onTextDecorationChange}
-            title="Underline (Cmd/Ctrl+U)"
+            disabled={!onTextDecorationChange || !isTextSelected}
+            title={isTextSelected ? "Underline (Cmd/Ctrl+U)" : "Select text to enable"}
             aria-label="Underline"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

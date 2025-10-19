@@ -2093,6 +2093,13 @@ export const Canvas = () => {
           })()}
           selectedShapeId={selectedShapeIds[0] || null}
           selectedShapeCount={selectedShapeIds.length}
+          isTextSelected={(() => {
+            // Check if any of the selected shapes is a text shape
+            return selectedShapeIds.some(id => {
+              const shape = shapes.find(s => s.id === id);
+              return shape?.type === 'text';
+            });
+          })()}
           onToolChange={setCurrentTool}
           onColorChange={handleColorChange}
           onFontSizeChange={handleFontSizeChange}
