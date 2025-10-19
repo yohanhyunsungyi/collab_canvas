@@ -25,9 +25,9 @@ export interface DesignSuggestion {
 
 export interface SuggestionChange {
   shapeId: string;
-  property: 'x' | 'y' | 'color' | 'width' | 'height' | 'rotation';
-  oldValue: string | number;
-  newValue: string | number;
+  property: string;
+  oldValue: any;
+  newValue: any;
 }
 
 export interface NewElementSuggestion {

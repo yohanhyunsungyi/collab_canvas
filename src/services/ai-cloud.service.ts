@@ -35,7 +35,9 @@ class ResponseCache {
     // Enforce max size (LRU-style: delete oldest)
     if (this.cache.size >= this.MAX_SIZE) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
     }
     
     this.cache.set(key, {
