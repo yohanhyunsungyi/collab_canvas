@@ -1227,11 +1227,11 @@ function getAIToolsSchema(): any[] {
       type: 'function',
       function: {
         name: 'arrangeHorizontal',
-        description: 'Arrange shapes in a horizontal row',
+        description: 'Arrange shapes in a horizontal row. BEST CHOICE for "Arrange these shapes horizontally" or "Put these in a row". Use shapeIds=[] (empty array) to arrange SELECTED shapes - this is the correct way when user has selected objects. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
         parameters: {
           type: 'object',
           properties: {
-            shapeIds: { type: 'array', items: { type: 'string' } },
+            shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs. Use empty array [] to use currently SELECTED shapes.' },
             startX: { type: 'number' },
             y: { type: 'number' },
             spacing: { type: 'number' },
@@ -1244,11 +1244,11 @@ function getAIToolsSchema(): any[] {
       type: 'function',
       function: {
         name: 'arrangeVertical',
-        description: 'Arrange shapes in a vertical column',
+        description: 'Arrange shapes in a vertical column/line. BEST CHOICE for "Arrange these shapes vertically" or "Stack these". Use shapeIds=[] (empty array) to arrange SELECTED shapes. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
         parameters: {
           type: 'object',
           properties: {
-            shapeIds: { type: 'array', items: { type: 'string' } },
+            shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs. Use empty array [] to use currently SELECTED shapes.' },
             x: { type: 'number' },
             startY: { type: 'number' },
             spacing: { type: 'number' },
@@ -1261,11 +1261,11 @@ function getAIToolsSchema(): any[] {
       type: 'function',
       function: {
         name: 'arrangeGrid',
-        description: 'Rearrange EXISTING shapes into a grid layout',
+        description: 'Rearrange EXISTING shapes into a grid layout. Use shapeIds=[] (empty array) to rearrange SELECTED shapes. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
         parameters: {
           type: 'object',
           properties: {
-            shapeIds: { type: 'array', items: { type: 'string' } },
+            shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs. Use empty array [] to use currently SELECTED shapes.' },
             startX: { type: 'number' },
             startY: { type: 'number' },
             columns: { type: 'number' },
@@ -1296,11 +1296,11 @@ function getAIToolsSchema(): any[] {
       type: 'function',
       function: {
         name: 'distributeHorizontally',
-        description: 'Distribute shapes evenly across horizontal space',
+        description: 'Distribute shapes evenly across horizontal space. BEST CHOICE for "Space these elements evenly" or "Distribute horizontally". Use shapeIds=[] (empty array) to distribute SELECTED shapes. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
         parameters: {
           type: 'object',
           properties: {
-            shapeIds: { type: 'array', items: { type: 'string' } },
+            shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs. Use empty array [] to use currently SELECTED shapes.' },
             startX: { type: 'number' },
             endX: { type: 'number' },
             y: { type: 'number' },
@@ -1313,11 +1313,11 @@ function getAIToolsSchema(): any[] {
       type: 'function',
       function: {
         name: 'distributeVertically',
-        description: 'Distribute shapes evenly across vertical space',
+        description: 'Distribute shapes evenly across vertical space. BEST CHOICE for "Distribute vertically" or "Space these evenly vertically". Use shapeIds=[] (empty array) to distribute SELECTED shapes. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
         parameters: {
           type: 'object',
           properties: {
-            shapeIds: { type: 'array', items: { type: 'string' } },
+            shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs. Use empty array [] to use currently SELECTED shapes.' },
             x: { type: 'number' },
             startY: { type: 'number' },
             endY: { type: 'number' },

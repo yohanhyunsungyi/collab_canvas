@@ -685,14 +685,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeHorizontal',
-      description: 'Arrange shapes in a horizontal row. IMPORTANT: Pass empty array [] for shapeIds to arrange ALL shapes on canvas automatically - you do NOT need to call getCanvasState first. Example: User says "Arrange these shapes in a horizontal row" → DIRECTLY call arrangeHorizontal with shapeIds=[], startX=50, y=200. The tool will find all shapes automatically.',
+      description: 'Arrange shapes in a horizontal row. BEST CHOICE for "Arrange these shapes horizontally" or "Put these in a row". Use shapeIds=[] (empty array) to arrange SELECTED shapes - this is the correct way when user has selected objects. Example: User says "Arrange these shapes in a horizontal row" → DIRECTLY call arrangeHorizontal(shapeIds=[], startX=-200, y=0). CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange. IMPORTANT: Use empty array [] to automatically arrange ALL shapes on canvas without needing to query them first.',
+            description: 'Array of shape IDs to arrange. CRITICAL: Use empty array [] to use currently SELECTED shapes. This is the standard pattern for working with selections.',
           },
           startX: {
             type: 'number',
@@ -715,14 +715,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeVertical',
-      description: 'Arrange shapes in a vertical column/line. IMPORTANT: Pass empty array [] for shapeIds to arrange ALL shapes on canvas automatically - you do NOT need to call getCanvasState first. Example: User says "Create 5 circles in a vertical line" → FIRST call createMultipleShapes with 5 circles at x:0, y:0, THEN IMMEDIATELY call arrangeVertical with shapeIds=[], x=100, startY=100. The tool will find all shapes automatically.',
+      description: 'Arrange shapes in a vertical column/line. BEST CHOICE for "Arrange these shapes vertically" or "Stack these". Use shapeIds=[] (empty array) to arrange SELECTED shapes - this is the correct way when user has selected objects. Example: User says "Create 5 circles in a vertical line" → FIRST call createMultipleShapes with 5 circles at x:0, y:0, THEN IMMEDIATELY call arrangeVertical(shapeIds=[], x=0, startY=-200). CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to arrange. IMPORTANT: Use empty array [] to automatically arrange ALL shapes on canvas without needing to query them first.',
+            description: 'Array of shape IDs to arrange. CRITICAL: Use empty array [] to use currently SELECTED shapes. This is the standard pattern for working with selections.',
           },
           x: {
             type: 'number',
@@ -745,7 +745,7 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'arrangeGrid',
-      description: 'Rearrange EXISTING shapes into a grid layout. ONLY use this to rearrange shapes that are already on the canvas. For NEW shapes, use createMultipleShapes with spacingX/spacingY which creates them in a grid instantly (much faster). Use shapeIds=[] to rearrange ALL shapes on canvas. This tool is for reorganizing, not initial creation.',
+      description: 'Rearrange EXISTING shapes into a grid layout. ONLY use this to rearrange shapes that are already on the canvas. For NEW shapes, use createMultipleShapes with spacingX/spacingY which creates them in a grid instantly (much faster). Use shapeIds=[] (empty array) to rearrange SELECTED shapes. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
       parameters: {
         type: 'object',
         properties: {
@@ -808,14 +808,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'distributeHorizontally',
-      description: 'Distribute shapes evenly across horizontal space. IMPORTANT: Pass empty array [] for shapeIds to distribute ALL shapes automatically - you do NOT need to call getCanvasState first. Example: "Space these elements evenly" → DIRECTLY call distributeHorizontally with shapeIds=[], startX=50, endX=700, y=200. The tool will find all shapes automatically.',
+      description: 'Distribute shapes evenly across horizontal space. BEST CHOICE for "Space these elements evenly" or "Distribute horizontally". Use shapeIds=[] (empty array) to distribute SELECTED shapes - this is the correct way when user has selected objects. Example: "Space these elements evenly" → DIRECTLY call distributeHorizontally(shapeIds=[], startX=-400, endX=400, y=0). CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to distribute. IMPORTANT: Use empty array [] to automatically distribute ALL shapes on canvas without needing to query them first.',
+            description: 'Array of shape IDs to distribute. CRITICAL: Use empty array [] to use currently SELECTED shapes. This is the standard pattern for working with selections.',
           },
           startX: {
             type: 'number',
@@ -838,14 +838,14 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'distributeVertically',
-      description: 'Distribute shapes evenly across vertical space',
+      description: 'Distribute shapes evenly across vertical space. BEST CHOICE for "Distribute vertically" or "Space these evenly vertically". Use shapeIds=[] (empty array) to distribute SELECTED shapes - this is the correct way when user has selected objects. CRITICAL: shapeIds=[] means "use selected shapes", not "all shapes".',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to distribute',
+            description: 'Array of shape IDs to distribute. CRITICAL: Use empty array [] to use currently SELECTED shapes. This is the standard pattern for working with selections.',
           },
           x: {
             type: 'number',
