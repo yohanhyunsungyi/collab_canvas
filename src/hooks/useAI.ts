@@ -122,7 +122,7 @@ export const useAI = (
           } else if (raw.includes('timeout') || msg.includes('timeout')) {
             friendly = 'AI request timed out (10s). Please try again.';
           } else if (raw.includes('no_tool_calls') || msg.includes('no action')) {
-            friendly = 'Could not understand the command. Try: "Create a red circle at 100, 200" or "Move the selected rectangle to center"';
+            friendly = 'Select the object(s) first, or try: "Create a red circle" or "Move the blue rectangle to center"';
           } else if (raw.includes('401') || raw.includes('unauthorized')) {
             friendly = 'Unauthorized: Check your API key permissions.';
           } else if (raw.includes('429')) {
@@ -130,7 +130,7 @@ export const useAI = (
           }
 
           setError(friendly);
-          addToHistory(prompt, aiResponse.success, aiResponse.message);
+          addToHistory(prompt, aiResponse.success, friendly);
           return aiResponse;
         }
 
@@ -194,9 +194,9 @@ export const useAI = (
         }
 
         // No tool calls executed at all
-        const friendly = 'Could not understand the command. Try a creation or manipulation command.';
+        const friendly = 'Select the object(s) first, or try: "Create a red circle" or "Move the blue rectangle to center"';
         setError(friendly);
-        addToHistory(prompt, false, 'No actions taken');
+        addToHistory(prompt, false, friendly);
         
         return {
           success: false,

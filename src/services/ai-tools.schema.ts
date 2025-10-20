@@ -13,29 +13,29 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createRectangle',
-      description: 'Create a rectangle shape on the canvas. Example: "Make a 200x300 rectangle" → width=200, height=300, color=black (default), x=100 (default), y=100 (default). If position not specified, use defaults.',
+      description: 'Create a rectangle shape on the canvas. ALWAYS specify width and height (required). Example: "Create a rectangle" → width=100, height=100. "Make a 200x300 rectangle" → width=200, height=300. If dimensions not mentioned by user, use 100x100 as default.',
       parameters: {
         type: 'object',
         properties: {
           x: {
             type: 'number',
-            description: 'X coordinate (pixels from left edge). Default: 100',
+            description: 'X coordinate. Default: viewport center or 0',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate (pixels from top edge). Default: 100',
+            description: 'Y coordinate. Default: viewport center or 0',
           },
           width: {
             type: 'number',
-            description: 'Width of the rectangle in pixels',
+            description: 'Width of the rectangle in pixels. If not specified by user, use 100 as default.',
           },
           height: {
             type: 'number',
-            description: 'Height of the rectangle in pixels',
+            description: 'Height of the rectangle in pixels. If not specified by user, use 100 as default.',
           },
           color: {
             type: 'string',
-            description: 'Color in hex format (e.g., "#FF0000" for red) or CSS color name. Default: "#0000FF" (blue)',
+            description: 'Color in hex format (e.g., "#FF0000" for red) or CSS color name. Default: random from design system',
           },
         },
         required: ['width', 'height'],
@@ -46,25 +46,25 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createCircle',
-      description: 'Create a circle shape on the canvas. Example: "Create a red circle at position 100, 200" → x=100, y=200, radius=50 (default), color=red. If position not specified, use x=100, y=200 as defaults.',
+      description: 'Create a circle shape on the canvas. Example: "Create a circle" → radius=50 (default). "Create a red circle" → color=red, radius=50. If radius not specified, use 50 as default.',
       parameters: {
         type: 'object',
         properties: {
           x: {
             type: 'number',
-            description: 'X coordinate of circle center (pixels from left edge). Default: 100',
+            description: 'X coordinate of circle center. Default: viewport center or 0',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate of circle center (pixels from top edge). Default: 200',
+            description: 'Y coordinate of circle center. Default: viewport center or 0',
           },
           radius: {
             type: 'number',
-            description: 'Radius of the circle in pixels. Default: 50',
+            description: 'Radius of the circle in pixels. If not specified, use 50 as default.',
           },
           color: {
             type: 'string',
-            description: 'Color in hex format (e.g., "#00FF00" for green) or CSS color name. Default: "#FF0000" (red)',
+            description: 'Color in hex format (e.g., "#00FF00" for green) or CSS color name. Default: random from design system',
           },
         },
         required: [],
@@ -75,29 +75,29 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'createText',
-      description: 'Create a text element on the canvas. Example: "Add a text layer that says \'Hello World\'" → text="Hello World", x=150 (default), y=150 (default).',
+      description: 'Create a text element on the canvas. ALWAYS specify the text content (required). Example: "Add text Hello World" → text="Hello World", fontSize=24 (default). If fontSize not mentioned, use 24 as default.',
       parameters: {
         type: 'object',
         properties: {
           x: {
             type: 'number',
-            description: 'X coordinate (pixels from left edge). Default: 150',
+            description: 'X coordinate. Default: viewport center or 0',
           },
           y: {
             type: 'number',
-            description: 'Y coordinate (pixels from top edge). Default: 150',
+            description: 'Y coordinate. Default: viewport center or 0',
           },
           text: {
             type: 'string',
-            description: 'The text content to display',
+            description: 'The text content to display. REQUIRED.',
           },
           fontSize: {
             type: 'number',
-            description: 'Font size in pixels. Default: 24',
+            description: 'Font size in pixels. If not specified, use 24 as default.',
           },
           color: {
             type: 'string',
-            description: 'Text color in hex format or CSS color name. Default: "#000000"',
+            description: 'Text color in hex format or CSS color name. Default: random from design system',
           },
         },
         required: ['text'],
@@ -160,29 +160,37 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'moveShapeByDescription',
-      description: 'Move a shape by describing it (color or type). Use THIS instead of moveShape when user says "move the blue rectangle" or "move the circle". Example: "Move the blue rectangle to center" → moveShapeByDescription(color="blue", type="rectangle", x=0, y=0). This tool finds the shape automatically. Remember: canvas center is at (0, 0).',
+      description: 'Move a shape by describing it (color AND/OR type). BEST CHOICE for commands like "move the blue rectangle left" - handles both filtering AND movement in one call. Supports BOTH absolute positioning (x, y) and relative movement (deltaX, deltaY). For directional commands, use deltaX/deltaY with LARGE values for visibility on 5000x5000px canvas: left = deltaX:-800, right = deltaX:800, up = deltaY:-800, down = deltaY:800. Example: "move the blue rectangle left" → moveShapeByDescription(color="blue", type="rectangle", deltaX:-800). Example: "move the circle to center" → moveShapeByDescription(type="circle", x=0, y=0).',
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
             enum: ['rectangle', 'circle', 'text'],
-            description: 'Type of shape to find and move',
+            description: 'Type of shape to find and move (optional if color is specified)',
           },
           color: {
             type: 'string',
-            description: 'Color of the shape to find (optional, use if user mentions color like "blue rectangle")',
+            description: 'Color of the shape to find (optional if type is specified). Use natural language like "blue" or hex like "#FF0000"',
           },
           x: {
             type: 'number',
-            description: 'New X coordinate (-2500 to 2500). Canvas center is 0.',
+            description: 'ABSOLUTE X coordinate (-2500 to 2500). Canvas center is 0. Use this for "move to position" commands. Mutually exclusive with deltaX.',
           },
           y: {
             type: 'number',
-            description: 'New Y coordinate (-2500 to 2500). Canvas center is 0.',
+            description: 'ABSOLUTE Y coordinate (-2500 to 2500). Canvas center is 0. Use this for "move to position" commands. Mutually exclusive with deltaY.',
+          },
+          deltaX: {
+            type: 'number',
+            description: 'RELATIVE X movement in pixels. Use this for directional commands: left = -100, right = +100. Mutually exclusive with x.',
+          },
+          deltaY: {
+            type: 'number',
+            description: 'RELATIVE Y movement in pixels. Use this for directional commands: up = -100, down = +100. Mutually exclusive with y.',
           },
         },
-        required: ['x', 'y'],
+        required: [],
       },
     },
   },
@@ -247,6 +255,27 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['type', 'rotation'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'deleteShapeByDescription',
+      description: 'PRIMARY TOOL FOR ALL DELETE COMMANDS: Delete a shape by describing it (color AND/OR type). ALWAYS use THIS tool for ANY delete command unless the user explicitly says "delete all selected". Works for "Delete the rectangle", "Delete the blue circle", "Delete text", etc. Example: "Delete the blue rectangle" → deleteShapeByDescription(color="blue", type="rectangle"). "Delete the circle" → deleteShapeByDescription(type="circle"). "Delete rectangle" → deleteShapeByDescription(type="rectangle"). This tool automatically finds and deletes the matching shape.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            description: 'Type of shape to delete: "rectangle", "circle", or "text"',
+            enum: ['rectangle', 'circle', 'text'],
+          },
+          color: {
+            type: 'string',
+            description: 'Color description or hex code of the shape to delete (e.g., "blue", "red", "#ff0000")',
+          },
+        },
       },
     },
   },
@@ -485,41 +514,6 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
       },
     },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'deleteShape',
-      description: 'Delete a shape from the canvas',
-      parameters: {
-        type: 'object',
-        properties: {
-          shapeId: {
-            type: 'string',
-            description: 'ID of the shape to delete',
-          },
-        },
-        required: ['shapeId'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'deleteMultipleShapes',
-      description: 'Delete multiple shapes at once',
-      parameters: {
-        type: 'object',
-        properties: {
-          shapeIds: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Array of shape IDs to delete',
-          },
-        },
-        required: ['shapeIds'],
-      },
-    },
-  },
 
   // ==========================================
   // BATCH MANIPULATION TOOLS
@@ -528,30 +522,30 @@ export const aiToolsSchema: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'moveMultipleShapes',
-      description: 'Move multiple shapes at once. Use for commands like "move all shapes to the right" or "move 500 objects". Can apply relative or absolute movements.',
+      description: 'Move multiple shapes at once using relative (delta) or absolute positions. BEST CHOICE for generic commands ("move left", "move right") when user doesn\'t specify which shape. Use deltaX/deltaY for relative movements with LARGE values for visibility on 5000x5000px canvas: left = deltaX:-800, right = deltaX:800, up = deltaY:-800, down = deltaY:800. CRITICAL: Use shapeIds:[] (empty array) for generic commands to move currently selected shapes. Examples: "move left" → moveMultipleShapes(shapeIds:[], deltaX:-800). "move the square left" → moveShapeByDescription(type:"rectangle", deltaX:-800) preferred.',
       parameters: {
         type: 'object',
         properties: {
           shapeIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of shape IDs to move. If empty, moves all shapes on canvas.',
+            description: 'Array of shape IDs to move. Use empty array [] to move CURRENTLY SELECTED shapes (NOT all shapes). This is the primary use case. Get specific IDs from findShapesByType or findShapesByColor only if you need to move unselected shapes.',
           },
           deltaX: {
             type: 'number',
-            description: 'Relative X movement (pixels). Use for "move right 100px" → deltaX=100. Mutually exclusive with x.',
+            description: 'Relative X movement in pixels. "left" = -100, "right" = +100. Use for directional commands. Mutually exclusive with x.',
           },
           deltaY: {
             type: 'number',
-            description: 'Relative Y movement (pixels). Use for "move down 50px" → deltaY=50. Mutually exclusive with y.',
+            description: 'Relative Y movement in pixels. "up" = -100, "down" = +100. Use for directional commands. Mutually exclusive with y.',
           },
           x: {
             type: 'number',
-            description: 'Absolute X position (pixels). Use for "move all to x=500". Mutually exclusive with deltaX.',
+            description: 'Absolute X position (pixels). Use for "move to x=500". Mutually exclusive with deltaX.',
           },
           y: {
             type: 'number',
-            description: 'Absolute Y position (pixels). Use for "move all to y=300". Mutually exclusive with deltaY.',
+            description: 'Absolute Y position (pixels). Use for "move to y=300". Mutually exclusive with deltaY.',
           },
         },
         required: ['shapeIds'],

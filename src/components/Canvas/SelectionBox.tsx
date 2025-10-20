@@ -74,12 +74,14 @@ const getShapeBoundingBox = (shape: CanvasShape): { minX: number; minY: number; 
     centerX = shape.x + width / 2;
     centerY = shape.y + height / 2;
   } else {
-    // Fallback for unknown types
+    // Fallback for unknown types (should never happen)
+    // TypeScript exhaustive checking requires explicit handling
+    const fallbackShape = shape as { x: number; y: number };
     return {
-      minX: shape.x,
-      minY: shape.y,
-      maxX: shape.x,
-      maxY: shape.y,
+      minX: fallbackShape.x,
+      minY: fallbackShape.y,
+      maxX: fallbackShape.x,
+      maxY: fallbackShape.y,
     };
   }
   

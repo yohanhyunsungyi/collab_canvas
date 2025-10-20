@@ -152,6 +152,8 @@ class AIExecutorService {
           return await this.resizeShapeByDescription(args, context);
         case 'rotateShapeByDescription':
           return await this.rotateShapeByDescription(args, context);
+        case 'deleteShapeByDescription':
+          return await this.deleteShapeByDescription(args, context);
 
         // Manipulation tools
         case 'moveShape':
@@ -291,19 +293,34 @@ class AIExecutorService {
     const normalizedQuery = normalizeHexColor(color);
     const candidateColors = direct.size > 0 ? direct : fallback;
 
-    return shapes.filter((shape) => {
+    console.log(`[Color Matching] Query: "${color}"`);
+    console.log(`[Color Matching] Direct matches:`, Array.from(direct));
+    console.log(`[Color Matching] Fallback matches:`, Array.from(fallback));
+    console.log(`[Color Matching] Normalized query:`, normalizedQuery);
+    console.log(`[Color Matching] Shapes to filter:`, shapes.map(s => ({ id: s.id, type: s.type, color: s.color, normalized: normalizeHexColor(s.color) })));
+
+    const filtered = shapes.filter((shape) => {
       const normalizedShapeColor = normalizeHexColor(shape.color);
 
       if (candidateColors.size > 0 && normalizedShapeColor) {
-        return candidateColors.has(normalizedShapeColor);
+        const matches = candidateColors.has(normalizedShapeColor);
+        console.log(`[Color Matching] Shape ${shape.id} (${shape.color} -> ${normalizedShapeColor}) vs candidates: ${matches}`);
+        return matches;
       }
 
       if (normalizedQuery && normalizedShapeColor) {
-        return normalizedShapeColor === normalizedQuery;
+        const matches = normalizedShapeColor === normalizedQuery;
+        console.log(`[Color Matching] Shape ${shape.id} (${normalizedShapeColor}) vs query (${normalizedQuery}): ${matches}`);
+        return matches;
       }
 
-      return shape.color.toLowerCase() === color.toLowerCase();
+      const matches = shape.color.toLowerCase() === color.toLowerCase();
+      console.log(`[Color Matching] Shape ${shape.id} literal match: ${matches}`);
+      return matches;
     });
+
+    console.log(`[Color Matching] Filtered ${filtered.length} shapes out of ${shapes.length}`);
+    return filtered;
   }
 
   // ==========================================
@@ -311,20 +328,24 @@ class AIExecutorService {
   // ==========================================
 
   private async createRectangle(
-    args: { x?: number; y?: number; width: number; height: number; color?: string },
+    args: { x?: number; y?: number; width?: number; height?: number; color?: string },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
     const now = Date.now();
     // Use viewport center if available, otherwise default to canvas center (0, 0)
     const defaultX = args.x ?? context.viewportCenter?.x ?? 0;
     const defaultY = args.y ?? context.viewportCenter?.y ?? 0;
+    // Provide default dimensions if not specified (100x100)
+    const width = args.width ?? 100;
+    const height = args.height ?? 100;
+    
     const shape: CanvasShape = {
       id: generateShapeId(),
       type: 'rectangle',
       x: defaultX,
       y: defaultY,
-      width: args.width,
-      height: args.height,
+      width,
+      height,
       color: resolveColorToHex(args.color),
       zIndex: getNextZIndex(context.shapes),
       createdBy: context.userId,
@@ -593,9 +614,28 @@ class AIExecutorService {
   // ==========================================
 
   private async moveShapeByDescription(
-    args: { type?: string; color?: string; x: number; y: number },
+    args: { 
+      type?: string; 
+      color?: string; 
+      x?: number; 
+      y?: number;
+      deltaX?: number;
+      deltaY?: number;
+    },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
+    // Validate that either absolute OR relative coordinates are provided
+    const hasAbsolute = args.x !== undefined || args.y !== undefined;
+    const hasRelative = args.deltaX !== undefined || args.deltaY !== undefined;
+    
+    if (!hasAbsolute && !hasRelative) {
+      return {
+        success: false,
+        message: 'Must provide either absolute coordinates (x, y) or relative movement (deltaX, deltaY)',
+        error: 'INVALID_ARGUMENTS',
+      };
+    }
+
     // Find shapes matching the description
     let matchingShapes = context.shapes;
 
@@ -608,9 +648,18 @@ class AIExecutorService {
     }
 
     if (matchingShapes.length === 0) {
+      // If no shapes found, provide helpful error message
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `No ${args.color || ''} ${args.type || 'shape'} found on canvas`;
+      
+      if (hasShapesOnCanvas) {
+        // Provide clear guidance to specify the object
+        message += '. Specify the object description. Describe the object you want to move';
+      }
+      
       return {
         success: false,
-        message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -618,8 +667,22 @@ class AIExecutorService {
     // Use the first matching shape (or most recently created if multiple)
     const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
 
+    // Calculate target coordinates
+    let targetX: number;
+    let targetY: number;
+    
+    if (hasRelative) {
+      // Relative movement
+      targetX = targetShape.x + (args.deltaX || 0);
+      targetY = targetShape.y + (args.deltaY || 0);
+    } else {
+      // Absolute movement
+      targetX = args.x ?? targetShape.x;
+      targetY = args.y ?? targetShape.y;
+    }
+
     // Call the underlying moveShape method
-    return await this.moveShape({ shapeId: targetShape.id, x: args.x, y: args.y }, context);
+    return await this.moveShape({ shapeId: targetShape.id, x: targetX, y: targetY }, context);
   }
 
   private async resizeShapeByDescription(
@@ -645,6 +708,9 @@ class AIExecutorService {
     
     // If no matching shapes found at all, return error
     if (matchingShapes.length === 0) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message: string;
+      
       if (args.type) {
         const friendlyType =
           args.type === 'circle'
@@ -655,16 +721,18 @@ class AIExecutorService {
                 ? 'text'
                 : 'shape';
 
-        return {
-          success: false,
-          message: `No ${friendlyType} found on canvas`,
-          error: 'SHAPE_NOT_FOUND',
-        };
+        message = `No ${friendlyType} found on canvas`;
+      } else {
+        message = `No ${args.color || ''} ${args.type || 'shape'} found on canvas`;
+      }
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to resize';
       }
 
       return {
         success: false,
-        message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -712,9 +780,16 @@ class AIExecutorService {
     }
 
     if (matchingShapes.length === 0) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `No ${args.color || ''} ${args.type || 'shape'} found on canvas`;
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to rotate';
+      }
+      
       return {
         success: false,
-        message: `No ${args.color || ''} ${args.type || 'shape'} found on canvas`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -724,6 +799,43 @@ class AIExecutorService {
 
     // Call the underlying rotateShape method
     return await this.rotateShape({ shapeId: targetShape.id, rotation: args.rotation }, context);
+  }
+
+  private async deleteShapeByDescription(
+    args: { type?: string; color?: string },
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    // Find shapes matching the description
+    let matchingShapes = context.shapes;
+
+    if (args.type) {
+      matchingShapes = matchingShapes.filter(s => s.type === args.type);
+    }
+
+    if (args.color) {
+      matchingShapes = this.filterShapesByColorDescription(matchingShapes, args.color);
+    }
+
+    if (matchingShapes.length === 0) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `No ${args.color || ''} ${args.type || 'shape'} found on canvas`;
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to delete';
+      }
+      
+      return {
+        success: false,
+        message,
+        error: 'SHAPE_NOT_FOUND',
+      };
+    }
+
+    // Use the first matching shape (or most recently created if multiple)
+    const targetShape = matchingShapes.sort((a, b) => b.createdAt - a.createdAt)[0];
+
+    // Call the underlying deleteShape method
+    return await this.deleteShape({ shapeId: targetShape.id }, context);
   }
 
   // ==========================================
@@ -736,9 +848,16 @@ class AIExecutorService {
   ): Promise<ToolExecutionResult> {
     const shape = context.shapes.find((s) => s.id === args.shapeId);
     if (!shape) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `Shape ${args.shapeId} not found`;
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to move';
+      }
+      
       return {
         success: false,
-        message: `Shape ${args.shapeId} not found`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -770,9 +889,16 @@ class AIExecutorService {
   ): Promise<ToolExecutionResult> {
     const shape = context.shapes.find((s) => s.id === args.shapeId);
     if (!shape) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `Shape ${args.shapeId} not found`;
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to resize';
+      }
+      
       return {
         success: false,
-        message: `Shape ${args.shapeId} not found`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -815,9 +941,16 @@ class AIExecutorService {
   ): Promise<ToolExecutionResult> {
     const shape = context.shapes.find((s) => s.id === args.shapeId);
     if (!shape) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `Shape ${args.shapeId} not found`;
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to rotate';
+      }
+      
       return {
         success: false,
-        message: `Shape ${args.shapeId} not found`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -848,9 +981,16 @@ class AIExecutorService {
   ): Promise<ToolExecutionResult> {
     const shape = context.shapes.find((s) => s.id === args.shapeId);
     if (!shape) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = `Shape ${args.shapeId} not found`;
+      
+      if (hasShapesOnCanvas) {
+        message += '. Specify the object description. Describe the object you want to change color';
+      }
+      
       return {
         success: false,
-        message: `Shape ${args.shapeId} not found`,
+        message,
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -914,7 +1054,7 @@ class AIExecutorService {
     if (shapeIds.length === 0) {
       return {
         success: false,
-        message: 'No text shapes found on canvas',
+        message: 'No text shapes found on canvas. Specify the object description. Describe the text you want to manipulate',
         error: 'NO_TEXT_SHAPES',
       };
     }
@@ -933,9 +1073,16 @@ class AIExecutorService {
     }
 
     if (updatedCount === 0) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'No text shapes found to update';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select a text object first';
+      }
+      
       return {
         success: false,
-        message: 'No text shapes found to update',
+        message,
         error: 'NO_TEXT_SHAPES',
       };
     }
@@ -1241,10 +1388,19 @@ class AIExecutorService {
     },
     context: ExecutionContext
   ): Promise<ToolExecutionResult> {
-    // If shapeIds is empty, use all shapes
+    // If shapeIds is empty, use selected shapes (from context)
     const targetIds = args.shapeIds.length === 0 
-      ? context.shapes.map(s => s.id) 
+      ? (context.selectedShapeIds || [])
       : args.shapeIds;
+    
+    // If no shapes to move, return error
+    if (targetIds.length === 0) {
+      return {
+        success: false,
+        message: 'No shapes selected. Select a shape first or describe which shape to move (e.g., "move the blue rectangle left")',
+        error: 'NO_SHAPES_SELECTED',
+      };
+    }
     
     let movedCount = 0;
     const errors: string[] = [];
@@ -1462,9 +1618,16 @@ class AIExecutorService {
     const shapeIds = args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
     
     if (shapeIds.length < 2) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'Need at least 2 shapes to align';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select multiple objects to proceed';
+      }
+      
       return {
         success: false,
-        message: 'Need at least 2 shapes to align',
+        message,
         error: 'INSUFFICIENT_SHAPES',
       };
     }
@@ -1496,9 +1659,16 @@ class AIExecutorService {
     const shapeIds = args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
     
     if (shapeIds.length < 2) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'Need at least 2 shapes to align';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select multiple objects to proceed';
+      }
+      
       return {
         success: false,
-        message: 'Need at least 2 shapes to align',
+        message,
         error: 'INSUFFICIENT_SHAPES',
       };
     }
@@ -1534,9 +1704,16 @@ class AIExecutorService {
     const shapeIds = args.shapeIds.length === 0 ? defaultIds : args.shapeIds;
     
     if (shapeIds.length < 2) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'Need at least 2 shapes to align';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select multiple objects to proceed';
+      }
+      
       return {
         success: false,
-        message: 'Need at least 2 shapes to align',
+        message,
         error: 'INSUFFICIENT_SHAPES',
       };
     }
@@ -1575,9 +1752,16 @@ class AIExecutorService {
     const uniqueShapeIds = Array.from(new Set(shapeIds));
 
     if (uniqueShapeIds.length < 2) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'Need at least 2 shapes to arrange horizontally';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select multiple objects to proceed';
+      }
+      
       return {
         success: false,
-        message: 'Need at least 2 shapes to arrange horizontally',
+        message,
         error: 'INSUFFICIENT_SHAPES',
       };
     }
@@ -1587,7 +1771,7 @@ class AIExecutorService {
     if (selectedShapes.length < 2) {
       return {
         success: false,
-        message: 'Could not find enough shapes to arrange',
+        message: 'Could not find enough shapes to arrange. Select multiple objects to proceed',
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -1799,9 +1983,16 @@ class AIExecutorService {
     const uniqueShapeIds = Array.from(new Set(shapeIds));
 
     if (uniqueShapeIds.length < 2) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'Need at least 2 shapes to distribute';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select multiple objects to proceed';
+      }
+      
       return {
         success: false,
-        message: 'Need at least 2 shapes to distribute',
+        message,
         error: 'INSUFFICIENT_SHAPES',
       };
     }
@@ -1811,7 +2002,7 @@ class AIExecutorService {
     if (selectedShapes.length < 2) {
       return {
         success: false,
-        message: 'Could not find enough shapes to distribute',
+        message: 'Could not find enough shapes to distribute. Select multiple objects to proceed',
         error: 'SHAPE_NOT_FOUND',
       };
     }
@@ -1866,9 +2057,16 @@ class AIExecutorService {
     const uniqueShapeIds = Array.from(new Set(shapeIds));
 
     if (uniqueShapeIds.length < 2) {
+      const hasShapesOnCanvas = context.shapes.length > 0;
+      let message = 'Need at least 2 shapes to distribute';
+      
+      if (hasShapesOnCanvas) {
+        message += '. Select multiple objects to proceed';
+      }
+      
       return {
         success: false,
-        message: 'Need at least 2 shapes to distribute',
+        message,
         error: 'INSUFFICIENT_SHAPES',
       };
     }
@@ -1878,7 +2076,7 @@ class AIExecutorService {
     if (selectedShapes.length < 2) {
       return {
         success: false,
-        message: 'Could not find enough shapes to distribute',
+        message: 'Could not find enough shapes to distribute. Select multiple objects to proceed',
         error: 'SHAPE_NOT_FOUND',
       };
     }

@@ -1,6 +1,10 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import OpenAI from 'openai';
+// Color utilities are available but not directly used in this file
+// They're exported for use in executor functions
+export { resolveColorQuery, normalizeHexColor, filterShapesByColor } from './utils/colorMatching';
+export { resolveColorToHex } from './utils/colors';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -282,6 +286,24 @@ function getSystemPrompt(): string {
 
 COORDINATES: X: -2500 to 2500, Y: -2500 to 2500
 
+SMART MANIPULATION TOOLS (ALWAYS USE THESE):
+• Move: Use moveShapeByDescription(color, type, deltaX/deltaY) for "move the blue rectangle"
+• Resize: Use resizeShapeByDescription(color, type, width/height) for "resize the circle"
+• Rotate: Use rotateShapeByDescription(color, type, rotation) for "rotate the text 45 degrees"
+• Delete: Use deleteShapeByDescription(color, type) for "delete the red square"
+• These tools AUTOMATICALLY find shapes - no need to call findShapesByType first!
+
+DIRECTIONAL MOVEMENTS (CRITICAL):
+• Canvas is 5000x5000px - use LARGE delta values (800px) for clearly visible movements!
+• For GENERIC commands ("move left", "move right"): Use moveMultipleShapes(shapeIds:[], deltaX/deltaY) - moves selected shapes
+• For SPECIFIC commands ("move the blue rectangle left"): Use moveShapeByDescription(color="blue", type="rectangle", deltaX:-800)
+• Delta values: left = deltaX:-800, right = deltaX:800, up = deltaY:-800, down = deltaY:800
+• Examples:
+  - "move left" → moveMultipleShapes(shapeIds:[], deltaX:-800)
+  - "move the circle right" → moveShapeByDescription(type:"circle", deltaX:800)
+  - "move the blue rectangle left" → moveShapeByDescription(color:"blue", type:"rectangle", deltaX:-800)
+• IMPORTANT: shapeIds:[] means "use selected shapes", not "use all shapes"
+
 COMPLEX LAYOUTS (use these tools directly):
 • "login form" → createLoginForm (18 elements: title, fields, social buttons)
 • "nav bar"/"header" → createNavigationBar (10+ elements: logo, menu, CTA)
@@ -297,11 +319,14 @@ GRID LAYOUTS (OPTIMIZED - single step):
 • Grid is calculated instantly during creation - NO need for arrangeGrid afterward!
 
 KEY RULES:
-1. Use smart tools (moveShapeByDescription, resizeShapeByDescription) when describing shapes by type/color
-2. For grids: use createMultipleShapes with spacingX/spacingY (ONE step, instant arrangement)
-3. For rotation: rotateShapes(shapeIds=[], rotation=degrees)
-4. Be precise with coordinates; default to sensible values
-5. Always complete commands with tool calls`;
+1. Use LARGE delta values (800px) for clearly visible movements on 5000x5000px canvas
+2. For generic commands ("move left"), use moveMultipleShapes(shapeIds:[], deltaX:±800) to move selected shapes
+3. For specific commands ("move the blue rectangle left"), use moveShapeByDescription(color, type, deltaX:±800)
+4. shapeIds:[] means "use currently selected shapes" - NEVER use it to mean "all shapes"
+5. For grids: use createMultipleShapes with spacingX/spacingY (ONE step, instant arrangement)
+6. For rotation: rotateShapes(shapeIds:[], rotation=degrees) for selected shapes
+7. Be precise with coordinates; default to sensible values
+8. Always complete commands with tool calls`;
 }
 
 /**
@@ -790,16 +815,37 @@ function getAIToolsSchema(): any[] {
       type: 'function',
       function: {
         name: 'moveShapeByDescription',
-        description: 'Move a shape by describing it (color or type).',
+        description: 'Move a shape by describing it (color AND/OR type). BEST CHOICE for commands like "move the blue rectangle left" - handles both filtering AND movement in one call. Supports BOTH absolute positioning (x, y) and relative movement (deltaX, deltaY). For directional commands, use deltaX/deltaY with LARGE values for visibility on 5000x5000px canvas: left = deltaX:-800, right = deltaX:800, up = deltaY:-800, down = deltaY:800. Example: "move the blue rectangle left" → moveShapeByDescription(color="blue", type="rectangle", deltaX:-800). Example: "move the circle to center" → moveShapeByDescription(type="circle", x=0, y=0).',
         parameters: {
           type: 'object',
           properties: {
-            type: { type: 'string', enum: ['rectangle', 'circle', 'text'] },
-            color: { type: 'string' },
-            x: { type: 'number' },
-            y: { type: 'number' },
+            type: { 
+              type: 'string', 
+              enum: ['rectangle', 'circle', 'text'],
+              description: 'Type of shape to find and move (optional if color is specified)',
+            },
+            color: { 
+              type: 'string',
+              description: 'Color of the shape to find (optional if type is specified). Use natural language like "blue" or hex like "#FF0000"',
+            },
+            x: { 
+              type: 'number',
+              description: 'ABSOLUTE X coordinate (-2500 to 2500). Canvas center is 0. Use this for "move to position" commands. Mutually exclusive with deltaX.',
+            },
+            y: { 
+              type: 'number',
+              description: 'ABSOLUTE Y coordinate (-2500 to 2500). Canvas center is 0. Use this for "move to position" commands. Mutually exclusive with deltaY.',
+            },
+            deltaX: {
+              type: 'number',
+              description: 'RELATIVE X movement in pixels. Use this for directional commands: left = -100, right = +100. Mutually exclusive with x.',
+            },
+            deltaY: {
+              type: 'number',
+              description: 'RELATIVE Y movement in pixels. Use this for directional commands: up = -100, down = +100. Mutually exclusive with y.',
+            },
           },
-          required: ['x', 'y'],
+          required: [],
         },
       },
     },
@@ -835,6 +881,20 @@ function getAIToolsSchema(): any[] {
             rotation: { type: 'number', description: 'Rotation angle in degrees' },
           },
           required: ['type', 'rotation'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'deleteShapeByDescription',
+        description: 'PRIMARY TOOL FOR ALL DELETE COMMANDS: Delete a shape by describing it (color AND/OR type). ALWAYS use THIS tool for ANY delete command unless the user explicitly says "delete all selected". Works for "Delete the rectangle", "Delete the blue circle", "Delete text", etc. Example: "Delete the blue rectangle" → deleteShapeByDescription(color="blue", type="rectangle"). "Delete the circle" → deleteShapeByDescription(type="circle"). "Delete rectangle" → deleteShapeByDescription(type="rectangle"). This tool automatically finds and deletes the matching shape.',
+        parameters: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', description: 'Type of shape to delete: "rectangle", "circle", or "text"', enum: ['rectangle', 'circle', 'text'] },
+            color: { type: 'string', description: 'Color description or hex code of the shape to delete (e.g., "blue", "red", "#ff0000")' },
+          },
         },
       },
     },
@@ -921,26 +981,142 @@ function getAIToolsSchema(): any[] {
     {
       type: 'function',
       function: {
-        name: 'deleteShape',
-        description: 'Delete a shape from the canvas',
+        name: 'changeFontSize',
+        description: 'Change font size of selected text shapes. Use empty array [] for shapeIds to change font size of ALL selected text shapes.',
         parameters: {
           type: 'object',
           properties: {
-            shapeId: { type: 'string' },
+            shapeIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+            },
+            fontSize: {
+              type: 'number',
+              description: 'New font size in pixels (e.g., 12, 16, 24, 32, 48, 64)',
+            },
           },
-          required: ['shapeId'],
+          required: ['shapeIds', 'fontSize'],
         },
       },
     },
     {
       type: 'function',
       function: {
-        name: 'deleteMultipleShapes',
-        description: 'Delete multiple shapes at once',
+        name: 'setBold',
+        description: 'Make text bold or remove bold styling. Use empty array [] for shapeIds to update ALL selected text shapes.',
         parameters: {
           type: 'object',
           properties: {
-            shapeIds: { type: 'array', items: { type: 'string' } },
+            shapeIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+            },
+            bold: {
+              type: 'boolean',
+              description: 'true to make text bold, false to remove bold styling',
+            },
+          },
+          required: ['shapeIds', 'bold'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'setItalic',
+        description: 'Make text italic or remove italic styling. Use empty array [] for shapeIds to update ALL selected text shapes.',
+        parameters: {
+          type: 'object',
+          properties: {
+            shapeIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+            },
+            italic: {
+              type: 'boolean',
+              description: 'true to make text italic, false to remove italic styling',
+            },
+          },
+          required: ['shapeIds', 'italic'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'setUnderline',
+        description: 'Underline text or remove underline styling. Use empty array [] for shapeIds to update ALL selected text shapes.',
+        parameters: {
+          type: 'object',
+          properties: {
+            shapeIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of text shape IDs to update. Use empty array [] to update all selected text shapes.',
+            },
+            underline: {
+              type: 'boolean',
+              description: 'true to underline text, false to remove underline styling',
+            },
+          },
+          required: ['shapeIds', 'underline'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'rotateShapes',
+        description: 'Rotate shapes when you already have their exact shapeIds. Use empty array [] to rotate all shapes on canvas.',
+        parameters: {
+          type: 'object',
+          properties: {
+            shapeIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of shape IDs to rotate. Use empty array [] to rotate all shapes on canvas.',
+            },
+            rotation: {
+              type: 'number',
+              description: 'Rotation angle in degrees (0-360)',
+            },
+          },
+          required: ['shapeIds', 'rotation'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'moveMultipleShapes',
+        description: 'Move multiple shapes at once using relative (delta) or absolute positions. BEST CHOICE for generic commands ("move left", "move right") when user doesn\'t specify which shape. Use deltaX/deltaY for relative movements with LARGE values for visibility on 5000x5000px canvas: left = deltaX:-800, right = deltaX:800, up = deltaY:-800, down = deltaY:800. CRITICAL: Use shapeIds:[] (empty array) for generic commands to move currently selected shapes.',
+        parameters: {
+          type: 'object',
+          properties: {
+            shapeIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of shape IDs to move. Use empty array [] to move CURRENTLY SELECTED shapes (NOT all shapes). This is the primary use case.',
+            },
+            deltaX: {
+              type: 'number',
+              description: 'Relative X movement in pixels. "left" = -100, "right" = +100. Mutually exclusive with x.',
+            },
+            deltaY: {
+              type: 'number',
+              description: 'Relative Y movement in pixels. "up" = -100, "down" = +100. Mutually exclusive with y.',
+            },
+            x: {
+              type: 'number',
+              description: 'Absolute X position (pixels). Mutually exclusive with deltaX.',
+            },
+            y: {
+              type: 'number',
+              description: 'Absolute Y position (pixels). Mutually exclusive with deltaY.',
+            },
           },
           required: ['shapeIds'],
         },
@@ -983,6 +1159,23 @@ function getAIToolsSchema(): any[] {
             color: { type: 'string' },
           },
           required: ['color'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'findShapesByText',
+        description: 'Find text shapes containing specific text',
+        parameters: {
+          type: 'object',
+          properties: {
+            searchText: {
+              type: 'string',
+              description: 'Text to search for (case-insensitive partial match)',
+            },
+          },
+          required: ['searchText'],
         },
       },
     },
@@ -1202,6 +1395,24 @@ function getAIToolsSchema(): any[] {
         parameters: {
           type: 'object',
           properties: {},
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'getDesignSystemTokens',
+        description: 'Get design system tokens including colors, spacing, typography, and canvas defaults. Use this to access the professional color palette, spacing values, and design constants.',
+        parameters: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              enum: ['colors', 'spacing', 'typography', 'canvas', 'all'],
+              description: 'Category of design tokens to retrieve. "all" returns everything',
+            },
+          },
+          required: [],
         },
       },
     },
