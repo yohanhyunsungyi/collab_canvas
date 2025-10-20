@@ -293,6 +293,18 @@ SMART MANIPULATION TOOLS (ALWAYS USE THESE):
 • Delete: Use deleteShapeByDescription(color, type) for "delete the red square"
 • These tools AUTOMATICALLY find shapes - no need to call findShapesByType first!
 
+WORKING WITH SELECTED SHAPES (CRITICAL):
+• When user says "these shapes", "these elements", "these", "them" → they have shapes SELECTED
+• ALWAYS use shapeIds:[] (empty array) to work with selected shapes
+• Commands that work with selections:
+  - "Arrange these shapes in a horizontal row" → arrangeHorizontal(shapeIds:[], startX:-200, y:0)
+  - "Space these elements evenly" → distributeHorizontally(shapeIds:[], startX:-400, endX:400, y:0)
+  - "Arrange these vertically" → arrangeVertical(shapeIds:[], x:0, startY:-200)
+  - "Distribute these vertically" → distributeVertically(shapeIds:[], x:0, startY:-400, endY:400)
+  - "Move these left" → moveMultipleShapes(shapeIds:[], deltaX:-800)
+  - "Delete these" → deleteMultipleShapes(shapeIds:[])
+• CRITICAL: shapeIds:[] means "use SELECTED shapes" - NEVER skip tool calls for "these" commands!
+
 DIRECTIONAL MOVEMENTS (CRITICAL):
 • Canvas is 5000x5000px - use LARGE delta values (800px) for clearly visible movements!
 • For GENERIC commands ("move left", "move right"): Use moveMultipleShapes(shapeIds:[], deltaX/deltaY) - moves selected shapes
@@ -302,7 +314,6 @@ DIRECTIONAL MOVEMENTS (CRITICAL):
   - "move left" → moveMultipleShapes(shapeIds:[], deltaX:-800)
   - "move the circle right" → moveShapeByDescription(type:"circle", deltaX:800)
   - "move the blue rectangle left" → moveShapeByDescription(color:"blue", type:"rectangle", deltaX:-800)
-• IMPORTANT: shapeIds:[] means "use selected shapes", not "use all shapes"
 
 COMPLEX LAYOUTS (use these tools directly):
 • "login form" → createLoginForm (18 elements: title, fields, social buttons)
@@ -319,14 +330,14 @@ GRID LAYOUTS (OPTIMIZED - single step):
 • Grid is calculated instantly during creation - NO need for arrangeGrid afterward!
 
 KEY RULES:
-1. Use LARGE delta values (800px) for clearly visible movements on 5000x5000px canvas
-2. For generic commands ("move left"), use moveMultipleShapes(shapeIds:[], deltaX:±800) to move selected shapes
-3. For specific commands ("move the blue rectangle left"), use moveShapeByDescription(color, type, deltaX:±800)
-4. shapeIds:[] means "use currently selected shapes" - NEVER use it to mean "all shapes"
-5. For grids: use createMultipleShapes with spacingX/spacingY (ONE step, instant arrangement)
-6. For rotation: rotateShapes(shapeIds:[], rotation=degrees) for selected shapes
+1. When user says "these", "them", "these shapes" → ALWAYS use shapeIds:[] to work with SELECTED shapes
+2. "Arrange these in a row" → arrangeHorizontal(shapeIds:[], ...) - NEVER skip tool calls for "these"
+3. "Space these evenly" → distributeHorizontally(shapeIds:[], ...) - ALWAYS generate tool calls
+4. Use LARGE delta values (800px) for clearly visible movements on 5000x5000px canvas
+5. shapeIds:[] means "use currently selected shapes" - NEVER use it to mean "all shapes"
+6. For grids: use createMultipleShapes with spacingX/spacingY (ONE step, instant arrangement)
 7. Be precise with coordinates; default to sensible values
-8. Always complete commands with tool calls`;
+8. Always complete commands with tool calls - NO exceptions for "these" commands`;
 }
 
 /**
